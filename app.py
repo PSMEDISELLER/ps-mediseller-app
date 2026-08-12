@@ -4,7 +4,7 @@ import sqlite3
 import folium
 from streamlit_folium import st_folium
 from geopy.geocoders import Nominatim
-from streamlit_js_eval import get_geolocation, set_cookie, get_cookie
+from streamlit_js_eval import get_geolocation
 
 
 # =========================================================
@@ -85,7 +85,7 @@ if user_count == 0:
 
 
 # =========================================================
-# SESSION & AUTO-LOGIN MANAGEMENT (COOKIES / QUERY PARAMS)
+# SESSION & AUTO-LOGIN MANAGEMENT
 # =========================================================
 
 if "logged_in" not in st.session_state:
@@ -103,7 +103,7 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
     st.session_state["selected_lon"] = 87.3320
 
-# Auto-login check using URL query parameters or Cookies
+# Auto-login check
 query_params = st.query_params
 if not st.session_state["logged_in"]:
     saved_user = query_params.get("user", None)
@@ -179,7 +179,7 @@ if not st.session_state["logged_in"]:
 
 
 # =========================================================
-# SIDEBAR USER INFORMATION
+# SIDEBAR USER INFORMATION & ADMIN MANAGEMENT
 # =========================================================
 
 with st.sidebar:
@@ -191,7 +191,8 @@ with st.sidebar:
     else:
         st.info("রোল: DELIVERY USER")
 
-    with st.expander("🔒 পাসওয়ার্ড পরিবর্তন করুন"):
+    # সাধারণ পাসওয়ার্ড পরিবর্তন
+    with st.expander("🔒 নিজ পাসওয়ার্ড পরিবর্তন করুন"):
         old_p = st.text_input("পুরোনো পাসওয়ার্ড", type="password", key="old_password")
         new_p = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_password")
 
@@ -209,6 +210,43 @@ with st.sidebar:
                     st.error("নতুন পাসওয়ার্ড দিন।")
             else:
                 st.error("❌ পুরোনো পাসওয়ার্ড ভুল!")
+
+    # শুধুমাত্র অ্যাডমিনের জন্য আইডি (Username) ও পাসওয়ার্ড পরিবর্তনের সেকশন
+    if st.session_state["user_role"] == "admin":
+        with st.expander("⚙️ অ্যাডমিন কন্ট্রোল (ID ও পাসওয়ার্ড ম্যানেজমেন্ট)"):
+            c.execute("SELECT username, role FROM users")
+            all_users = c.fetchall()
+            user_list = [u[0] for u in all_users]
+
+            selected_u = st.selectbox("ইউজার নির্বাচন করুন", user_list)
+            
+            new_u_id = st.text_input("নতুন ইউজার ID (Username)", value=selected_u, key="edit_u_id")
+            new_u_pass = st.text_input("নতুন পাসওয়ার্ড (ঐচ্ছিক)", type="password", key="edit_u_pass")
+
+            if st.button("💾 আইডি/পাসওয়ার্ড আপডেট করুন"):
+                if not new_u_id.strip():
+                    st.error("❌ ইউজার আইডি ফাঁকা রাখা যাবে না।")
+                else:
+                    try:
+                        # Update Username
+                        if new_u_id != selected_u:
+                            c.execute("UPDATE users SET username=? WHERE username=?", (new_u_id, selected_u))
+                            # লগইন থাকা অ্যাডমিন নিজে আইডি চেঞ্জ করলে সেশন আপডেট
+                            if selected_u == st.session_state["username"]:
+                                st.session_state["username"] = new_u_id
+                                if "user" in st.query_params:
+                                    st.query_params["user"] = new_u_id
+
+                        # Update Password if provided
+                        if new_u_pass.strip():
+                            c.execute("UPDATE users SET password=? WHERE username=?", (new_u_pass, new_u_id))
+
+                        conn.commit()
+                        st.success("✅ আইডি/পাসওয়ার্ড সফলভাবে আপডেট হয়েছে!")
+                        st.rerun()
+
+                    except sqlite3.IntegrityError:
+                        st.error("❌ এই ইউজার আইডিটি আগেই অন্য কেউ ব্যবহার করছে।")
 
     st.write("---")
 
@@ -269,6 +307,15 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     with col1:
         st.write("### 📍 বর্তমান জিপিএস কোঅর্ডিনেট")
         st.info(f"অক্ষাংশ (Lat): {st.session_state['selected_lat']:.6f}\n\nদ্রাঘিমাংশ (Lon): {st.session_state['selected_lon']:.6f}")
+        
+        if st.button("🔄 বর্তমান লোকেশন রিফ্রেশ করুন", type="secondary"):
+            if loc and "coords" in loc:
+                st.session_state["selected_lat"] = loc["coords"]["latitude"]
+                st.session_state["selected_lon"] = loc["coords"]["longitude"]
+                st.success("✅ বর্তমান লোকেশন নেওয়া হয়েছে!")
+                st.rerun()
+            else:
+                st.warning("⚠️ GPS সিগন্যাল পাওয়া যাচ্ছে না, অনুগ্রহ করে লোকেশন পারমিশন চেক করুন।")
 
     with col2:
         st.write("### 🔍 জায়গা সার্চ")
@@ -298,7 +345,16 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     current_lat = float(st.session_state["selected_lat"])
     current_lon = float(st.session_state["selected_lon"])
 
-    m_click = folium.Map(location=[current_lat, current_lon], zoom_start=15)
+    # Google Maps Tile
+    google_tiles = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
+    
+    m_click = folium.Map(
+        location=[current_lat, current_lon], 
+        zoom_start=15,
+        tiles=google_tiles,
+        attr="Google Maps"
+    )
+    
     folium.Marker(
         [current_lat, current_lon],
         tooltip="নির্বাচিত লোকেশন",
@@ -373,7 +429,7 @@ elif choice == "🔍 পার্টি ও লোকেশন সার্চ":
             df[["route_order", "party_name", "address", "party_phone", "Google Maps Direction"]],
             column_config={
                 "route_order": "ক্রম",
-                "party_name": "পার্টির নাম",
+                "party_name": "পার্টি",
                 "address": "ঠিকানা",
                 "party_phone": "ফোন নম্বর",
                 "Google Maps Direction": st.column_config.LinkColumn(
@@ -448,7 +504,15 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
         start_lat = float(locations.iloc[0]["lat"])
         start_lon = float(locations.iloc[0]["lon"])
 
-        m = folium.Map(location=[start_lat, start_lon], zoom_start=12)
+        # Google Maps Tile
+        google_tiles = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
+
+        m = folium.Map(
+            location=[start_lat, start_lon], 
+            zoom_start=12,
+            tiles=google_tiles,
+            attr="Google Maps"
+        )
         points = []
 
         for _, row in locations.iterrows():
