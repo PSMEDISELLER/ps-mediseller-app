@@ -106,6 +106,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     
     party_name = st.text_input("পার্টির নাম (Party Name)")
     address = st.text_input("ঠিকানা / এরিয়া (Address)")
+    party_phone = st.text_input("ফোন নম্বর:")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -115,8 +116,8 @@ if choice == "📍 নতুন লোকেশন এড করুন":
 
     if st.button("লোকেশন সেভ করুন"):
         if party_name and lat != 0.0 and lon != 0.0:
-            c.execute("INSERT INTO locations (party_name, address, lat, lon) VALUES (?, ?, ?, ?)",
-                      (party_name, address, lat, lon))
+            c.execute("INSERT INTO locations (party_name, address, phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+                      (party_name, address, party_phone, lat, lon))       
             conn.commit()
             st.success(f"'{party_name}' এর লোকেশন সফলভাবে সেভ হয়েছে!")
         else:
@@ -174,7 +175,7 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
             pos = [row['lat'], row['lon']]
             points.append(pos)
             
-            popup_text = f"<b>{row['party_name']}</b><br>{row['address']}<br>ক্রম: {row['route_order']}"
+           popup_text = f"<b>{row['party_name']}</b><br>{row['address']}<br>ক্রম: {row['route_order']}<br><a href='tel:{row.get('phone', '')}' style='display:inline-block; margin-top:5px; padding:3px 8px; background:#28a745; color:white; border-radius:3px; text-decoration:none;'>📞 কল করুন</a>"
             folium.Marker(
                 location=pos,
                 popup=popup_text,
