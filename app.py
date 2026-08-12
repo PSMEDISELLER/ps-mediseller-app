@@ -335,7 +335,7 @@ st.sidebar.subheader("📍 GPS")
 
 st.write("📍 **লাইভ লোকেশন:**")
 
-    st.info("নিচের বাটনে চাপলে আপনার ব্রাউজার GPS permission চাইবে।")
+st.info("নিচের বাটনে চাপলে আপনার ব্রাউজার GPS permission চাইবে।")
 
     loc = get_geolocation()
 
