@@ -217,7 +217,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
            c.execute("INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)", (party_name, address, party_phone, lat, lon))
     conn.commit()
     st.success("লোকেশন সফলভাবে সেভ হয়েছে!")
-            st.success(f"'{party_name}' এর লোকেশন সফলভাবে সেভ হয়েছে!")
+    st.success(f"'{party_name}' এর লোকেশন সফলভাবে সেভ হয়েছে!")
         else:
             st.warning("অনুগ্রহ করে পার্টির নাম দিন।")
 
