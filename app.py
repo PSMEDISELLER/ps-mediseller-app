@@ -337,7 +337,7 @@ st.write("📍 **লাইভ লোকেশন:**")
 
 st.info("নিচের বাটনে চাপলে আপনার ব্রাউজার GPS permission চাইবে।")
 
-    loc = get_geolocation()
+loc = get_geolocation()
 
     if loc:
         if "error" in loc:
