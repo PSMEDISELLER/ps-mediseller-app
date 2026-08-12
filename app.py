@@ -90,13 +90,7 @@ with st.sidebar:
         st.session_state["user_role"] = None
         st.session_state["username"] = None
         st.rerun()
-# ================= ২. সাইডবারে লগআউট বাটন =================
-with st.sidebar:
-    st.write(f"👤 ইউজার: **{st.session_state.get('user_role')}**")
-    if st.button("লগআউট (Logout)"):
-        st.session_state["logged_in"] = False
-        st.session_state["user_role"] = None
-        st.rerun()
+
 # =========================================================
 # ===================================================
 conn = sqlite3.connect('mediseller_delivery.db', check_same_thread=False)
