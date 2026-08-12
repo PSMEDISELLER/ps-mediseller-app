@@ -17,14 +17,14 @@ c = conn.cursor()
 # ১. ইউজার টেবিল তৈরি ও ডিফল্ট ইউজার সেটআপ
 c.execute('''CREATE TABLE IF NOT EXISTS users 
              (username TEXT PRIMARY KEY, password TEXT, role TEXT)''')
-c.execute('''CREATE TABLE IF NOT EXISTS locations 
+c.execute('''CREATE TABLE IF NOT EXISTS party_locations 
              (id INTEGER PRIMARY KEY AUTOINCREMENT, 
               party_name TEXT, 
               address TEXT, 
               party_phone TEXT, 
               lat REAL, 
               lon REAL)''')
-c.execute("SELECT COUNT(*) FROM users")
+    c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     c.execute("INSERT INTO users VALUES ('admin', 'admin123', 'admin')")
     c.execute("INSERT INTO users VALUES ('delivery', 'user123', 'staff')")
