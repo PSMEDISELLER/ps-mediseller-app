@@ -991,7 +991,4 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
 # =========================================================
 
 st.write("---")
-
-st.caption(
-    "P.S Mediseller Location App | "
-    "Delivery Route Management System"
+st.caption("P.S Mediseller Location App | Delivery Route Management System")
