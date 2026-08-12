@@ -344,14 +344,14 @@ if loc:
         error_code = loc["error"].get("code")
         error_msg = loc["error"].get("message", "অজানা সমস্যা")
 
-            if error_code == 1:
-                st.error("❌ GPS permission দেওয়া হয়নি। Chrome-এ Location → Allow করুন।")
-            elif error_code == 2:
-                st.error("❌ আপনার বর্তমান GPS location পাওয়া যাচ্ছে না।")
-            elif error_code == 3:
-                st.error("❌ GPS-এর জন্য সময় শেষ হয়ে গেছে। আবার চেষ্টা করুন।")
-            else:
-                st.error(f"❌ GPS সমস্যা: {error_msg}")
+        if error_code == 1:
+            st.error("❌ GPS permission দেওয়া হয়নি। Chrome-এ Location → Allow করুন।")
+        elif error_code == 2:
+            st.error("❌ আপনার বর্তমান GPS location পাওয়া যাচ্ছে না।")
+        elif error_code == 3:
+            st.error("❌ GPS-এর জন্য সময় শেষ হয়ে গেছে। আবার চেষ্টা করুন।")
+        else:
+            st.error(f"❌ GPS সমস্যা: {error_msg}")
 
         elif "coords" in loc:
             gps_lat = loc["coords"]["latitude"]
