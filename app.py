@@ -13,10 +13,10 @@ st.set_page_config(page_title="P.S Mediseller Location App", layout="wide")
 import sqlite3
 conn = sqlite3.connect('locations.db', check_same_thread=False)
 c = conn.cursor()
-
-# ১. ইউজার টেবিল তৈরি ও ডিফল্ট ইউজার সেটআপ
+# ১. ইউজার টেবিল ও নতুন লোকেশন টেবিল তৈরি
 c.execute('''CREATE TABLE IF NOT EXISTS users 
              (username TEXT PRIMARY KEY, password TEXT, role TEXT)''')
+
 c.execute('''CREATE TABLE IF NOT EXISTS party_locations 
              (id INTEGER PRIMARY KEY AUTOINCREMENT, 
               party_name TEXT, 
@@ -24,12 +24,12 @@ c.execute('''CREATE TABLE IF NOT EXISTS party_locations
               party_phone TEXT, 
               lat REAL, 
               lon REAL)''')
-    c.execute("SELECT COUNT(*) FROM users")
+
+c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     c.execute("INSERT INTO users VALUES ('admin', 'admin123', 'admin')")
     c.execute("INSERT INTO users VALUES ('delivery', 'user123', 'staff')")
     conn.commit()
-
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "user_role" not in st.session_state:
