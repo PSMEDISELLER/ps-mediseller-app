@@ -175,7 +175,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     # ম্যাপ ডিসপ্লে
     m_click = folium.Map(location=[st.session_state['selected_lat'], st.session_state['selected_lon']], zoom_start=15, tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', attr='Google Maps')
         
-        gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={st.session_state['selected_lat']},{st.session_state['selected_lon']}"
+    gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={st.session_state['selected_lat']},{st.session_state['selected_lon']}"
 
         folium.Marker(
             [st.session_state['selected_lat'], st.session_state['selected_lon']],
