@@ -333,7 +333,6 @@ st.subheader("ডেলিভারি ও রুট প্ল্যানার
 st.sidebar.write("---")
 st.sidebar.subheader("📍 GPS")
 
-with col_gps:
     st.write("📍 **লাইভ লোকেশন:**")
 
     st.info("নিচের বাটনে চাপলে আপনার ব্রাউজার GPS permission চাইবে।")
