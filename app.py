@@ -213,7 +213,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
         lon = st.number_input("দ্রাঘিমাংশ (Longitude)", value=st.session_state['selected_lon'], format="%.6f")
 
     if party_name and party_phone:
-        c.execute("INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)", (party_name, address, party_phone, lat, lon))
+       c.execute("INSERT INTO locations (party_name, address, phone, lat, lon) VALUES (?, ?, ?, ?, ?)", (party_name, address, party_phone, lat, lon))
         conn.commit()
         st.success(f"{party_name} এর লোকেশন সফলভাবে সেভ হয়েছে!")
     else:
