@@ -64,7 +64,15 @@ if not st.session_state["logged_in"]:
             else:
                 st.error("অ্যাডমিন পাসওয়ার্ড ভুল!")
     st.stop()
+st.subheader("📍 আপনার বর্তমান লোকেশন নিন")
+loc = get_geolocation()
 
+if loc and 'coords' in loc:
+    lat = loc['coords']['latitude']
+    lon = loc['coords']['longitude']
+    st.session_state['selected_lat'] = lat
+    st.session_state['selected_lon'] = lon
+    st.success(f"আপনার বর্তমান লোকেশন পাওয়া গেছে: {lat}, {lon}")
 # ৩. সাইডবারে ইউজার তথ্য, পাসওয়ার্ড পরিবর্তন ও লগআউট অপশন
 with st.sidebar:
     st.write(f"👤 ইউজার: **{st.session_state.get('username')}**")
