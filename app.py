@@ -8,14 +8,26 @@ from streamlit_js_eval import get_geolocation
 
 
 # =========================================================
-# PAGE CONFIGURATION
+# PAGE CONFIGURATION (WITH CUSTOM APP ICON & TITLE)
 # =========================================================
 
 st.set_page_config(
-    page_title="P.S Mediseller Location App",
-    page_icon="🚚",
-    layout="wide"
+    page_title="P.S Mediseller",
+    page_icon="🚚",  # এটি ব্রাউজার ও অ্যাপের শর্টকাট আইকন হিসেবে কাজ করবে
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# মোবাইলের হোম স্ক্রিনে অ্যাপের মতো দেখানোর জন্য Web App Meta Tags
+st.markdown("""
+    <head>
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="application-name" content="P.S Mediseller">
+        <meta name="apple-mobile-web-app-title" content="P.S Mediseller">
+        <meta name="theme-color" content="#FF4B4B">
+    </head>
+""", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -191,7 +203,6 @@ with st.sidebar:
     else:
         st.info("রোল: DELIVERY USER")
 
-    # সাধারণ পাসওয়ার্ড পরিবর্তন
     with st.expander("🔒 নিজ পাসওয়ার্ড পরিবর্তন করুন"):
         old_p = st.text_input("পুরোনো পাসওয়ার্ড", type="password", key="old_password")
         new_p = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_password")
@@ -211,7 +222,6 @@ with st.sidebar:
             else:
                 st.error("❌ পুরোনো পাসওয়ার্ড ভুল!")
 
-    # শুধুমাত্র অ্যাডমিনের জন্য আইডি (Username) ও পাসওয়ার্ড পরিবর্তনের সেকশন
     if st.session_state["user_role"] == "admin":
         with st.expander("⚙️ অ্যাডমিন কন্ট্রোল (ID ও পাসওয়ার্ড ম্যানেজমেন্ট)"):
             c.execute("SELECT username, role FROM users")
@@ -228,16 +238,13 @@ with st.sidebar:
                     st.error("❌ ইউজার আইডি ফাঁকা রাখা যাবে না।")
                 else:
                     try:
-                        # Update Username
                         if new_u_id != selected_u:
                             c.execute("UPDATE users SET username=? WHERE username=?", (new_u_id, selected_u))
-                            # লগইন থাকা অ্যাডমিন নিজে আইডি চেঞ্জ করলে সেশন আপডেট
                             if selected_u == st.session_state["username"]:
                                 st.session_state["username"] = new_u_id
                                 if "user" in st.query_params:
                                     st.query_params["user"] = new_u_id
 
-                        # Update Password if provided
                         if new_u_pass.strip():
                             c.execute("UPDATE users SET password=? WHERE username=?", (new_u_pass, new_u_id))
 
@@ -339,13 +346,36 @@ if choice == "📍 নতুন লোকেশন এড করুন":
             else:
                 st.warning("স্থান লিখুন।")
 
+        st.write("---")
+        st.write("### 🏢 সেভ করা পার্টি দিয়ে লোকেশন সেট করুন")
+        
+        c.execute("SELECT party_name, address, lat, lon FROM locations ORDER BY party_name ASC")
+        saved_parties = c.fetchall()
+
+        if saved_parties:
+            party_options = ["-- পার্টি বেছে নিন --"] + [f"{p[0]} ({p[1]})" for p in saved_parties]
+            selected_party_str = st.selectbox("পার্টি নির্বাচন করুন", party_options, key="quick_party_select")
+
+            if selected_party_str != "-- পার্টি বেছে নিন --":
+                idx = party_options.index(selected_party_str) - 1
+                chosen_party = saved_parties[idx]
+                
+                if (st.session_state["selected_lat"] != chosen_party[2]) or (st.session_state["selected_lon"] != chosen_party[3]):
+                    st.session_state["selected_lat"] = chosen_party[2]
+                    st.session_state["selected_lon"] = chosen_party[3]
+                    st.success(f"📍 {chosen_party[0]}-এর লোকেশন ম্যাপে নিয়ে যাওয়া হয়েছে!")
+                    st.rerun()
+        else:
+            st.caption("এখনো কোনো পার্টি সেভ করা হয়নি।")
+
     st.write("---")
     st.write("### 🗺️ ম্যাপে লোকেশন নির্বাচন করুন")
+    st.caption("💡 **টিপস:** ম্যাপের লাল পিনটি (Marker) হাত দিয়ে বা মাউস দিয়ে টেনে (Drag করে) যেকোনো জায়গায় বসান, অথবা ম্যাপের যেকোনো খালি জায়গায় সরাসরি ক্লিক করুন।")
 
     current_lat = float(st.session_state["selected_lat"])
     current_lon = float(st.session_state["selected_lon"])
 
-    # Google Maps Tile
+    # Google Maps Tile Layer
     google_tiles = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
     
     m_click = folium.Map(
@@ -355,19 +385,33 @@ if choice == "📍 নতুন লোকেশন এড করুন":
         attr="Google Maps"
     )
     
+    # Draggable Marker
     folium.Marker(
         [current_lat, current_lon],
-        tooltip="নির্বাচিত লোকেশন",
-        popup="বর্তমান নির্বাচিত লোকেশন",
-        icon=folium.Icon(color="red", icon="info-sign")
+        tooltip="পিনটি টেনে সঠিক স্থানে বসান",
+        popup="নির্বাচিত লোকেশন",
+        icon=folium.Icon(color="red", icon="info-sign"),
+        draggable=True
     ).add_to(m_click)
 
-    map_data = st_folium(m_click, width=900, height=450)
+    map_data = st_folium(m_click, width=900, height=450, key="interactive_map")
 
-    if map_data and map_data.get("last_clicked"):
-        st.session_state["selected_lat"] = map_data["last_clicked"]["lat"]
-        st.session_state["selected_lon"] = map_data["last_clicked"]["lng"]
-        st.rerun()
+    updated_lat = None
+    updated_lon = None
+
+    if map_data:
+        if map_data.get("last_marker_dragged"):
+            updated_lat = map_data["last_marker_dragged"]["lat"]
+            updated_lon = map_data["last_marker_dragged"]["lng"]
+        elif map_data.get("last_clicked"):
+            updated_lat = map_data["last_clicked"]["lat"]
+            updated_lon = map_data["last_clicked"]["lng"]
+
+    if updated_lat and updated_lon:
+        if (abs(st.session_state["selected_lat"] - updated_lat) > 0.0001) or (abs(st.session_state["selected_lon"] - updated_lon) > 0.0001):
+            st.session_state["selected_lat"] = updated_lat
+            st.session_state["selected_lon"] = updated_lon
+            st.rerun()
 
     st.write("---")
     st.write("### 📝 পার্টির তথ্য")
@@ -444,7 +488,6 @@ elif choice == "🔍 পার্টি ও লোকেশন সার্চ":
     else:
         st.warning("কোনো পার্টির তথ্য পাওয়া যায়নি।")
 
-    # ADMIN DELETE
     if is_admin and not df.empty:
         st.write("---")
         st.subheader("🗑️ অ্যাডমিন কন্ট্রোল")
@@ -497,14 +540,11 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
                 st.success("✅ রুট সেভ হয়েছে।")
                 st.rerun()
 
-        # Reload after save
         locations = pd.read_sql_query("SELECT * FROM locations ORDER BY route_order ASC, id ASC", conn)
 
-        # Map setup
         start_lat = float(locations.iloc[0]["lat"])
         start_lon = float(locations.iloc[0]["lon"])
 
-        # Google Maps Tile
         google_tiles = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
 
         m = folium.Map(
