@@ -177,7 +177,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
         
     gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={st.session_state['selected_lat']},{st.session_state['selected_lon']}"
 
-        folium.Marker(
+    folium.Marker(
             [st.session_state['selected_lat'], st.session_state['selected_lon']],
             popup=f'<a href="{gmaps_url}" target="_blank" style="display:inline-block; padding:6px 10px; background:#4285F4; color:white; border-radius:4px; text-decoration:none; font-weight:bold;">Google Maps-এ নেভিগেট করুন</a>',
             icon=folium.Icon(color="red", icon="info-sign")
