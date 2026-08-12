@@ -995,5 +995,3 @@ st.write("---")
 st.caption(
     "P.S Mediseller Location App | "
     "Delivery Route Management System"
-)
-```
