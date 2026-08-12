@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS locations (
     route_order INTEGER DEFAULT 0
 )
 """)
+
 # পুরোনো database-এর locations table ঠিক করা
 c.execute("PRAGMA table_info(locations)")
 existing_columns = [row[1] for row in c.fetchall()]
@@ -353,17 +354,17 @@ if loc:
         else:
             st.error(f"❌ GPS সমস্যা: {error_msg}")
 
-        elif "coords" in loc:
-            gps_lat = loc["coords"]["latitude"]
-            gps_lon = loc["coords"]["longitude"]
+    elif "coords" in loc:
+        gps_lat = loc["coords"]["latitude"]
+        gps_lon = loc["coords"]["longitude"]
 
-            st.session_state["selected_lat"] = gps_lat
-            st.session_state["selected_lon"] = gps_lon
+        st.session_state["selected_lat"] = gps_lat
+        st.session_state["selected_lon"] = gps_lon
 
-            st.success("✅ আপনার বর্তমান GPS location পাওয়া গেছে!")
+        st.success("✅ আপনার বর্তমান GPS location পাওয়া গেছে!")
 
-            st.write(f"Latitude: **{gps_lat:.6f}**")
-            st.write(f"Longitude: **{gps_lon:.6f}**")
+        st.write(f"Latitude: **{gps_lat:.6f}**")
+        st.write(f"Longitude: **{gps_lon:.6f}**")
 
 # =========================================================
 # ADMIN STATUS
