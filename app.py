@@ -7,10 +7,12 @@ from geopy.geocoders import Nominatim
 from streamlit_js_eval import get_geolocation
 
 # পেজ কনফিগারেশন
-st.set_page_config(page_title="পি এস মেডিসেলার", layout="wide")
-
-# ডাটাবেস কানেকশন
 st.set_page_config(page_title="P.S Mediseller Location App", layout="wide")
+
+# ডেটাবেস কানেকশন
+import sqlite3
+conn = sqlite3.connect('locations.db', check_same_thread=False)
+c = conn.cursor()
 
 # ১. ইউজার টেবিল তৈরি ও ডিফল্ট ইউজার সেটআপ
 c.execute('''CREATE TABLE IF NOT EXISTS users 
@@ -27,7 +29,6 @@ if "user_role" not in st.session_state:
     st.session_state["user_role"] = None
 if "username" not in st.session_state:
     st.session_state["username"] = None
-
 # ২. লগইন ও ফরগট পাসওয়ার্ড স্ক্রিন
 if not st.session_state["logged_in"]:
     st.title("🔑 লগইন পোর্টাল - P.S Mediseller")
