@@ -275,7 +275,7 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
             folium.PolyLine(points, color="green", weight=3, opacity=0.8).add_to(m)
             
         st_folium(m, width=900, height=500)
-    else:
+      
         # ================= অ্যাডমিন ডিলিট সেকশন =================
 if st.session_state.get("user_role") == "admin":
     st.write("---")
