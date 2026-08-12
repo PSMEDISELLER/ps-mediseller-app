@@ -339,10 +339,10 @@ st.info("নিচের বাটনে চাপলে আপনার ব্�
 
 loc = get_geolocation()
 
-    if loc:
-        if "error" in loc:
-            error_code = loc["error"].get("code")
-            error_msg = loc["error"].get("message", "অজানা সমস্যা")
+if loc:
+    if "error" in loc:
+        error_code = loc["error"].get("code")
+        error_msg = loc["error"].get("message", "অজানা সমস্যা")
 
             if error_code == 1:
                 st.error("❌ GPS permission দেওয়া হয়নি। Chrome-এ Location → Allow করুন।")
