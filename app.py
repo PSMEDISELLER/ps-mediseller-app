@@ -333,23 +333,38 @@ st.subheader("ডেলিভারি ও রুট প্ল্যানার
 st.sidebar.write("---")
 st.sidebar.subheader("📍 GPS")
 
-if st.sidebar.button("📍 বর্তমান লোকেশন নিন"):
+with col_gps:
+    st.write("📍 **লাইভ লোকেশন:**")
 
-    gps = get_geolocation(component_key="sidebar_gps")
+    st.info("নিচের বাটনে চাপলে আপনার ব্রাউজার GPS permission চাইবে।")
 
-    if gps and "coords" in gps:
+    loc = get_geolocation()
 
-        st.session_state["selected_lat"] = gps["coords"]["latitude"]
-        st.session_state["selected_lon"] = gps["coords"]["longitude"]
+    if loc:
+        if "error" in loc:
+            error_code = loc["error"].get("code")
+            error_msg = loc["error"].get("message", "অজানা সমস্যা")
 
-        st.sidebar.success("বর্তমান লোকেশন পাওয়া গেছে।")
+            if error_code == 1:
+                st.error("❌ GPS permission দেওয়া হয়নি। Chrome-এ Location → Allow করুন।")
+            elif error_code == 2:
+                st.error("❌ আপনার বর্তমান GPS location পাওয়া যাচ্ছে না।")
+            elif error_code == 3:
+                st.error("❌ GPS-এর জন্য সময় শেষ হয়ে গেছে। আবার চেষ্টা করুন।")
+            else:
+                st.error(f"❌ GPS সমস্যা: {error_msg}")
 
-    else:
+        elif "coords" in loc:
+            gps_lat = loc["coords"]["latitude"]
+            gps_lon = loc["coords"]["longitude"]
 
-        st.sidebar.warning(
-            "GPS পাওয়া যায়নি। ব্রাউজারে Location Permission দিন।"
-        )
+            st.session_state["selected_lat"] = gps_lat
+            st.session_state["selected_lon"] = gps_lon
 
+            st.success("✅ আপনার বর্তমান GPS location পাওয়া গেছে!")
+
+            st.write(f"Latitude: **{gps_lat:.6f}**")
+            st.write(f"Longitude: **{gps_lon:.6f}**")
 
 # =========================================================
 # ADMIN STATUS
