@@ -11,7 +11,7 @@ st.set_page_config(page_title="P.S Mediseller Location App", layout="wide")
 
 # ডেটাবেস কানেকশন
 import sqlite3
-conn = sqlite3.connect('locations.db', check_same_thread=False)
+conn = sqlite3.connect('ps_locations.db', check_same_thread=False)
 c = conn.cursor()
 # ১. ইউজার টেবিল ও নতুন লোকেশন টেবিল তৈরি
 c.execute('''CREATE TABLE IF NOT EXISTS users 
