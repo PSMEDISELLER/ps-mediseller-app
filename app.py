@@ -263,7 +263,7 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
             pos = [row['lat'], row['lon']]
             points.append(pos)
             
-           popup_text = f"<b>{row['party_name']}</b><br>{row['address']}<br>ক্রম: {row['route_order']}<br><a href='tel:{row.get('phone', '')}' style='display:inline-block; margin-top:5px; padding:3px 8px; background:#28a745; color:white; border-radius:3px; text-decoration:none;'>📞 কল করুন</a>"
+        popup_text = f"<b>{row['party_name']}</b><br>{row['address']}<br>ক্রম: {row['route_order']}<br><a href='tel:{row.get('phone', '')}' style='display:inline-block; margin-top:5px; padding:3px 8px; background:#28a745; color:white; border-radius:3px; text-decoration:none;'>📞 কল করুন</a>"
             folium.Marker(
                 location=pos,
                 popup=popup_text,
