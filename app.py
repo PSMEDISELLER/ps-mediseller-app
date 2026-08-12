@@ -50,7 +50,15 @@ CREATE TABLE IF NOT EXISTS locations (
     route_order INTEGER DEFAULT 0
 )
 """)
+# পুরোনো database-এর locations table ঠিক করা
+c.execute("PRAGMA table_info(locations)")
+existing_columns = [row[1] for row in c.fetchall()]
 
+if "party_phone" not in existing_columns:
+    c.execute("ALTER TABLE locations ADD COLUMN party_phone TEXT")
+
+if "route_order" not in existing_columns:
+    c.execute("ALTER TABLE locations ADD COLUMN route_order INTEGER DEFAULT 0")
 conn.commit()
 
 
