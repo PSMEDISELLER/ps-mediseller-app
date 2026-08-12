@@ -8,17 +8,17 @@ from streamlit_js_eval import get_geolocation
 
 
 # =========================================================
-# PAGE CONFIGURATION (WITH CUSTOM APP ICON & TITLE)
+# PAGE CONFIGURATION & PWA / INSTALL SETTINGS
 # =========================================================
 
 st.set_page_config(
     page_title="P.S Mediseller",
-    page_icon="🚚",  # এটি ব্রাউজার ও অ্যাপের শর্টকাট আইকন হিসেবে কাজ করবে
+    page_icon="🚚",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# মোবাইলের হোম স্ক্রিনে অ্যাপের মতো দেখানোর জন্য Web App Meta Tags
+# PWA Metadata for Add to Home Screen (App Installation)
 st.markdown("""
     <head>
         <meta name="mobile-web-app-capable" content="yes">
@@ -31,16 +31,17 @@ st.markdown("""
 
 
 # =========================================================
-# DATABASE
+# DATABASE (Real-time Sync Friendly)
 # =========================================================
 
 DB_FILE = "mediseller_delivery.db"
 
-conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+def get_db_connection():
+    return sqlite3.connect(DB_FILE, check_same_thread=False)
+
+conn = get_db_connection()
 c = conn.cursor()
 
-
-# Users table
 c.execute("""
 CREATE TABLE IF NOT EXISTS users (
     username TEXT PRIMARY KEY,
@@ -49,8 +50,6 @@ CREATE TABLE IF NOT EXISTS users (
 )
 """)
 
-
-# Locations table
 c.execute("""
 CREATE TABLE IF NOT EXISTS locations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +62,6 @@ CREATE TABLE IF NOT EXISTS locations (
 )
 """)
 
-# Schema fix
 c.execute("PRAGMA table_info(locations)")
 existing_columns = [row[1] for row in c.fetchall()]
 
@@ -87,12 +85,10 @@ if user_count == 0:
         "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
         ("admin", "admin123", "admin")
     )
-
     c.execute(
         "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
         ("delivery", "user123", "staff")
     )
-
     conn.commit()
 
 
@@ -115,7 +111,6 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
     st.session_state["selected_lon"] = 87.3320
 
-# Auto-login check
 query_params = st.query_params
 if not st.session_state["logged_in"]:
     saved_user = query_params.get("user", None)
@@ -136,6 +131,9 @@ if not st.session_state["logged_in"]:
 
     st.title("🔑 লগইন পোর্টাল")
     st.subheader("P.S Mediseller Location App")
+
+    # লগইন পেজেই ইনস্টল নির্দেশিকা
+    st.info("📲 **ফোনে অ্যাপ হিসেবে ইনস্টল করুন:**\n\nব্রাউজারের ৩টি ডট (⋮) মেনুতে ক্লিক করে **'Install App'** বা **'Add to Home screen'** অপশনে চাপ দিন।")
 
     tab1, tab2 = st.tabs(["লগইন", "পাসওয়ার্ড ভুলে গেছেন?"])
 
@@ -191,7 +189,7 @@ if not st.session_state["logged_in"]:
 
 
 # =========================================================
-# SIDEBAR USER INFORMATION & ADMIN MANAGEMENT
+# SIDEBAR
 # =========================================================
 
 with st.sidebar:
@@ -202,6 +200,13 @@ with st.sidebar:
         st.success("রোল: ADMIN")
     else:
         st.info("রোল: DELIVERY USER")
+
+    with st.expander("📲 ফোনে অ্যাপ হিসেবে ইনস্টল করুন"):
+        st.write("**Android Chrome এ:**")
+        st.caption("১. উপরে ডানদিকের ৩টি ডট-এ (⋮) ক্লিক করুন।")
+        st.caption("২. **'Add to Home screen'** বা **'Install App'** নির্বাচন করুন।")
+
+    st.write("---")
 
     with st.expander("🔒 নিজ পাসওয়ার্ড পরিবর্তন করুন"):
         old_p = st.text_input("পুরোনো পাসওয়ার্ড", type="password", key="old_password")
@@ -276,14 +281,12 @@ st.write("📍 **লাইভ GPS লোকেশন ট্র্যাকিং
 
 loc = get_geolocation(component_key="global_gps")
 
+gps_lat = None
+gps_lon = None
+
 if loc and "coords" in loc:
     gps_lat = loc["coords"]["latitude"]
     gps_lon = loc["coords"]["longitude"]
-
-    if (st.session_state["selected_lat"] != gps_lat) or (st.session_state["selected_lon"] != gps_lon):
-        st.session_state["selected_lat"] = gps_lat
-        st.session_state["selected_lon"] = gps_lon
-
     st.success(f"✅ আপনার বর্তমান GPS লোকেশন অ্যাক্টিভ (Lat: {gps_lat:.6f}, Lon: {gps_lon:.6f})")
 
 is_admin = (st.session_state["user_role"] == "admin")
@@ -316,10 +319,10 @@ if choice == "📍 নতুন লোকেশন এড করুন":
         st.info(f"অক্ষাংশ (Lat): {st.session_state['selected_lat']:.6f}\n\nদ্রাঘিমাংশ (Lon): {st.session_state['selected_lon']:.6f}")
         
         if st.button("🔄 বর্তমান লোকেশন রিফ্রেশ করুন", type="secondary"):
-            if loc and "coords" in loc:
-                st.session_state["selected_lat"] = loc["coords"]["latitude"]
-                st.session_state["selected_lon"] = loc["coords"]["longitude"]
-                st.success("✅ বর্তমান লোকেশন নেওয়া হয়েছে!")
+            if gps_lat and gps_lon:
+                st.session_state["selected_lat"] = gps_lat
+                st.session_state["selected_lon"] = gps_lon
+                st.success("✅ লাল পিনটি আপনার বর্তমান কারেন্ট লোকেশনে সেট হয়েছে!")
                 st.rerun()
             else:
                 st.warning("⚠️ GPS সিগন্যাল পাওয়া যাচ্ছে না, অনুগ্রহ করে লোকেশন পারমিশন চেক করুন।")
@@ -347,24 +350,31 @@ if choice == "📍 নতুন লোকেশন এড করুন":
                 st.warning("স্থান লিখুন।")
 
         st.write("---")
-        st.write("### 🏢 সেভ করা পার্টি দিয়ে লোকেশন সেট করুন")
+        st.write("### 🔍 পার্টি সার্চ করুন")
         
-        c.execute("SELECT party_name, address, lat, lon FROM locations ORDER BY party_name ASC")
+        c.execute("SELECT party_name, address, party_phone, lat, lon FROM locations ORDER BY party_name ASC")
         saved_parties = c.fetchall()
 
         if saved_parties:
             party_options = ["-- পার্টি বেছে নিন --"] + [f"{p[0]} ({p[1]})" for p in saved_parties]
-            selected_party_str = st.selectbox("পার্টি নির্বাচন করুন", party_options, key="quick_party_select")
+            selected_party_str = st.selectbox("পার্টির নাম লিখে খুঁজুন", party_options, key="quick_party_select")
 
             if selected_party_str != "-- পার্টি বেছে নিন --":
                 idx = party_options.index(selected_party_str) - 1
-                chosen_party = saved_parties[idx]
+                p_name, p_address, p_phone, p_lat, p_lon = saved_parties[idx]
                 
-                if (st.session_state["selected_lat"] != chosen_party[2]) or (st.session_state["selected_lon"] != chosen_party[3]):
-                    st.session_state["selected_lat"] = chosen_party[2]
-                    st.session_state["selected_lon"] = chosen_party[3]
-                    st.success(f"📍 {chosen_party[0]}-এর লোকেশন ম্যাপে নিয়ে যাওয়া হয়েছে!")
+                if (st.session_state["selected_lat"] != p_lat) or (st.session_state["selected_lon"] != p_lon):
+                    st.session_state["selected_lat"] = p_lat
+                    st.session_state["selected_lon"] = p_lon
                     st.rerun()
+
+                gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={p_lat},{p_lon}"
+                
+                st.success(f"🏢 **পার্টির নাম:** {p_name}")
+                st.write(f"📞 **ফোন:** {p_phone if p_phone else 'নাই'}")
+                st.write(f"📍 **ঠিকানা:** {p_address if p_address else 'নাই'}")
+                st.link_button("🗺️ গুগল ম্যাপস ডাইরেকশন (Navigate)", gmaps_url, type="primary")
+
         else:
             st.caption("এখনো কোনো পার্টি সেভ করা হয়নি।")
 
@@ -375,7 +385,6 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     current_lat = float(st.session_state["selected_lat"])
     current_lon = float(st.session_state["selected_lon"])
 
-    # Google Maps Tile Layer
     google_tiles = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
     
     m_click = folium.Map(
@@ -385,7 +394,6 @@ if choice == "📍 নতুন লোকেশন এড করুন":
         attr="Google Maps"
     )
     
-    # Draggable Marker
     folium.Marker(
         [current_lat, current_lon],
         tooltip="পিনটি টেনে সঠিক স্থানে বসান",
@@ -414,9 +422,9 @@ if choice == "📍 নতুন লোকেশন এড করুন":
             st.rerun()
 
     st.write("---")
-    st.write("### 📝 পার্টির তথ্য")
+    st.write("### 📝 নতুন পার্টি সেভ করুন")
 
-    party_name = st.text_input("পার্টির নাম")
+    party_name = st.text_input("পার্টি / দোকানের নাম")
     address = st.text_input("ঠিকানা / এলাকা")
     party_phone = st.text_input("ফোন নম্বর")
 
@@ -442,7 +450,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
 
 
 # =========================================================
-# 2. SEARCH PARTY (GOOGLE MAPS DIRECTION)
+# 2. SEARCH PARTY
 # =========================================================
 
 elif choice == "🔍 পার্টি ও লোকেশন সার্চ":
