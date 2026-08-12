@@ -150,7 +150,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     # ডিভাইস GPS ক্যাপচার
     with col_gps:
         st.write("📍 **লাইভ লোকেশন:**")
-        loc = get_geolocation()
+        loc = get_geolocation(component_key="get_user_location")
         if loc and 'coords' in loc:
             st.session_state['selected_lat'] = loc['coords']['latitude']
             st.session_state['selected_lon'] = loc['coords']['longitude']
