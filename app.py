@@ -214,7 +214,8 @@ if choice == "📍 নতুন লোকেশন এড করুন":
 
     if st.button("লোকেশন সেভ করুন"):
         if party_name and lat != 0.0 and lon != 0.0:
-            c.execute("INSERT INTO locations (party_name, address, phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+            c.execute("INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)", 
+          (party_name, address, party_phone, lat, lon))
                       (party_name, address, party_phone, lat, lon))       
             conn.commit()
             st.success(f"'{party_name}' এর লোকেশন সফলভাবে সেভ হয়েছে!")
