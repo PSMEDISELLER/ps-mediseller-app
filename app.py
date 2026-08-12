@@ -85,12 +85,15 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     st.write("👉 **ম্যাপে ক্লিক করে বা পিন সরিয়েও লোকেশন সেট করতে পারেন:**")
 
     # ম্যাপ ডিসপ্লে
-    m_click = folium.Map(location=[st.session_state['selected_lat'], st.session_state['selected_lon']], zoom_start=15)
-    folium.Marker(
-        [st.session_state['selected_lat'], st.session_state['selected_lon']],
-        popup="নির্বাচিত স্থান",
-        icon=folium.Icon(color="red", icon="info-sign")
-    ).add_to(m_click)
+   m_click = folium.Map(location=[st.session_state['selected_lat'], st.session_state['selected_lon']], zoom_start=15, tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', attr='Google Maps')
+        
+        gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={st.session_state['selected_lat']},{st.session_state['selected_lon']}"
+
+        folium.Marker(
+            [st.session_state['selected_lat'], st.session_state['selected_lon']],
+            popup=f'<a href="{gmaps_url}" target="_blank" style="display:inline-block; padding:6px 10px; background:#4285F4; color:white; border-radius:4px; text-decoration:none; font-weight:bold;">Google Maps-এ নেভিগেট করুন</a>',
+            icon=folium.Icon(color="red", icon="info-sign")
+        ).add_to(m_click)
 
     map_data = st_folium(m_click, width=800, height=400)
     
