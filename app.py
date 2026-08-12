@@ -10,6 +10,94 @@ from streamlit_js_eval import get_geolocation
 st.set_page_config(page_title="পি এস মেডিসেলার", layout="wide")
 
 # ডাটাবেস কানেকশন
+st.set_page_config(page_title="P.S Mediseller Location App", layout="wide")
+
+# ১. ইউজার টেবিল তৈরি ও ডিফল্ট ইউজার সেটআপ
+c.execute('''CREATE TABLE IF NOT EXISTS users 
+             (username TEXT PRIMARY KEY, password TEXT, role TEXT)''')
+c.execute("SELECT COUNT(*) FROM users")
+if c.fetchone()[0] == 0:
+    c.execute("INSERT INTO users VALUES ('admin', 'admin123', 'admin')")
+    c.execute("INSERT INTO users VALUES ('delivery', 'user123', 'staff')")
+    conn.commit()
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "user_role" not in st.session_state:
+    st.session_state["user_role"] = None
+if "username" not in st.session_state:
+    st.session_state["username"] = None
+
+# ২. লগইন ও ফরগট পাসওয়ার্ড স্ক্রিন
+if not st.session_state["logged_in"]:
+    st.title("🔑 লগইন পোর্টাল - P.S Mediseller")
+    tab1, tab2 = st.tabs(["লগইন", "পাসওয়ার্ড ভুলে গেছেন?"])
+    
+    with tab1:
+        username = st.text_input("ইউজারনেম", key="login_user")
+        password = st.text_input("পাসওয়ার্ড", type="password", key="login_pass")
+        if st.button("লগইন করুন"):
+            c.execute("SELECT password, role FROM users WHERE username=?", (username,))
+            user_data = c.fetchone()
+            if user_data and user_data[0] == password:
+                st.session_state["logged_in"] = True
+                st.session_state["user_role"] = user_data[1]
+                st.session_state["username"] = username
+                st.rerun()
+            else:
+                st.error("ভুল ইউজারনেম বা পাসওয়ার্ড!")
+                
+    with tab2:
+        st.write("যে ইউজারের পাসওয়ার্ড রিসেট করতে চান তার তথ্য দিন:")
+        f_user = st.text_input("ইউজারনেম", key="forgot_user")
+        new_pass = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_pass_admin")
+        admin_pass = st.text_input("মেইন অ্যাডমিন পাসওয়ার্ড", type="password", key="admin_auth")
+        
+        if st.button("পাসওয়ার্ড রিসেট করুন"):
+            c.execute("SELECT password FROM users WHERE username='admin'")
+            real_admin_pass = c.fetchone()[0]
+            if admin_pass == real_admin_pass:
+                c.execute("UPDATE users SET password=? WHERE username=?", (new_pass, f_user))
+                conn.commit()
+                st.success("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে! এখন লগইন ট্যাবে গিয়ে লগইন করুন।")
+            else:
+                st.error("অ্যাডমিন পাসওয়ার্ড ভুল!")
+    st.stop()
+
+# ৩. সাইডবারে ইউজার তথ্য, পাসওয়ার্ড পরিবর্তন ও লগআউট অপশন
+with st.sidebar:
+    st.write(f"👤 ইউজার: **{st.session_state.get('username')}**")
+    st.write(f"রোল: `{st.session_state.get('user_role')}`")
+    
+    with st.expander("🔒 পাসওয়ার্ড পরিবর্তন করুন"):
+        old_p = st.text_input("পুরোনো পাসওয়ার্ড", type="password", key="old_p")
+        new_p = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_p")
+        if st.button("আপডেট পাসওয়ার্ড"):
+            curr_user = st.session_state.get("username")
+            c.execute("SELECT password FROM users WHERE username=?", (curr_user,))
+            db_pass = c.fetchone()[0]
+            if old_p == db_pass:
+                c.execute("UPDATE users SET password=? WHERE username=?", (new_p, curr_user))
+                conn.commit()
+                st.success("পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!")
+            else:
+                st.error("পুরোনো পাসওয়ার্ড ভুল!")
+                
+    st.write("---")
+    if st.button("লগআউট (Logout)"):
+        st.session_state["logged_in"] = False
+        st.session_state["user_role"] = None
+        st.session_state["username"] = None
+        st.rerun()
+# ================= ২. সাইডবারে লগআউট বাটন =================
+with st.sidebar:
+    st.write(f"👤 ইউজার: **{st.session_state.get('user_role')}**")
+    if st.button("লগআউট (Logout)"):
+        st.session_state["logged_in"] = False
+        st.session_state["user_role"] = None
+        st.rerun()
+# =========================================================
+# ===================================================
 conn = sqlite3.connect('mediseller_delivery.db', check_same_thread=False)
 c = conn.cursor()
 
@@ -85,7 +173,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     st.write("👉 **ম্যাপে ক্লিক করে বা পিন সরিয়েও লোকেশন সেট করতে পারেন:**")
 
     # ম্যাপ ডিসপ্লে
-   m_click = folium.Map(location=[st.session_state['selected_lat'], st.session_state['selected_lon']], zoom_start=15, tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', attr='Google Maps')
+    m_click = folium.Map(location=[st.session_state['selected_lat'], st.session_state['selected_lon']], zoom_start=15, tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', attr='Google Maps')
         
         gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={st.session_state['selected_lat']},{st.session_state['selected_lon']}"
 
@@ -188,4 +276,23 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
             
         st_folium(m, width=900, height=500)
     else:
+        # ================= অ্যাডমিন ডিলিট সেকশন =================
+if st.session_state.get("user_role") == "admin":
+    st.write("---")
+    st.subheader("🗑️ পার্টি ডিলিট করুন (অ্যাডমিন মোড)")
+    
+    # ডেটাবেস থেকে সব পার্টির তালিকা আনা
+    c.execute("SELECT id, party_name FROM locations")
+    all_parties = c.fetchall()
+    
+    if all_parties:
+        party_dict = {f"{p[1]} (ID: {p[0]})": p[0] for p in all_parties}
+        selected_party = st.selectbox("যে পার্টিটি মুছে ফেলতে চান তা সিলেক্ট করুন:", list(party_dict.keys()))
+        
+        if st.button("পার্টিটি ডিলিট করুন", type="primary"):
+            target_id = party_dict[selected_party]
+            c.execute("DELETE FROM locations WHERE id=?", (target_id,))
+            conn.commit()
+            st.success("পার্টি সফলভাবে ডিলিট করা হয়েছে!")
+            st.rerun()
         st.info("এখনো কোনো লোকেশন সেভ করা হয়নি।")
