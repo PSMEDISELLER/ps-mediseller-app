@@ -213,11 +213,11 @@ if choice == "📍 নতুন লোকেশন এড করুন":
         lon = st.number_input("দ্রাঘিমাংশ (Longitude)", value=st.session_state['selected_lon'], format="%.6f")
 
     if st.button("সেভ করুন"):
+        if st.button("সেভ করুন"):
         if party_name and party_phone:
             c.execute("INSERT INTO party_locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)", (party_name, address, party_phone, lat, lon))
             conn.commit()
-            st.success("লোকেশন সফলভাবে সেভ হয়েছে!")
-        else:
+            st.success("লোকেশন সেভ হয়েছে!")
             st.error("দয়া করে নাম ও ফোন নম্বর দিন!")
 # ২. পার্টি ও লোকেশন সার্চ
 elif choice == "🔍 পার্টি ও লোকেশন সার্চ":
