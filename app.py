@@ -33,14 +33,10 @@ st.markdown(
         // মোবাইলে সিঙ্গেল অপশন সিলেক্ট করলে সাইডবার অটো বন্ধ করার স্ক্রিপ্ট
         document.addEventListener('click', function(e) {
             const target = e.target;
-            // যদি সাইডবারের ভেতরের কোনো সাধারণ বাটন বা রেডিও অপশন ক্লিক করা হয় (এক্সপ্যান্ডার ছাড়া)
             if (target.closest('[data-testid="stSidebar"]')) {
                 if (target.closest('button') && !target.closest('[data-testid="stExpander"]')) {
-                    const collapseBtn = document.querySelector('[data-testid="collapsedControl"]');
                     const sidebar = document.querySelector('[data-testid="stSidebar"]');
-                    // যদি সাইডবার খোলা থাকে তবে বন্ধ করে দেবো
                     if (sidebar && window.getComputedStyle(sidebar).display !== 'none') {
-                        // স্ট্রীমলিটের নিজস্ব কলাপ্স বাটন ট্রিগার করা
                         const closeArrow = document.querySelector('button[kind="header"]');
                         if(closeArrow) {
                             // প্রয়োজনে ক্লিক ইভেন্ট
@@ -555,33 +551,38 @@ elif choice == "📊 অ্যাডমিন লাইভ ট্র্যাক
         st.success(f"🟢 সর্বশেষ আপডেট সময়: {ag_time}")
 
         all_parties_df = pd.read_sql_query("SELECT * FROM locations", conn)
-        party_distance_list = []
-        for _, p in all_parties_df.iterrows():
-          dist = math.sqrt((p["lat"] - ag_lat)**2 + (p["lon"] - ag_lon)**2) * 111000
-          
-          c.execute("SELECT status FROM orders WHERE party_name=?", (p["party_name"],))
-          ord_res = c.fetchone()
-          p_status = ord_res[0] if ord_res else "Pending"
-
-          party_distance_list.append({
-              "পার্টির নাম": p["party_name"],
-              "ঠিকানা": p["address"],
-              "ফোন": p["party_phone"],
-              "দূরত্ব (মিটারে)": round(dist, 1),
-              "অর্ডার স্ট্যাটাস": "🟢 সম্পন্ন" if p_status == "Completed" else "⏳ পেন্ডিং"
-          })
-
-        df_parties_dist = pd.DataFrame(party_distance_list)
-        df_parties_dist = df_parties_dist.sort_values(by="দূরত্ব (মিটারে)")
-        st.dataframe(df_parties_dist, use_container_width=True, hide_index=True)
-
-        m_agent = folium.Map(location=[ag_lat, ag_lon], zoom_start=15)
-        folium.Marker([ag_lat, ag_lon], tooltip=f"Agent: {selected_agent}", icon=folium.Icon(color="blue", icon="user", prefix="fa")).add_to(m_agent)
         
-        for _, p in all_parties_df.iterrows():
-          folium.Marker([p["lat"], p["lon"]], tooltip=p["party_name"], icon=folium.Icon(color="red", icon="shopping-cart", prefix="fa")).add_to(m_agent)
+        if all_parties_df.empty:
+          st.warning("⚠️ কোনো লোকেশন বা পার্টি ডেটাবেজে নেই।")
+        else:
+          party_distance_list = []
+          for _, p in all_parties_df.iterrows():
+            dist = math.sqrt((p["lat"] - ag_lat)**2 + (p["lon"] - ag_lon)**2) * 111000
+            
+            c.execute("SELECT status FROM orders WHERE party_name=?", (p["party_name"],))
+            ord_res = c.fetchone()
+            p_status = ord_res[0] if ord_res else "Pending"
 
-        st_folium(m_agent, width=900, height=400, key=f"map_{selected_agent}")
+            party_distance_list.append({
+                "পার্টির নাম": p["party_name"],
+                "ঠিকানা": p["address"],
+                "ফোন": p["party_phone"],
+                "দূরত্ব (মিটারে)": round(dist, 1),
+                "অর্ডার স্ট্যাটাস": "🟢 সম্পন্ন" if p_status == "Completed" else "⏳ পেন্ডিং"
+            })
+
+          df_parties_dist = pd.DataFrame(party_distance_list)
+          if not df_parties_dist.empty and "দূরত্ব (মিটারে)" in df_parties_dist.columns:
+            df_parties_dist = df_parties_dist.sort_values(by="দূরত্ব (মিটারে)")
+          st.dataframe(df_parties_dist, use_container_width=True, hide_index=True)
+
+          m_agent = folium.Map(location=[ag_lat, ag_lon], zoom_start=15)
+          folium.Marker([ag_lat, ag_lon], tooltip=f"Agent: {selected_agent}", icon=folium.Icon(color="blue", icon="user", prefix="fa")).add_to(m_agent)
+          
+          for _, p in all_parties_df.iterrows():
+            folium.Marker([p["lat"], p["lon"]], tooltip=p["party_name"], icon=folium.Icon(color="red", icon="shopping-cart", prefix="fa")).add_to(m_agent)
+
+          st_folium(m_agent, width=900, height=400, key=f"map_{selected_agent}")
 
       else:
         st.warning(f"⚠️ '{selected_agent}' এখনো অ্যাপে জিপিএস পারমিশন দেয়নি অথবা সিগন্যাল পাওয়া যায়নি।")
