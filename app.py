@@ -121,7 +121,7 @@ if c.fetchone()[0] == 0:
 
 
 # =========================================================
-# SESSION MANAGEMENT (PERMANENT LOGIN FIX)
+# SESSION MANAGEMENT & INPUT STATE INITIALIZATION
 # =========================================================
 
 if "logged_in" not in st.session_state:
@@ -134,6 +134,11 @@ if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
+
+if "input_username" not in st.session_state:
+  st.session_state["input_username"] = ""
+if "input_password" not in st.session_state:
+  st.session_state["input_password"] = ""
 
 query_params = st.query_params
 saved_user = query_params.get("user", None)
@@ -159,13 +164,16 @@ if not st.session_state["logged_in"]:
 
   with tab1:
     with st.form("login_form"):
-      username = st.text_input("ইউজারনেম", key="login_user")
-      password = st.text_input("পাসওয়ার্ড", type="password", key="login_pass")
+      username = st.text_input("ইউজারনেম", value=st.session_state["input_username"], key="login_user_field")
+      password = st.text_input("পাসওয়ার্ড", value=st.session_state["input_password"], type="password", key="login_pass_field")
       remember_me = st.checkbox("আমাকে মনে রাখুন (Permanent Login)", value=True)
 
       submit_login = st.form_submit_button("লগইন করুন", type="primary")
 
       if submit_login:
+        st.session_state["input_username"] = username
+        st.session_state["input_password"] = password
+
         c.execute("SELECT password, role FROM users WHERE username=?", (username,))
         user_data = c.fetchone()
         if user_data and user_data[0] == password:
@@ -225,7 +233,6 @@ with col_u3:
     st.query_params.clear()
     st.rerun()
 
-# Account Settings Expandable Section via Top Button
 if st.session_state.get("show_settings", False):
   with st.expander("⚙️ ইউজার ও অ্যাকাউন্ট কন্ট্রোল প্যানেল", expanded=True):
     if st.session_state["user_role"] != "admin":
@@ -320,7 +327,7 @@ if not gps_lat and st.session_state["user_role"] != "admin":
 
 
 # =========================================================
-# TOP HORIZONTAL NAVIGATION MENU (INSTANT CLICK & NO SIDEBAR)
+# TOP HORIZONTAL NAVIGATION MENU
 # =========================================================
 
 menu_options = [
