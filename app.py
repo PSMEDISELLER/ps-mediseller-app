@@ -7,7 +7,6 @@ from geopy.geocoders import Nominatim
 from streamlit_js_eval import get_geolocation
 from datetime import datetime, timedelta
 import math
-from streamlit_autorefresh import st_autorefresh
 
 
 # =========================================================
@@ -76,7 +75,7 @@ CREATE TABLE IF NOT EXISTS orders (
 )
 """)
 
-# ডাটাবেস কলাম আপডেট চেক (মাইগ্রেশন সেফটি)
+# ডাটাবেस কলাম আপডেট চেক (মাইগ্রেশন সেফটি)
 c.execute("PRAGMA table_info(locations)")
 existing_columns = [row[1] for row in c.fetchall()]
 
@@ -320,7 +319,7 @@ is_admin = (st.session_state["user_role"] == "admin")
 
 
 # =========================================================
-# MENU & SMART AUTO-SYNC
+# MENU
 # =========================================================
 
 menu = [
@@ -331,10 +330,6 @@ menu = [
 ]
 
 choice = st.sidebar.selectbox("মেনু নির্বাচন করুন", menu)
-
-if choice in ["🔍 পার্টি ও লোকেশন সার্চ", "📦 পেন্ডিং অর্ডার ও বিলিং"]:
-    st_autorefresh(interval=10000, limit=None, key="auto_sync_refresh")
-    st.sidebar.info("🔄 অটো-সিঙ্ক চালু আছে (১০ সেকেন্ড অন্তর)")
 
 
 # =========================================================
@@ -412,7 +407,6 @@ if choice == "📍 নতুন লোকেশন এড করুন":
     map_center_lat = gps_lat if gps_lat else float(st.session_state["selected_lat"])
     map_center_lon = gps_lon if gps_lon else float(st.session_state["selected_lon"])
 
-    # Google Maps Tile Layer ব্যবহার করা হয়েছে নিখابع গুগল ম্যাপ লুক দেওয়ার জন্য
     google_tiles = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
     
     m_click = folium.Map(
@@ -422,7 +416,6 @@ if choice == "📍 নতুন লোকেশন এড করুন":
         attr="Google Maps"
     )
     
-    # ১. বর্তমান লোকেশনে ব্লু ডট মার্কার (Google Maps Blue Dot style)
     if gps_lat and gps_lon:
         folium.CircleMarker(
             location=[gps_lat, gps_lon],
@@ -436,7 +429,6 @@ if choice == "📍 নতুন লোকেশন এড করুন":
             tooltip="Current Location"
         ).add_to(m_click)
 
-    # ২. সিলেক্টেড লোকেশনে ড্র্যাগএবল রেড পিন (Draggable Red Pin)
     current_lat = float(st.session_state["selected_lat"])
     current_lon = float(st.session_state["selected_lon"])
 
