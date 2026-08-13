@@ -209,7 +209,7 @@ with st.sidebar:
   else:
     st.info("রোল: DELIVERY USER (staff)")
 
-  # ১. যদি ইউজার স্টাফ হয়: সে শুধু নিজের নাম ও রোল বদলাতে পারবে (পাসওয়ার্ড নয়)
+  # ১. স্টাফদের জন্য: শুধু নাম ও রোল বদলানোর অপশন (পাসওয়ার্ড নয়)
   if st.session_state["user_role"] != "admin":
     with st.expander("⚙️ আমার অ্যাকাউন্ট সেটিংস (নাম ও রোল)"):
       with st.form("staff_self_update_form"):
@@ -224,7 +224,6 @@ with st.sidebar:
           else:
             try:
               old_uname = st.session_state["username"]
-              # বর্তমান পাসওয়ার্ড অপরিবর্তিত রাখা হচ্ছে
               c.execute("SELECT password FROM users WHERE username=?", (old_uname,))
               current_pass = c.fetchone()[0]
 
@@ -247,7 +246,7 @@ with st.sidebar:
             except Exception as e:
               st.error(f"ত্রুটি: {e}")
 
-  # ২. যদি ইউজার অ্যাডমিন হয়: সে সবার পাসওয়ার্ড, নাম ও রোল বদলাতে পারবে
+  # ২. অ্যাডমিনের জন্য: সবার নাম, পাসওয়ার্ড ও রোল বদলানোর অপশন
   if st.session_state["user_role"] == "admin":
     with st.expander("⚙️ অ্যাডমিন কন্ট্রোল (ইউজার ও পাসওয়ার্ড ম্যানেজমেন্ট)"):
       c.execute("SELECT username, role FROM users")
