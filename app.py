@@ -346,7 +346,6 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
   
   orders_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
   if not orders_df.empty:
-    # তারিখ আলাদা করা (YYYY-MM-DD)
     orders_df["date_only"] = orders_df["order_date"].astype(str).str.split(" ").str[0]
     unique_dates = orders_df["date_only"].unique()
 
@@ -362,12 +361,10 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
         status_text = "✅ সম্পন্ন/বিল হয়েছে" if row['status'] == "Completed" else "⏳ পেন্ডিং"
         cols[2].write(status_text)
 
-        # টিক মার্ক বা স্ট্যাটাস পরিবর্তনের বাটন
         if row['status'] == "Pending":
           if cols[3].button("✔️ টিক দিন", key=f"ord_btn_{row['id']}"):
             c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
             conn.commit()
-            # এজেন্টের কাউন্ট আপডেট করা
             c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
             conn.commit()
             st.success("অর্ডার কমপ্লিট হিসেবে মার্ক করা হয়েছে!")
@@ -390,10 +387,8 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
       cols = st.columns([3, 2, 2])
       cols[0].write(f"**{row['party_name']}**\n\n_{row['address'] if row['address'] else ''}_")
       
-      # ডিউ এন্ট্রি ইনপুট
       due_input = cols[1].text_input("ডিউ টাকা লিখুন", key=f"due_{row['id']}")
       
-      # ডেলিভারি টিক বাটন
       if cols[2].button("🚚 ডেলিভারি সম্পন্ন", key=f"del_{row['id']}"):
         c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
         if due_input.strip():
@@ -406,28 +401,40 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
     st.info("কোনো লোকেশন বা পার্টি সেভ করা নেই।")
 
 # =========================================================
-# 5. ADMIN LIVE TRACKING (এজেন্ট স্ট্যাটাস ও অফলাইন সিঙ্ক সাপোর্ট)
+# 5. ADMIN LIVE TRACKING (সব এজেন্টের তালিকা ও লাইভ স্ট্যাটাস)
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
-    st.write("### 📊 ডেলিভারি পার্টনার লাইভ ট্র্যাকিং ও স্ট্যাটাস")
+    st.write("### 📊 ডেলিভারি এজেন্ট তালিকা ও লাইভ ট্র্যাকিং")
     
-    agent_df = pd.read_sql_query("SELECT * FROM agent_live_locations", conn)
-    if not agent_df.empty:
-      for index, row in agent_df.iterrows():
-        with st.expander(f"👤 এজেন্ট: {row['username']} (শেষ আপডেট: {row['last_updated']})"):
-          st.write(f"📍 বর্তমান স্থানাঙ্ক (Lat, Lon): `{row['lat']}, {row['lon']}`")
-          st.write(f"✅ সম্পন্ন ডেলিভারি সংখ্যা: **{row['completed_deliveries']} টি**")
-          st.write(f"💰 ডিউ ক্লিয়ারেন্স সংখ্যা: **{row['completed_dues']} টি**")
-          
-          # গুগল ম্যাপে এজেন্ট কোথায় আছে তা দেখার ডিরেকশন লিংক
-          if row['lat'] and row['lon']:
-            agent_map_url = f"https://www.google.com/maps/search/?api=1&query={row['lat']},{row['lon']}"
-            st.markdown(f'<a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ম্যাপে এজেন্ট কোথায় আছেন দেখুন</button></a>', unsafe_allow_html=True)
+    # ডেটাবেজ থেকে সমস্ত রেজিস্টার্ড ইউজার বা এজেন্টদের নাম নিয়ে আসা
+    c.execute("SELECT username, role FROM users")
+    all_system_users = c.fetchall()
+
+    if all_system_users:
+      for u_name, u_role in all_system_users:
+        # প্রতিটি এজেন্টের লাইভ লোকেশন টেবিল থেকে তথ্য চেক করা
+        c.execute("SELECT lat, lon, last_updated, completed_deliveries, completed_dues FROM agent_live_locations WHERE username=?", (u_name,))
+        agent_data = c.fetchone()
+
+        with st.expander(f"👤 এজেন্ট: {u_name} (রোল: {u_role})"):
+          if agent_data and agent_data[0] is not None:
+            lat, lon, last_updated, comp_del, comp_due = agent_data
+            st.success("🟢 এজেন্ট বর্তমানে অনলাইন / সিগন্যাল পাওয়া গেছে")
+            st.write(f"📍 বর্তমান স্থানাঙ্ক (Lat, Lon): `{lat}, {lon}`")
+            st.write(f"🕒 শেষ আপডেট সময়: `{last_updated}`")
+            st.write(f"✅ সম্পন্ন ডেলিভারি সংখ্যা: **{comp_del} টি**")
+            st.write(f"💰 ডিউ ক্লিয়ারেন্স সংখ্যা: **{comp_due} টি**")
+            
+            agent_map_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            st.markdown(f'<a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ম্যাপে লোকেশন দেখুন</button></a>', unsafe_allow_html=True)
+          else:
+            st.warning("🔴 এজেন্ট বর্তমানে অফলাইন বা অ্যাপে লগইন করে লোকেশন শেয়ার করেননি।")
+            st.write(f"ইউজারনেম: **{u_name}** (কোনো লাইভ লোকেশন ডাটা নেই)")
     else:
-      st.info("কোনো এজেন্টের লাইভ লোকেশন পাওয়া যায়নি।")
+      st.info("কোনো রেজিস্টার্ড ইউজার পাওয়া যায়নি।")
 
 # =========================================================
 # 6. SETTINGS & AGENT MANAGEMENT (Admin Only)
