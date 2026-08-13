@@ -429,7 +429,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN
+# 4. DUE CLEAR & DELIVERY PLAN (স্বাধীন চেকবক্স অপশনসহ)
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
@@ -447,27 +447,42 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   filtered_parties_list = [p for p in all_parties if party_search_filter.lower() in p.lower()] if party_search_filter else all_parties
 
   with st.form("easy_assign_form", clear_on_submit=True):
-    col_e1, col_e2, col_e3, col_e4 = st.columns([2, 2, 2, 2])
-    
+    col_e1, col_e2 = st.columns(2)
     with col_e1:
-      sel_ag = st.selectbox("এজেন্ট", all_agents)
+      sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
     with col_e2:
-      sel_pt = st.selectbox("পার্টি সিলেক্ট", filtered_parties_list if filtered_parties_list else ["-- পার্টি নেই --"])
-    with col_e3:
-      t_type = st.selectbox("কাজের ধরণ", ["ডেলিভারি", "ডিউ কালেকশন", "উভয়ই"])
-    with col_e4:
-      d_amount = st.text_input("ডিউ টাকা", "0")
+      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", filtered_parties_list if filtered_parties_list else ["-- পার্টি নেই --"])
+
+    st.write("**কাজের ধরণ নির্বাচন করুন (স্বাধীনভাবে টিক দিন):**")
+    col_chk1, col_chk2 = st.columns(2)
+    with col_chk1:
+      chk_delivery = st.checkbox("🚚 ডেলিভারি")
+    with col_chk2:
+      chk_due = st.checkbox("💰 ডিউ কালেকশন")
+
+    d_amount = st.text_input("ডিউ টাকা (যদি থাকে)", "0")
 
     submit_easy_task = st.form_submit_button("🎯 কাজ যোগ করুন", type="primary")
 
     if submit_easy_task and sel_pt != "-- পার্টি নেই --":
-      c.execute(
-          "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-          (sel_ag, sel_pt, t_type, d_amount, "Pending", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-      )
-      conn.commit()
-      st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
-      st.rerun()
+      # চেকবক্স থেকে কাজের ধরণ নির্ধারণ
+      selected_tasks = []
+      if chk_delivery:
+        selected_tasks.append("ডেলিভারি")
+      if chk_due:
+        selected_tasks.append("ডিউ কালেকশন")
+
+      if selected_tasks:
+        t_type_str = " ও ".join(selected_tasks)
+        c.execute(
+            "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (sel_ag, sel_pt, t_type_str, d_amount, "Pending", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        conn.commit()
+        st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
+        st.rerun()
+      else:
+        st.warning("অন্তত একটি কাজের ধরণ (ডেলিভারি বা ডিউ কালেকশন) সিলেক্ট করুন।")
 
   st.write("---")
   st.write("### 📋 বর্তমান কাজের তালিকা (অটো-ডিলিট সিস্টেম)")
@@ -495,9 +510,9 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 
       if cols[2].button("✅ সম্পন্ন", key=f"comp_task_{row['id']}") or auto_completed:
         c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
-        if "ডেলিভারি" in row['task_type'] or row['task_type'] == "উভয়ই":
+        if "ডেলিভারি" in row['task_type']:
           c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-        if "ডিউ" in row['task_type'] or row['task_type'] == "উভয়ই":
+        if "ডিউ" in row['task_type']:
           c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
         conn.commit()
         st.success(f"{p_name}-এর কাজ সম্পন্ন ও লিস্ট থেকে রিমুভ হলো!")
