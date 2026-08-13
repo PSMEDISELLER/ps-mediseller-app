@@ -17,7 +17,7 @@ st.set_page_config(
     page_title="P.S Mediseller",
     page_icon="🚚",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(
@@ -29,27 +29,6 @@ st.markdown(
         <meta name="apple-mobile-web-app-title" content="P.S Mediseller">
         <meta name="theme-color" content="#FF4B4B">
     </head>
-    <script>
-        // সাইডবারের যেকোনো বাটনে বা রেডিও অপশনে ক্লিক করলেই মোবাইল ভিউতে সাইডবার ক্লোজ করার স্ক্রিপ্ট
-        document.addEventListener('click', function(e) {
-            const target = e.target;
-            const sidebar = document.querySelector('[data-testid="stSidebar"]');
-            
-            if (sidebar && sidebar.contains(target)) {
-                if (target.closest('button') || target.closest('label') || target.closest('[data-baseweb="radio"]')) {
-                    if (!target.closest('[data-testid="stExpander"]')) {
-                        setTimeout(() => {
-                            const closeButton = document.querySelector('button[kind="header"]');
-                            const computedStyle = window.getComputedStyle(sidebar);
-                            if (closeButton && computedStyle.display !== 'none' && window.innerWidth <= 992) {
-                                closeButton.click();
-                            }
-                        }, 150);
-                    }
-                }
-            }
-        });
-    </script>
 """,
     unsafe_allow_html=True,
 )
@@ -227,25 +206,32 @@ if not st.session_state["logged_in"]:
 
 
 # =========================================================
-# SIDEBAR & PROFILE / ADMIN SETTINGS
+# TOP HEADER BAR & USER INFO
 # =========================================================
 
-with st.sidebar:
-  st.header("👤 ইউজার তথ্য")
-  st.write(f"ইউজার: **{st.session_state['username']}**")
-  if st.session_state["user_role"] == "admin":
-    st.success("রোল: ADMIN")
-  else:
-    st.info("রোল: DELIVERY USER (staff)")
+st.title("🚚 পি এস মেডিসেলার")
 
-  if st.session_state["user_role"] != "admin":
-    with st.expander("⚙️ আমার অ্যাকাউন্ট সেটিংস (নাম ও রোল)"):
+col_u1, col_u2, col_u3 = st.columns([2, 2, 1])
+with col_u1:
+  st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
+with col_u2:
+  if st.button("⚙️ অ্যাকাউন্ট সেটিংস / ইউজার ম্যানেজমেন্ট"):
+    st.session_state["show_settings"] = not st.session_state.get("show_settings", False)
+with col_u3:
+  if st.button("🚪 লগআউট", type="secondary"):
+    st.session_state["logged_in"] = False
+    st.session_state["username"] = None
+    st.session_state["user_role"] = None
+    st.query_params.clear()
+    st.rerun()
+
+# Account Settings Expandable Section via Top Button
+if st.session_state.get("show_settings", False):
+  with st.expander("⚙️ ইউজার ও অ্যাকাউন্ট কন্ট্রোল প্যানেল", expanded=True):
+    if st.session_state["user_role"] != "admin":
       with st.form("staff_self_update_form"):
-        st.write("আপনার নাম বা রোল পরিবর্তন করুন:")
+        st.write("আপনার নাম পরিবর্তন করুন:")
         s_new_name = st.text_input("নতুন ইউজারনেম", value=st.session_state["username"])
-        s_current_role_idx = 0 if st.session_state["user_role"] == "admin" else 1
-        s_new_role = st.selectbox("রোল সিলেক্ট করুন", ["admin", "staff"], index=s_current_role_idx)
-
         if st.form_submit_button("💾 আপডেট করুন", type="primary"):
           if not s_new_name.strip():
             st.error("ইউজারনেম খালি রাখা যাবে না!")
@@ -254,94 +240,52 @@ with st.sidebar:
               old_uname = st.session_state["username"]
               c.execute("SELECT password FROM users WHERE username=?", (old_uname,))
               current_pass = c.fetchone()[0]
-
               if old_uname != s_new_name:
                 c.execute("SELECT COUNT(*) FROM users WHERE username=?", (s_new_name,))
                 if c.fetchone()[0] > 0:
                   st.error("❌ এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হচ্ছে!")
                   st.stop()
-                c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (s_new_name, current_pass, s_new_role))
+                c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (s_new_name, current_pass, st.session_state["user_role"]))
                 c.execute("DELETE FROM users WHERE username=?", (old_uname,))
-              else:
-                c.execute("UPDATE users SET role=? WHERE username=?", (s_new_role, old_uname))
-
               conn.commit()
               st.session_state["username"] = s_new_name
-              st.session_state["user_role"] = s_new_role
               st.query_params["user"] = s_new_name
               st.success("✅ সফলভাবে আপডেট হয়েছে!")
               st.rerun()
             except Exception as e:
               st.error(f"ত্রুটি: {e}")
 
-  if st.session_state["user_role"] == "admin":
-    with st.expander("⚙️ অ্যাডমিন কন্ট্রোল (ইউজার ও পাসওয়ার্ড ম্যানেজমেন্ট)"):
+    if st.session_state["user_role"] == "admin":
       c.execute("SELECT username, role FROM users")
       all_users = c.fetchall()
-      st.info(f"👥 মোট ইউজার সংখ্যা: **{len(all_users)} জন**")
-
       user_list = [u[0] for u in all_users]
-      target_user = st.selectbox("ইউজার সিলেক্ট করুন", user_list)
-
+      target_user = st.selectbox("ইউজার সিলেক্ট করুন", user_list, key="top_admin_user_box")
       c.execute("SELECT role, password FROM users WHERE username=?", (target_user,))
       t_data = c.fetchone()
-      t_current_role = t_data[0] if t_data else "staff"
       t_current_pass = t_data[1] if t_data else ""
+      t_current_role = t_data[0] if t_data else "staff"
 
       with st.form("admin_edit_user_form"):
-        st.write(f"এডিট করছেন: `{target_user}`")
         new_u_name = st.text_input("নতুন ইউজারনেম", value=target_user)
         new_u_pass = st.text_input("নতুন পাসওয়ার্ড", value=t_current_pass, type="password")
-        
         role_idx = 0 if t_current_role == "admin" else 1
         new_u_role = st.selectbox("রোল নির্ধারণ করুন", ["admin", "staff"], index=role_idx)
-
         if st.form_submit_button("💾 পরিবর্তন সেভ করুন", type="primary"):
-          if not new_u_name.strip():
-            st.error("ইউজারনেম খালি রাখা যাবে না!")
+          if target_user != new_u_name:
+            c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (new_u_name, new_u_pass, new_u_role))
+            c.execute("DELETE FROM users WHERE username=?", (target_user,))
           else:
-            try:
-              if target_user != new_u_name:
-                c.execute("SELECT COUNT(*) FROM users WHERE username=?", (new_u_name,))
-                if c.fetchone()[0] > 0:
-                  st.error("❌ এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হচ্ছে!")
-                  st.stop()
-                c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (new_u_name, new_u_pass, new_u_role))
-                c.execute("DELETE FROM users WHERE username=?", (target_user,))
-              else:
-                c.execute("UPDATE users SET password=?, role=? WHERE username=?", (new_u_pass, new_u_role, target_user))
-              
-              conn.commit()
-              st.success(f"✅ '{target_user}'-এর তথ্য সফলভাবে আপডেট করা হয়েছে!")
-              st.rerun()
-            except Exception as e:
-              st.error(f"ত্রুটি: {e}")
-
-      st.write("---")
-      del_target_user = st.selectbox("ডিলিট ইউজার", user_list, key="del_u_box")
-      if st.button("🗑️ ইউজার রিমুভ করুন", type="primary"):
-        if del_target_user == st.session_state["username"]:
-          st.error("❌ নিজের অ্যাকাউন্ট ডিলিট করা নিষেধ!")
-        else:
-          c.execute("DELETE FROM users WHERE username=?", (del_target_user,))
+            c.execute("UPDATE users SET password=?, role=? WHERE username=?", (new_u_pass, new_u_role, target_user))
           conn.commit()
-          st.success(f"✅ '{del_target_user}' রিমুভ করা হয়েছে।")
+          st.success("✅ সফলভাবে আপডেট হয়েছে!")
           st.rerun()
 
-  st.write("---")
-  if st.button("🚪 লগআউট"):
-    st.session_state["logged_in"] = False
-    st.session_state["username"] = None
-    st.session_state["user_role"] = None
-    st.query_params.clear()
-    st.rerun()
+st.write("---")
 
 
 # =========================================================
 # LOW-DATA GPS TRACKER FOR DELIVERY AGENT
 # =========================================================
-
-st.title("🚚 পি এস মেডিসেলার")
 
 loc = get_geolocation(component_key="low_data_gps_tracker")
 
@@ -374,27 +318,29 @@ if not gps_lat and st.session_state["user_role"] != "admin":
     )
     conn.commit()
 
-menu = [
-    "📍 নতুন লোকেশন এড করুন",
-    "🔍 পার্টি ও লোকেশন সার্চ",
-    "🗺️ রুট প্ল্যানিং ও ম্যাপ",
-    "📦 পেন্ডিং অর্ডার ও বিলিং",
+
+# =========================================================
+# TOP HORIZONTAL NAVIGATION MENU (INSTANT CLICK & NO SIDEBAR)
+# =========================================================
+
+menu_options = [
+    "📍 নতুন লোকেশন এড",
+    "🔍 সার্চ",
+    "🗺️ রুট প্ল্যান",
+    "📦 অর্ডার ও বিলিং",
 ]
-
 if st.session_state["user_role"] == "admin":
-  menu.append("📊 অ্যাডমিন লাইভ ট্র্যাকিং ঘর")
+  menu_options.append("📊 লাইভ ট্র্যাকিং")
 
-with st.sidebar:
-  st.write("---")
-  st.markdown("### মেনু নির্বাচন করুন")
-  choice = st.radio("মেনু সিলেক্ট করুন", menu, label_visibility="collapsed")
+selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed")
+st.write("---")
 
 
 # =========================================================
 # 1. ADD NEW LOCATION & ORDER ENTRY
 # =========================================================
 
-if choice == "📍 নতুন লোকেশন এড করুন":
+if selected_menu == "📍 নতুন লোকেশন এড":
   st.header("📍 নতুন পার্টির লোকেশন ও অর্ডার যোগ করুন")
   col1, col2 = st.columns(2)
 
@@ -480,7 +426,7 @@ if choice == "📍 নতুন লোকেশন এড করুন":
 # 2. SEARCH PARTY
 # =========================================================
 
-elif choice == "🔍 পার্টি ও লোকেশন সার্চ":
+elif selected_menu == "🔍 সার্চ":
   st.header("🔍 পার্টি ও লোকেশন সার্চ")
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   search_query = st.text_input("সার্চ করুন")
@@ -493,7 +439,7 @@ elif choice == "🔍 পার্টি ও লোকেশন সার্চ":
 # 3. ROUTE PLANNING
 # =========================================================
 
-elif choice == "🗺️ রুট প্ল্যানিং ও ম্যাপ":
+elif selected_menu == "🗺️ রুট প্ল্যান":
   st.header("🗺️ স্মার্ট রুট প্ল্যানার")
 
   locations_df = pd.read_sql_query("SELECT * FROM locations", conn)
@@ -545,7 +491,7 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
 # 4. PENDING ORDERS & BILLING SECTION
 # =========================================================
 
-elif choice == "📦 পেন্ডিং অর্ডার ও বিলিং":
+elif selected_menu == "📦 অর্ডার ও বিলিং":
   st.header("📦 পেন্ডিং অর্ডার ও বিলিং ম্যানেজমেন্ট (অ্যাডমিন প্যানেল)")
 
   orders_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
@@ -562,7 +508,7 @@ elif choice == "📦 পেন্ডিং অর্ডার ও বিলি�
 # 5. ADMIN LIVE TRACKING ROOM
 # =========================================================
 
-elif choice == "📊 অ্যাডমিন লাইভ ট্র্যাকিং ঘর":
+elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   st.header("📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং ও মনিটর")
   st.info("এখানে আপনার সমস্ত ডেলিভারি বয় বা স্টাফদের নাম দেখতে পাবেন। যেকোনো একটি নামের ওপর ক্লিক করলেই তার বর্তমান লোকেশন দেখতে পাবেন।")
 
