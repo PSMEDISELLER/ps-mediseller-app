@@ -233,111 +233,119 @@ selected_menu = st.radio("মেনু সিলেক্ট করুন:", men
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY (ম্যাপ নিচে এবং সবশেষে সেভ)
+# 1. ADD NEW LOCATION & ORDER ENTRY
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
   st.write("### 📍 নতুন লোকেশন ও অর্ডার ফর্ম")
   
-  with st.form("combined_location_order_form"):
+  with st.form("location_details_form"):
     st.write("#### ১. পার্টির বিবরণ দিন")
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-      p_name = st.text_input("পার্টির নাম")
+      p_name = st.text_input("পার্টির নাম", key="input_p_name")
     with col_f2:
-      p_addr = st.text_input("ঠিকানা")
+      p_addr = st.text_input("ঠিকানা", key="input_p_addr")
     with col_f3:
-      p_phone = st.text_input("ফোন নম্বর")
+      p_phone = st.text_input("ফোন নম্বর", key="input_p_phone")
     
-    st.write("---")
-    st.write("#### ২. ম্যাপ থেকে লোকেশন সিলেক্ট করুন (ম্যাপে ক্লিক করুন)")
-    
-    col_m1, col_m2 = st.columns([1, 4])
-    with col_m1:
-      use_current_gps = st.form_submit_button("📍 কারেন্ট লোকেশন")
-    with col_m2:
-      st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
+    submitted_loc = st.form_submit_button("💾 সবকিছু ঠিক আছে, এখন লোকেশন সেভ করুন", type="primary")
 
-    if use_current_gps:
+  st.write("---")
+  st.write("#### ২. ম্যাপ থেকে লোকেশন সিলেক্ট করুন (ম্যাপে যেকোনো জায়গায় ক্লিক করুন)")
+  
+  col_m1, col_m2 = st.columns([1, 4])
+  with col_m1:
+    if st.button("📍 কারেন্ট লোকেশন নিন"):
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
         st.success("কারেন্ট জিপিএস লোকেশন নেওয়া হয়েছে!")
+        st.rerun()
       else:
         st.warning("জিপিএস পাওয়া যায়নি!")
+  with col_m2:
+    st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
 
-    advanced_map = folium.Map(
-        location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
-        zoom_start=17,
-        tiles=None
-    )
+  # ম্যাপ কনফিগারেশন (ডিফল্ট স্ট্রিট ভিউ আগে রাখা হয়েছে যাতে এটিই সিলেক্টেড থাকে)
+  advanced_map = folium.Map(
+      location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
+      zoom_start=17,
+      tiles=None
+  )
 
-    folium.TileLayer(
-        tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-        attr="Google Maps Street",
-        name="গুগল স্ট্রিট ভিউ",
-        overlay=False,
-        control=True
+  street_layer = folium.TileLayer(
+      tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+      attr="Google Maps Street",
+      name="গুগল স্ট্রিট ভিউ",
+      overlay=False,
+      control=True,
+      show=True
+  )
+  street_layer.add_to(advanced_map)
+
+  satellite_layer = folium.TileLayer(
+      tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      attr="Google Maps Satellite",
+      name="গুগল স্যাটেলাইট ভিউ",
+      overlay=False,
+      control=True,
+      show=False
+  )
+  satellite_layer.add_to(advanced_map)
+
+  folium.Marker(
+      [st.session_state["selected_lat"], st.session_state["selected_lon"]],
+      popup="<b>নির্বাচিত পয়েন্ট</b>",
+      tooltip="এখানে সেভ হবে",
+      icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
+  ).add_to(advanced_map)
+
+  if gps_lat and gps_lon:
+    folium.CircleMarker(
+        location=[gps_lat, gps_lon],
+        radius=9,
+        color="#0056b3",
+        fill=True,
+        fill_color="#1a73e8",
+        fill_opacity=0.9,
+        popup="আপনার বর্তমান জিপিএস লোকেশন"
     ).add_to(advanced_map)
 
-    folium.TileLayer(
-        tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-        attr="Google Maps Satellite",
-        name="গুগল স্যাটেলাইট ভিউ",
-        overlay=False,
-        control=True
-    ).add_to(advanced_map)
+  formatter = "function(num) {return L.Util.formatNum(num, 5) + ' ° ';};"
+  MousePosition(
+      position="bottomright",
+      separator=" | ",
+      prefix="লেট/লং: ",
+      lat_formatter=formatter,
+      lng_formatter=formatter
+  ).add_to(advanced_map)
 
-    folium.Marker(
-        [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-        popup="<b>নির্বাচিত পয়েন্ট</b>",
-        tooltip="এখানে সেভ হবে",
-        icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
-    ).add_to(advanced_map)
+  folium.LayerControl().add_to(advanced_map)
 
-    if gps_lat and gps_lon:
-      folium.CircleMarker(
-          location=[gps_lat, gps_lon],
-          radius=9,
-          color="#0056b3",
-          fill=True,
-          fill_color="#1a73e8",
-          fill_opacity=0.9,
-          popup="আপনার বর্তমান জিপিএস লোকেশন"
-      ).add_to(advanced_map)
+  map_data = st_folium(advanced_map, width="100%", height=420, key="google_style_interactive_map")
+  
+  if map_data and map_data.get("last_clicked"):
+    clicked_lat = map_data["last_clicked"]["lat"]
+    clicked_lon = map_data["last_clicked"]["lng"]
+    if clicked_lat != st.session_state["selected_lat"] or clicked_lon != st.session_state["selected_lon"]:
+      st.session_state["selected_lat"] = clicked_lat
+      st.session_state["selected_lon"] = clicked_lon
+      st.rerun()
 
-    formatter = "function(num) {return L.Util.formatNum(num, 5) + ' ° ';};"
-    MousePosition(
-        position="bottomright",
-        separator=" | ",
-        prefix="লেট/লং: ",
-        lat_formatter=formatter,
-        lng_formatter=formatter
-    ).add_to(advanced_map)
-
-    folium.LayerControl().add_to(advanced_map)
-
-    map_data = st_folium(advanced_map, width="100%", height=420, key="google_style_interactive_map")
-    
-    if map_data and map_data.get("last_clicked"):
-      clicked_lat = map_data["last_clicked"]["lat"]
-      clicked_lon = map_data["last_clicked"]["lng"]
-      if clicked_lat != st.session_state["selected_lat"] or clicked_lon != st.session_state["selected_lon"]:
-        st.session_state["selected_lat"] = clicked_lat
-        st.session_state["selected_lon"] = clicked_lon
-
-    st.write("---")
-    submitted_loc = st.form_submit_button("💾 সবকিছু ঠিক আছে, এখন লোকেশন সেভ করুন", type="primary")
-    
-    if submitted_loc:
-      if p_name.strip() and p_phone.strip():
-        c.execute(
-            "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-            (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
-        )
-        conn.commit()
-        st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-      else:
-        st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
+  # লোকেশন সেভ করার প্রসেস ফর্ম সাবমিটের পর হ্যান্ডেল করা
+  if submitted_loc:
+    p_n = st.session_state.get("input_p_name", "")
+    p_a = st.session_state.get("input_p_addr", "")
+    p_ph = st.session_state.get("input_p_phone", "")
+    if p_n.strip() and p_ph.strip():
+      c.execute(
+          "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+          (p_n, p_a, p_ph, st.session_state["selected_lat"], st.session_state["selected_lon"]),
+      )
+      conn.commit()
+      st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+    else:
+      st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
   st.write("---")
   st.write("### 📦 নতুন অর্ডার এন্ট্রি")
@@ -429,7 +437,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN (স্বাধীন চেকবক্স অপশনসহ)
+# 4. DUE CLEAR & DELIVERY PLAN
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
@@ -465,7 +473,6 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
     submit_easy_task = st.form_submit_button("🎯 কাজ যোগ করুন", type="primary")
 
     if submit_easy_task and sel_pt != "-- পার্টি নেই --":
-      # চেকবক্স থেকে কাজের ধরণ নির্ধারণ
       selected_tasks = []
       if chk_delivery:
         selected_tasks.append("ডেলিভারি")
