@@ -30,24 +30,31 @@ st.markdown(
         <meta name="theme-color" content="#FF4B4B">
     </head>
     <script>
-        // অটোমেটিক সাইডবার পপআপ ক্লোজ করার স্ক্রিপ্ট
+        // অটোমেটিক সাইডবার ক্লোজ করার উন্নত স্ক্রিপ্ট
         document.addEventListener('click', function(e) {
             const target = e.target;
             const sidebar = document.querySelector('[data-testid="stSidebar"]');
             
-            // যদি ক্লিকটি সাইডবারের ভেতরে হয় এবং কোনো বাটন, রেডিও বা লিঙ্কে ক্লিক করা হয়
             if (sidebar && sidebar.contains(target)) {
-                if (target.closest('button') || target.closest('label') || target.closest('[data-baseweb="radio"]')) {
-                    // যদি এটি কোনো এক্সপ্যান্ডার বা ড্রপডাউন ওপেন করার বাটন না হয়, তবে সাইডবার বন্ধ করে দেবো
-                    if (!target.closest('[data-testid="stExpander"]')) {
+                // যদি কোনো বাটন, রেডিও, লেবেল অথবা সিলেক্টবক্সের (stSelectbox / baseweb dropdown) ওপর ক্লিক করা হয়
+                if (
+                    target.closest('button') || 
+                    target.closest('label') || 
+                    target.closest('[data-baseweb="radio"]') || 
+                    target.closest('[data-baseweb="select"]') ||
+                    target.closest('.stSelectbox')
+                ) {
+                    // এক্সপ্যান্ডার বা ড্রপডাউন লিস্টের ভেতরের অপশন সিলেক্ট করার সময় যাতে ইনস্ট্যান্ট বন্ধ না হয়ে যায়, তার ছোট ডিলে রাখা হলো
+                    const isDropdownList = target.closest('[role="listbox"]') || target.closest('[data-baseweb="popover"]');
+                    
+                    if (!target.closest('[data-testid="stExpander"]') || isDropdownList) {
                         setTimeout(() => {
                             const closeButton = document.querySelector('button[kind="header"]');
                             const computedStyle = window.getComputedStyle(sidebar);
-                            // মোবাইল ভিউতে বা ছোট স্ক্রিনে সাইডবার খোলা থাকলে বন্ধ করার চেষ্টা করবে
                             if (closeButton && computedStyle.display !== 'none' && window.innerWidth <= 992) {
                                 closeButton.click();
                             }
-                        }, 250);
+                        }, isDropdownList ? 150 : 250);
                     }
                 }
             }
@@ -159,7 +166,6 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-# ব্রাউজারের কুয়েরি প্যারামিটার বা কুকি থেকে ইউজার রিকভার করার সিস্টেম
 query_params = st.query_params
 saved_user = query_params.get("user", None)
 
@@ -195,7 +201,6 @@ if not st.session_state["logged_in"]:
         st.session_state["username"] = username
         st.session_state["user_role"] = user_data[1]
         
-        # অটো লগইন পার্মানেন্ট করার জন্য query_params এ ইউজার নেম সেট করা হলো
         if remember_me:
           st.query_params["user"] = username
           
@@ -332,7 +337,7 @@ with st.sidebar:
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
-    st.query_params.clear()  # লগআউট করলে কুয়েরি প্যারামিটার পরিষ্কার হয়ে যাবে যাতে পুনরায় লগইন পেজ আসে
+    st.query_params.clear()
     st.rerun()
 
 
