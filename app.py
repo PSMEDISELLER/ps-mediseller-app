@@ -232,7 +232,7 @@ selected_menu = st.radio("মেনু সিলেক্ট করুন:", men
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY (Updated)
+# 1. ADD NEW LOCATION & ORDER ENTRY (Advanced & Smooth Map)
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
   col1, col2 = st.columns(2)
@@ -281,19 +281,22 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         else:
           st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
-  st.write("### 🗺️ ম্যাপ লোকেশন সিলেক্ট করুন")
+  st.write("### 🗺️ ম্যাপ লোকেশন সিলেক্ট করুন (ম্যাপে যেকোনো জায়গায় ক্লিক করুন)")
 
-  # কারেন্ট লোকেশন রিফ্রেশ বাটন
-  if st.button("📍 আমার কারেন্ট লোকেশন রিফ্রেশ করুন"):
-    if gps_lat and gps_lon:
-      st.session_state["selected_lat"] = gps_lat
-      st.session_state["selected_lon"] = gps_lon
-      st.success("ম্যাপ কারেন্ট লোকেশনে আপডেট করা হয়েছে!")
-      st.rerun()
-    else:
-      st.warning("⚠️ জিপিএস লোকেশন পাওয়া যায়নি। ব্রাউজারের লোকেশন পারমিশন চেক করুন।")
+  col_m1, col_m2 = st.columns([1, 4])
+  with col_m1:
+    if st.button("📍 কারেন্ট লোকেশন"):
+      if gps_lat and gps_lon:
+        st.session_state["selected_lat"] = gps_lat
+        st.session_state["selected_lon"] = gps_lon
+        st.success("লোকেশন আপডেট!")
+        st.rerun()
+      else:
+        st.warning("জিপিএস পাওয়া যায়নি!")
 
-  # গুগল ম্যাপ স্টাইল ও মার্কার কনফিগারেশন
+  with col_m2:
+    st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
+
   m_click = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
       zoom_start=16,
@@ -301,14 +304,12 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       attr="Google"
   )
 
-  # সিলেক্ট করা জায়গায় লাল পিন
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      popup="সিলেক্টেড পিন (নতুন লোকেশন)",
+      popup="নির্বাচিত লোকেশন",
       icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
   ).add_to(m_click)
 
-  # ইউজার কারেন্ট লোকেশন ব্লু ডট
   if gps_lat and gps_lon:
     folium.CircleMarker(
         location=[gps_lat, gps_lon],
@@ -316,11 +317,12 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         color="blue",
         fill=True,
         fill_color="blue",
-        fill_opacity=0.7,
-        popup="আপনার বর্তমান লোকেশন (ব্লু ডট)"
+        fill_opacity=0.8,
+        popup="আপনার বর্তমান লোকেশন"
     ).add_to(m_click)
   
-  map_data = st_folium(m_click, width=900, height=450, key="interactive_map_safe")
+  map_data = st_folium(m_click, width="100%", height=450, key="advanced_interactive_map")
+  
   if map_data and map_data.get("last_clicked"):
     clicked_lat = map_data["last_clicked"]["lat"]
     clicked_lon = map_data["last_clicked"]["lng"]
