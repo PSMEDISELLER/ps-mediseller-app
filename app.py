@@ -216,7 +216,7 @@ if loc and "coords" in loc:
   conn.commit()
 
 # =========================================================
-# NAVIGATION MENU (এজেন্ট অ্যাসাইনমেন্ট অপশন বাদ দেওয়া হয়েছে)
+# NAVIGATION MENU
 # =========================================================
 menu_options = [
     "📍 নতুন লোকেশন এড",
@@ -347,12 +347,11 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN (সহজ অ্যাসাইনমেন্ট ও ২০-৩০ মিটার অটো রিমুভ সিস্টেম)
+# 4. DUE CLEAR & DELIVERY PLAN (পাশাপাশি অপশন ও পার্টি সার্চ ফিল্টার যুক্ত)
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
-  st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও এজেন্ট অ্যাসাইনমেন্ট প্ল্যান")
+  st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
   
-  # নতুন টাস্ক বা কাজ অ্যাসাইন করার ফর্ম (খুব সহজ করা হয়েছে)
   c.execute("SELECT username FROM users")
   all_agents = [r[0] for r in c.fetchall()]
   c.execute("SELECT DISTINCT party_name, lat, lon FROM locations")
@@ -360,17 +359,25 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
+  # পার্টি সার্চ করার জন্য অপশন ও টাইপ বক্স
+  st.write("#### 🔍 পার্টি সার্চ করুন বা নতুন কাজ যুক্ত করুন")
+  party_search_filter = st.text_input("পার্টির নাম লিখে সার্চ করুন (খুঁজতে সুবিধা হবে)", "")
+  
+  filtered_parties_list = [p for p in all_parties if party_search_filter.lower() in p.lower()] if party_search_filter else all_parties
+
   with st.form("easy_assign_form", clear_on_submit=True):
-    st.write("#### ➕ নতুন কাজ যুক্ত করুন")
-    col_e1, col_e2, col_e3 = st.columns(3)
+    # পাশাপাশি সুন্দরভাবে ফিল্ডগুলো সাজানো হয়েছে (পয়েন্ট ২ অনুযায়ী)
+    col_e1, col_e2, col_e3, col_e4 = st.columns([2, 2, 2, 2])
+    
     with col_e1:
-      sel_ag = st.selectbox("এজেন্ট সিলেক্ট করুন", all_agents)
+      sel_ag = st.selectbox("এজেন্ট", all_agents)
     with col_e2:
-      sel_pt = st.selectbox("পার্টি সিলেক্ট করুন", all_parties if all_parties else ["-- পার্টি নেই --"])
+      sel_pt = st.selectbox("পার্টি সিলেক্ট", filtered_parties_list if filtered_parties_list else ["-- পার্টি নেই --"])
     with col_e3:
       t_type = st.selectbox("কাজের ধরণ", ["ডেলিভারি", "ডিউ কালেকশন", "উভয়ই"])
-    
-    d_amount = st.text_input("ডিউ টাকার পরিমাণ (যদি থাকে)", "0")
+    with col_e4:
+      d_amount = st.text_input("ডিউ টাকা", "0")
+
     submit_easy_task = st.form_submit_button("🎯 কাজ যোগ করুন", type="primary")
 
     if submit_easy_task and sel_pt != "-- পার্টি নেই --":
@@ -383,7 +390,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
       st.rerun()
 
   st.write("---")
-  st.write("### 📋 বর্তমান কাজের তালিকা (অটো-ডিলিট সিস্টেম যুক্ত)")
+  st.write("### 📋 বর্তমান কাজের তালিকা (অটো-ডিলিট সিস্টেম)")
 
   if st.session_state["user_role"] == "admin":
     tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
@@ -402,20 +409,19 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
       if gps_lat and gps_lon and p_name in party_coords:
         p_lat, p_lon = party_coords[p_name]
         if p_lat and p_lon:
-          # আনুমানিক দূরত্ব হিসাব (মিটারের কাছাকাছি)
           import math
-          dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000 # ডিগ্রিকে মিটারে রূপান্তর
-          if dist <= 30: # ৩০ মিটারের মধ্যে গেলে
+          dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
+          if dist <= 30:
             auto_completed = True
 
-      if cols[2].button("✅ সম্পন্ন করুন", key=f"comp_task_{row['id']}") or auto_completed:
+      if cols[2].button("✅ সম্পন্ন", key=f"comp_task_{row['id']}") or auto_completed:
         c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
         if "ডেলিভারি" in row['task_type'] or row['task_type'] == "উভয়ই":
           c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
         if "ডিউ" in row['task_type'] or row['task_type'] == "উভয়ই":
           c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
         conn.commit()
-        st.success(f"{p_name}-এর কাজ সফলভাবে সম্পন্ন ও লিস্ট থেকে রিমুভ হলো!")
+        st.success(f"{p_name}-এর কাজ সম্পন্ন ও লিস্ট থেকে রিমুভ হলো!")
         st.rerun()
 
       cols[3].write("পেন্ডিং (২৪ ঘণ্টা মেয়াদ)")
@@ -424,7 +430,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
     st.info("কোনো কাজ অ্যাসাইন করা নেই।")
 
 # =========================================================
-# 5. HOME-TO-HOME AUTO ROUTE & MAP (পার্টি ১ থেকে ২ অটো সিকোয়েন্স রুট)
+# 5. HOME-TO-HOME AUTO ROUTE & MAP
 # =========================================================
 elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্যাপ":
   st.write("### 🗺️ অটোমেটিক হোম-টু-হোম রুট প্ল্যানিং")
@@ -458,7 +464,6 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
         ).add_to(route_map)
         seq_num += 1
 
-    # অটোমেটিক রুট সিকোয়েন্স লাইন (পার্টি ১ থেকে ২, ৩ এভাবে সংযুক্ত করা)
     if len(coordinates_list) > 1:
       folium.PolyLine(coordinates_list, color="#ff4b4b", weight=5, opacity=0.85, tooltip="অটো প্ল্যানড ডেলিভারি রুট").add_to(route_map)
 
