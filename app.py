@@ -1,11 +1,10 @@
 from datetime import datetime
-import math
 import folium
 import pandas as pd
 import sqlite3
 import streamlit as st
 from streamlit_folium import st_folium
-from streamlit_js_eval import get_geolocation
+from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
 # =========================================================
 # PAGE CONFIGURATION
@@ -88,53 +87,57 @@ if c.fetchone()[0] == 0:
   conn.commit()
 
 # =========================================================
-# SESSION MANAGEMENT
+# PERMANENT LOCALSTORAGE LOGIN PERSISTENCE
 # =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-query_params = st.query_params
-active_user = query_params.get("auth_user", None)
+# ব্রাউজারের লোকাল স্টোরেজ থেকে পার্মানেন্ট ইউজার চেক করা
+local_user = streamlit_js_eval(js_expressions="localStorage.getItem('ps_perma_user')", key="get_local_user")
 
-if active_user:
-  c.execute("SELECT role FROM users WHERE username=?", (active_user,))
+if "logged_in" not in st.session_state:
+  st.session_state["logged_in"] = False
+
+if not st.session_state["logged_in"] and local_user:
+  c.execute("SELECT role FROM users WHERE username=?", (local_user,))
   r_data = c.fetchone()
   if r_data:
     st.session_state["logged_in"] = True
-    st.session_state["username"] = active_user
+    st.session_state["username"] = local_user
     st.session_state["user_role"] = r_data[0]
-  else:
-    st.session_state["logged_in"] = False
-else:
-  if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
 
 # =========================================================
-# LOGIN SCREEN
+# LOGIN SCREEN (PERMANENT)
 # =========================================================
 if not st.session_state.get("logged_in", False):
-  st.title("🔑 পি এস মেডিসেলার - লগইন")
-  
+  st.title("🔑 পি এস মেডিসেলার - লগইন পোর্টাল")
+  st.write("একবার লগইন করলে বারবার পাসওয়ার্ড দিতে হবে না।")
+
   c.execute("SELECT username FROM users")
   all_users = [row[0] for row in c.fetchall()]
-  
-  sel_user = st.selectbox("ইউজারনেম নির্বাচন করুন", all_users, key="login_user_box")
-  input_pass = st.text_input("পাসওয়ার্ড দিন", type="password", key="login_pass_box")
-  
-  if st.button("সরাসরি লগইন করুন", type="primary", key="direct_login_btn"):
-    c.execute("SELECT password, role FROM users WHERE username=?", (sel_user,))
-    user_row = c.fetchone()
-    if user_row and user_row[0] == input_pass:
-      st.session_state["logged_in"] = True
-      st.session_state["username"] = sel_user
-      st.session_state["user_role"] = user_row[1]
-      st.query_params["auth_user"] = sel_user
-      st.success("লগইন সফল হয়েছে!")
-      st.rerun()
-    else:
-      st.error("❌ ভুল পাসওয়ার্ড!")
+
+  with st.form("login_form_perma"):
+    sel_user = st.selectbox("ইউজারনেম নির্বাচন করুন", all_users)
+    input_pass = st.text_input("পাসওয়ার্ড দিন", type="password")
+    submit_login = st.form_submit_button("🔒 স্থায়ীভাবে লগইন করুন", type="primary")
+
+    if submit_login:
+      c.execute("SELECT password, role FROM users WHERE username=?", (sel_user,))
+      user_row = c.fetchone()
+      if user_row and user_row[0] == input_pass:
+        st.session_state["logged_in"] = True
+        st.session_state["username"] = sel_user
+        st.session_state["user_role"] = user_row[1]
+        
+        # ব্রাউজারের লোকাল স্টোরেজে ইউজারনেম পার্মানেন্টলি সেভ করে রাখা
+        streamlit_js_eval(js_expressions=f"localStorage.setItem('ps_perma_user', '{sel_user}')", key="set_local_user")
+        
+        st.success("লগইন সফল হয়েছে! অ্যাপ লোড হচ্ছে...")
+        st.rerun()
+      else:
+        st.error("❌ ভুল পাসওয়ার্ড!")
   st.stop()
 
 # =========================================================
@@ -146,11 +149,12 @@ col_u1, col_u3 = st.columns([3, 1])
 with col_u1:
   st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
 with col_u3:
-  if st.button("🚪 লগআউট", key="logout_btn"):
+  if st.button("🚪 লগআউট"):
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
-    st.query_params.clear()
+    # লগআউট করলে লোকাল স্টোরেজ ক্লিয়ার হয়ে যাবে
+    streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
     st.rerun()
 st.write("---")
 
@@ -176,18 +180,18 @@ menu_options = ["📍 নতুন লোকেশন এড", "🔍 সার�
 if st.session_state["user_role"] == "admin":
   menu_options.append("📊 লাইভ ট্র্যাকিং")
 
-selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed", key="main_navigation_radio")
+selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed")
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY (HTML LOCALSTORAGE PASSTHROUGH)
+# 1. ADD NEW LOCATION & ORDER ENTRY
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
   col1, col2 = st.columns(2)
 
   with col1:
     st.write("### 📍 লোকেশন পিন করুন")
-    if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন", key="set_gps_btn"):
+    if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন"):
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
@@ -196,87 +200,43 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       else:
         st.warning("GPS সিগন্যাল পাওয়া যায়নি।")
 
-    # ব্রাউজারের নিজস্ব মেমোরি (LocalStorage) ব্যবহার করে ইনপুট ধরে রাখার ব্যবস্থা
-    html_form_code = """
-    <div style="background-color:transparent; padding:0px; font-family:sans-serif;">
-      <form id="locForm" onsubmit="saveData(event)">
-        <label style="font-size:14px; font-weight:600; color:#31333F;">পার্টির নাম:</label><br>
-        <input type="text" id="p_name" name="p_name" style="width:100%; padding:8px; margin-top:4px; margin-bottom:12px; border:1px solid #cccccc; border-radius:4px;" oninput="localStorage.setItem('p_name', this.value)"><br>
-        
-        <label style="font-size:14px; font-weight:600; color:#31333F;">ঠিকানা:</label><br>
-        <input type="text" id="p_addr" name="p_addr" style="width:100%; padding:8px; margin-top:4px; margin-bottom:12px; border:1px solid #cccccc; border-radius:4px;" oninput="localStorage.setItem('p_addr', this.value)"><br>
-        
-        <label style="font-size:14px; font-weight:600; color:#31333F;">ফোন নম্বর:</label><br>
-        <input type="text" id="p_phone" name="p_phone" style="width:100%; padding:8px; margin-top:4px; margin-bottom:12px; border:1px solid #cccccc; border-radius:4px;" oninput="localStorage.setItem('p_phone', this.value)"><br>
-        
-        <button type="submit" style="background-color:#FF4B4B; color:white; border:none; padding:10px 20px; border-radius:4px; font-weight:bold; cursor:pointer; width:100%;">💾 লোকেশন সেভ করুন</button>
-      </form>
-    </div>
-
-    <script>
-      document.getElementById('p_name').value = localStorage.getItem('p_name') || '';
-      document.getElementById('p_addr').value = localStorage.getItem('p_addr') || '';
-      document.getElementById('p_phone').value = localStorage.getItem('p_phone') || '';
-
-      function saveData(e) {
-        e.preventDefault();
-        const pName = document.getElementById('p_name').value;
-        const pAddr = document.getElementById('p_addr').value;
-        const pPhone = document.getElementById('p_phone').value;
-        
-        if(!pName || !pPhone) {
-          alert("পার্টির নাম এবং ফোন নম্বর আবশ্যক।");
-          return;
-        }
-        
-        // Streamlit-এর সাথে ডেটা সিঙ্ক করার জন্য প্যারামিটার পাঠানো
-        const url = new URL(window.location.href);
-        url.searchParams.set('action', 'save_loc');
-        url.searchParams.set('p_name', encodeURIComponent(pName));
-        url.searchParams.set('p_addr', encodeURIComponent(pAddr));
-        url.searchParams.set('p_phone', encodeURIComponent(pPhone));
-        window.location.href = url.toString();
-      }
-    </script>
-    """
-    st.components.v1.html(html_form_code, height=320)
-
-    # পাইথন ব্যাকএন্ডে ডেটা রিসিভ ও সেভ করার লজিক
-    params = st.query_params
-    if params.get("action") == "save_loc":
-      r_name = urllib.parse.unquote(params.get("p_name", ""))
-      r_addr = urllib.parse.unquote(params.get("p_addr", ""))
-      r_phone = urllib.parse.unquote(params.get("p_phone", ""))
+    with st.form("location_form", clear_on_submit=True):
+      p_name = st.text_input("পার্টির নাম")
+      p_addr = st.text_input("ঠিকানা")
+      p_phone = st.text_input("ফোন নম্বর")
       
-      if r_name and r_phone:
-        c.execute(
-            "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-            (r_name, r_addr, r_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
-        )
-        conn.commit()
-        st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-        st.query_params.clear()
-        st.query_params["auth_user"] = st.session_state["username"]
-        st.rerun()
+      submitted_loc = st.form_submit_button("💾 লোকেশন সেভ করুন", type="primary")
+      if submitted_loc:
+        if p_name.strip() and p_phone.strip():
+          c.execute(
+              "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+              (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
+          )
+          conn.commit()
+          st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+        else:
+          st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
   with col2:
     st.write("### 📦 নতুন অর্ডার এন্ট্রি")
     c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
     all_parties_db = [row[0] for row in c.fetchall()]
 
-    ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + all_parties_db, key="input_order_party")
-    ord_details = st.text_area("অর্ডারের বিবরণ", key="input_order_details")
+    with st.form("order_form", clear_on_submit=True):
+      ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + all_parties_db)
+      ord_details = st.text_area("অর্ডারের বিবরণ")
 
-    if st.button("🛒 অর্ডার জমা দিন", type="primary", key="save_order_direct_btn"):
-      if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
-        c.execute(
-            "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
-            (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
-        )
-        conn.commit()
-        st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
-      else:
-        st.error("সঠিক পার্টি এবং বিবরণ দিন।")
+      submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
+      if submitted_ord:
+        if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
+          c.execute(
+              "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
+              (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
+          )
+          conn.commit()
+          st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
+        else:
+          st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
   # Map Display
   m_click = folium.Map(
@@ -305,7 +265,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   df = pd.read_sql_query("SELECT * FROM locations", conn)
-  search_query = st.text_input("সার্চ করুন (পার্টির নাম)", key="search_party_input")
+  search_query = st.text_input("সার্চ করুন (পার্টির নাম)")
   if search_query:
     df = df[df["party_name"].str.contains(search_query, case=False, na=False)]
   st.dataframe(df, use_container_width=True, hide_index=True)
@@ -316,8 +276,8 @@ elif selected_menu == "🔍 সার্চ":
 elif selected_menu == "🗺️ রুট প্ল্যান":
   locations_df = pd.read_sql_query("SELECT * FROM locations", conn)
   if not locations_df.empty:
-    selected_parties = st.multiselect("পার্টি সিলেক্ট করুন:", locations_df["party_name"].tolist(), key="route_multi_select")
-    if st.button("🚀 রুট তৈরি করুন", key="route_btn"):
+    selected_parties = st.multiselect("পার্টি সিলেক্ট করুন:", locations_df["party_name"].tolist())
+    if st.button("🚀 রুট তৈরি করুন"):
       st.success("রুট প্রসেস সম্পন্ন হয়েছে।")
 
 # =========================================================
