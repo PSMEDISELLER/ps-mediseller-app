@@ -88,63 +88,53 @@ if c.fetchone()[0] == 0:
   conn.commit()
 
 # =========================================================
-# PERMANENT SESSION MANAGEMENT (AUTO-LOGIN SYSTEM)
+# ADVANCED PERSISTENT SESSION (URL Token Sync)
 # =========================================================
-if "logged_in" not in st.session_state:
-  st.session_state["logged_in"] = False
-if "username" not in st.session_state:
-  st.session_state["username"] = None
-if "user_role" not in st.session_state:
-  st.session_state["user_role"] = None
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-# ব্রাউজারের কু্যরি প্যারামিটার বা পার্মানেন্ট টোকেন চেক করা
 query_params = st.query_params
-saved_user = query_params.get("perma_user", None)
+active_user = query_params.get("auth_user", None)
 
-if not st.session_state["logged_in"] and saved_user:
-  c.execute("SELECT role FROM users WHERE username=?", (saved_user,))
-  role_data = c.fetchone()
-  if role_data:
+if active_user:
+  c.execute("SELECT role FROM users WHERE username=?", (active_user,))
+  r_data = c.fetchone()
+  if r_data:
     st.session_state["logged_in"] = True
-    st.session_state["username"] = saved_user
-    st.session_state["user_role"] = role_data[0]
+    st.session_state["username"] = active_user
+    st.session_state["user_role"] = r_data[0]
+  else:
+    st.session_state["logged_in"] = False
+else:
+  if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
 
 # =========================================================
-# LOGIN PAGE (ONLY SHOWN IF NEVER LOGGED IN)
+# LOGIN SCREEN
 # =========================================================
-if not st.session_state["logged_in"]:
-  st.title("🔑 লগইন পোর্টাল (P.S Mediseller)")
-  st.write("আপনার অ্যাকাউন্ট সিলেক্ট করুন এবং পাসওয়ার্ড দিন (একবার লগইন করলে আর বারবার লাগবে না):")
-
-  c.execute("SELECT username, role FROM users")
-  users_data = c.fetchall()
-  usernames = [u[0] for u in users_data]
-
-  with st.form("perma_login_form"):
-    selected_user_box = st.selectbox("ইউজারনেম বেছে নিন", usernames)
-    input_password = st.text_input("পাসওয়ার্ড দিন", type="password")
-    login_submit = st.form_submit_button("লগইন করুন (স্থায়ীভাবে মনে রাখুন)", type="primary")
-
-    if login_submit:
-      c.execute("SELECT password, role FROM users WHERE username=?", (selected_user_box,))
-      u_row = c.fetchone()
-      if u_row and u_row[0] == input_password:
-        st.session_state["logged_in"] = True
-        st.session_state["username"] = selected_user_box
-        st.session_state["user_role"] = u_row[1]
-        
-        # পার্মানেন্ট লগইনের জন্য ব্রাউজারে টোকেন সেভ করে দেওয়া হলো
-        st.query_params["perma_user"] = selected_user_box
-        
-        st.success("লগইন সফল হয়েছে!")
-        st.rerun()
-      else:
-        st.error("❌ পাসওয়ার্ড ভুল হয়েছে!")
-
+if not st.session_state.get("logged_in", False):
+  st.title("🔑 পি এস মেডিসেলার - লগইন")
+  
+  c.execute("SELECT username FROM users")
+  all_users = [row[0] for row in c.fetchall()]
+  
+  sel_user = st.selectbox("ইউজারনেম নির্বাচন করুন", all_users, key="login_user_box")
+  input_pass = st.text_input("পাসওয়ার্ড দিন", type="password", key="login_pass_box")
+  
+  if st.button("সরাসরি লগইন করুন", type="primary", key="direct_login_btn"):
+    c.execute("SELECT password, role FROM users WHERE username=?", (sel_user,))
+    user_row = c.fetchone()
+    if user_row and user_row[0] == input_pass:
+      st.session_state["logged_in"] = True
+      st.session_state["username"] = sel_user
+      st.session_state["user_role"] = user_row[1]
+      st.query_params["auth_user"] = sel_user
+      st.success("লগইন সফল হয়েছে!")
+      st.rerun()
+    else:
+      st.error("❌ ভুল পাসওয়ার্ড!")
   st.stop()
 
 # =========================================================
@@ -156,18 +146,18 @@ col_u1, col_u3 = st.columns([3, 1])
 with col_u1:
   st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
 with col_u3:
-  if st.button("🚪 লগআউট"):
+  if st.button("🚪 লগআউট", key="logout_btn"):
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
-    st.query_params.clear()  # লগআউট করলে পার্মানেন্ট টোকেন মুছে যাবে
+    st.query_params.clear()
     st.rerun()
 st.write("---")
 
 # =========================================================
 # GPS TRACKING (Background)
 # =========================================================
-loc = get_geolocation(component_key="low_data_gps_tracker")
+loc = get_geolocation(component_key="safe_gps_tracker")
 gps_lat, gps_lon = None, None
 
 if loc and "coords" in loc:
@@ -186,7 +176,7 @@ menu_options = ["📍 নতুন লোকেশন এড", "🔍 সার�
 if st.session_state["user_role"] == "admin":
   menu_options.append("📊 লাইভ ট্র্যাকিং")
 
-selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed")
+selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed", key="main_navigation_radio")
 st.write("---")
 
 # =========================================================
@@ -197,52 +187,48 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
   with col1:
     st.write("### 📍 লোকেশন পিন করুন")
-    if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন"):
+    if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন", key="set_gps_btn"):
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
-        st.success("✅ লোকেশন সিলেক্ট হয়েছে!")
+        st.success("✅ লোকেশন আপডেট হয়েছে!")
         st.rerun()
       else:
         st.warning("GPS সিগন্যাল পাওয়া যায়নি।")
 
-    with st.form("loc_form_safe", clear_on_submit=True):
-      party_name = st.text_input("পার্টির নাম")
-      address = st.text_input("ঠিকানা")
-      party_phone = st.text_input("ফোন নম্বর")
-      submit_loc = st.form_submit_button("💾 লোকেশন সেভ করুন", type="primary")
+    p_name = st.text_input("পার্টির নাম", key="input_party_name")
+    p_addr = st.text_input("ঠিকানা", key="input_party_address")
+    p_phone = st.text_input("ফোন নম্বর", key="input_party_phone")
 
-      if submit_loc:
-        if party_name and party_phone:
-          c.execute(
-              "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-              (party_name, address, party_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
-          )
-          conn.commit()
-          st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-        else:
-          st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
+    if st.button("💾 লোকেশন সেভ করুন", type="primary", key="save_loc_direct_btn"):
+      if p_name.strip() and p_phone.strip():
+        c.execute(
+            "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+            (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
+        )
+        conn.commit()
+        st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+      else:
+        st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
   with col2:
     st.write("### 📦 নতুন অর্ডার এন্ট্রি")
     c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
     all_parties_db = [row[0] for row in c.fetchall()]
 
-    with st.form("ord_form_safe", clear_on_submit=True):
-      order_party_name = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + all_parties_db)
-      order_details_input = st.text_area("অর্ডারের বিবরণ")
-      submit_order = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
+    ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + all_parties_db, key="input_order_party")
+    ord_details = st.text_area("অর্ডারের বিবরণ", key="input_order_details")
 
-      if submit_order:
-        if order_party_name != "-- সিলেক্ট করুন --" and order_details_input.strip():
-          c.execute(
-              "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
-              (order_party_name, order_details_input, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
-          )
-          conn.commit()
-          st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
-        else:
-          st.error("সঠিক পার্টি এবং বিবরণ দিন।")
+    if st.button("🛒 অর্ডার জমা দিন", type="primary", key="save_order_direct_btn"):
+      if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
+        c.execute(
+            "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
+            (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
+        )
+        conn.commit()
+        st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
+      else:
+        st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
   # Map Display
   m_click = folium.Map(
@@ -257,7 +243,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
   ).add_to(m_click)
   
-  map_data = st_folium(m_click, width=900, height=450, key="interactive_map")
+  map_data = st_folium(m_click, width=900, height=450, key="interactive_map_safe")
   if map_data and map_data.get("last_clicked"):
     clicked_lat = map_data["last_clicked"]["lat"]
     clicked_lon = map_data["last_clicked"]["lng"]
@@ -271,7 +257,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   df = pd.read_sql_query("SELECT * FROM locations", conn)
-  search_query = st.text_input("সার্চ করুন (পার্টির নাম)")
+  search_query = st.text_input("সার্চ করুন (পার্টির নাম)", key="search_party_input")
   if search_query:
     df = df[df["party_name"].str.contains(search_query, case=False, na=False)]
   st.dataframe(df, use_container_width=True, hide_index=True)
@@ -282,8 +268,8 @@ elif selected_menu == "🔍 সার্চ":
 elif selected_menu == "🗺️ রুট প্ল্যান":
   locations_df = pd.read_sql_query("SELECT * FROM locations", conn)
   if not locations_df.empty:
-    selected_parties = st.multiselect("পার্টি সিলেক্ট করুন:", locations_df["party_name"].tolist())
-    if st.button("🚀 রুট তৈরি করুন"):
+    selected_parties = st.multiselect("পার্টি সিলেক্ট করুন:", locations_df["party_name"].tolist(), key="route_multi_select")
+    if st.button("🚀 রুট তৈরি করুন", key="route_btn"):
       st.success("রুট প্রসেস সম্পন্ন হয়েছে।")
 
 # =========================================================
