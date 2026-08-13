@@ -224,7 +224,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         else:
           st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
-  # Map Display (গুগল ম্যাপের মতো নীল ডট ও লাল পিন এবং নিচে কারেন্ট লোকেশন বাটন)
+  # Map Display
   st.write("### 🗺️ ম্যাপ লোকেশন সিলেক্ট করুন")
   
   m_click = folium.Map(
@@ -234,7 +234,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       attr="Google"
   )
   
-  # যদি জিপিএস কারেন্ট লোকেশন থাকে তবে নীল ডট দেখানো হবে
   if gps_lat and gps_lon:
     folium.CircleMarker(
         location=[gps_lat, gps_lon],
@@ -247,7 +246,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         popup="আপনার কারেন্ট লোকেশন"
     ).add_to(m_click)
 
-  # সিলেক্টেড লোকেশনে লাল পিন
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
       popup="সিলেক্টেড পিন",
@@ -256,7 +254,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   
   map_data = st_folium(m_click, width=900, height=450, key="interactive_map_safe")
   
-  # ম্যাপের নিচে কারেন্ট লোকেশন সেট করার বাটন
   if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন", type="secondary"):
     if gps_lat and gps_lon:
       st.session_state["selected_lat"] = gps_lat
@@ -275,7 +272,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.rerun()
 
 # =========================================================
-# 2. SEARCH PARTY (ডিরেকশন অপশনসহ)
+# 2. SEARCH PARTY
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   st.write("### 🔍 সেভ করা পার্টি তালিকা ও ডিরেকশন")
@@ -291,11 +288,11 @@ elif selected_menu == "🔍 সার্চ":
       cols[1].write(row['party_phone'] if row['party_phone'] else "নম্বার নেই")
       cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
       
-      # সরাসরি গুগল ম্যাপে ডিরেকশন খোলার লিংক
       maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
       cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ডিরেকশন</button></a>', unsafe_allow_html=True)
       st.write("---")
-  else: কোনো পার্টি পাওয়া যায়নি।
+  else:
+    st.info("কোনো পার্টি পাওয়া যায়নি।")
 
 # =========================================================
 # 3. ROUTE PLANNING
