@@ -88,7 +88,7 @@ if c.fetchone()[0] == 0:
   conn.commit()
 
 # =========================================================
-# SESSION MANAGEMENT
+# PERMANENT SESSION MANAGEMENT (AUTO-LOGIN SYSTEM)
 # =========================================================
 if "logged_in" not in st.session_state:
   st.session_state["logged_in"] = False
@@ -101,9 +101,9 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-# অটো-লগইন চেক (Query Parameters)
+# ব্রাউজারের কু্যরি প্যারামিটার বা পার্মানেন্ট টোকেন চেক করা
 query_params = st.query_params
-saved_user = query_params.get("user", None)
+saved_user = query_params.get("perma_user", None)
 
 if not st.session_state["logged_in"] and saved_user:
   c.execute("SELECT role FROM users WHERE username=?", (saved_user,))
@@ -114,22 +114,20 @@ if not st.session_state["logged_in"] and saved_user:
     st.session_state["user_role"] = role_data[0]
 
 # =========================================================
-# ALTERNATIVE SECURE LOGIN SYSTEM (No Data Loss / No Refresh Bug)
+# LOGIN PAGE (ONLY SHOWN IF NEVER LOGGED IN)
 # =========================================================
 if not st.session_state["logged_in"]:
   st.title("🔑 লগইন পোর্টাল (P.S Mediseller)")
-  st.write("আপনার অ্যাকাউন্ট সিলেক্ট করে পাসওয়ার্ড দিন:")
+  st.write("আপনার অ্যাকাউন্ট সিলেক্ট করুন এবং পাসওয়ার্ড দিন (একবার লগইন করলে আর বারবার লাগবে না):")
 
-  # ডেটাবেজ থেকে সমস্ত ইউজার ফেচ করা
   c.execute("SELECT username, role FROM users")
   users_data = c.fetchall()
   usernames = [u[0] for u in users_data]
 
-  with st.form("alt_login_form"):
+  with st.form("perma_login_form"):
     selected_user_box = st.selectbox("ইউজারনেম বেছে নিন", usernames)
     input_password = st.text_input("পাসওয়ার্ড দিন", type="password")
-    remember_me = st.checkbox("এই ডিভাইসে লগইন মনে রাখুন", value=True)
-    login_submit = st.form_submit_button("লগইন করুন", type="primary")
+    login_submit = st.form_submit_button("লগইন করুন (স্থায়ীভাবে মনে রাখুন)", type="primary")
 
     if login_submit:
       c.execute("SELECT password, role FROM users WHERE username=?", (selected_user_box,))
@@ -138,8 +136,10 @@ if not st.session_state["logged_in"]:
         st.session_state["logged_in"] = True
         st.session_state["username"] = selected_user_box
         st.session_state["user_role"] = u_row[1]
-        if remember_me:
-          st.query_params["user"] = selected_user_box
+        
+        # পার্মানেন্ট লগইনের জন্য ব্রাউজারে টোকেন সেভ করে দেওয়া হলো
+        st.query_params["perma_user"] = selected_user_box
+        
         st.success("লগইন সফল হয়েছে!")
         st.rerun()
       else:
@@ -160,7 +160,7 @@ with col_u3:
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
-    st.query_params.clear()
+    st.query_params.clear()  # লগআউট করলে পার্মানেন্ট টোকেন মুছে যাবে
     st.rerun()
 st.write("---")
 
