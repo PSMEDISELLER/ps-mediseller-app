@@ -30,17 +30,24 @@ st.markdown(
         <meta name="theme-color" content="#FF4B4B">
     </head>
     <script>
-        // মোবাইলে সিঙ্গেল অপশন সিলেক্ট করলে সাইডবার অটো বন্ধ করার স্ক্রিপ্ট
+        // অটোমেটিক সাইডবার পপআপ ক্লোজ করার স্ক্রিপ্ট
         document.addEventListener('click', function(e) {
             const target = e.target;
-            if (target.closest('[data-testid="stSidebar"]')) {
-                if (target.closest('button') && !target.closest('[data-testid="stExpander"]')) {
-                    const sidebar = document.querySelector('[data-testid="stSidebar"]');
-                    if (sidebar && window.getComputedStyle(sidebar).display !== 'none') {
-                        const closeArrow = document.querySelector('button[kind="header"]');
-                        if(closeArrow) {
-                            // প্রয়োজনে ক্লিক ইভেন্ট
-                        }
+            const sidebar = document.querySelector('[data-testid="stSidebar"]');
+            
+            // যদি ক্লিকটি সাইডবারের ভেতরে হয় এবং কোনো বাটন, রেডিও বা লিঙ্কে ক্লিক করা হয়
+            if (sidebar && sidebar.contains(target)) {
+                if (target.closest('button') || target.closest('label') || target.closest('[data-baseweb="radio"]')) {
+                    // যদি এটি কোনো এক্সপ্যান্ডার বা ড্রপডাউন ওপেন করার বাটন না হয়, তবে সাইডবার বন্ধ করে দেবো
+                    if (!target.closest('[data-testid="stExpander"]')) {
+                        setTimeout(() => {
+                            const closeButton = document.querySelector('button[kind="header"]');
+                            const computedStyle = window.getComputedStyle(sidebar);
+                            // মোবাইল ভিউতে বা ছোট স্ক্রিনে সাইডবার খোলা থাকলে বন্ধ করার চেষ্টা করবে
+                            if (closeButton && computedStyle.display !== 'none' && window.innerWidth <= 992) {
+                                closeButton.click();
+                            }
+                        }, 250);
                     }
                 }
             }
@@ -138,7 +145,7 @@ if c.fetchone()[0] == 0:
 
 
 # =========================================================
-# SESSION MANAGEMENT
+# SESSION MANAGEMENT (PERMANENT LOGIN FIX)
 # =========================================================
 
 if "logged_in" not in st.session_state:
@@ -152,16 +159,17 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
+# ব্রাউজারের কুয়েরি প্যারামিটার বা কুকি থেকে ইউজার রিকভার করার সিস্টেম
 query_params = st.query_params
-if not st.session_state["logged_in"]:
-  saved_user = query_params.get("user", None)
-  if saved_user:
-    c.execute("SELECT role FROM users WHERE username=?", (saved_user,))
-    role_data = c.fetchone()
-    if role_data:
-      st.session_state["logged_in"] = True
-      st.session_state["username"] = saved_user
-      st.session_state["user_role"] = role_data[0]
+saved_user = query_params.get("user", None)
+
+if not st.session_state["logged_in"] and saved_user:
+  c.execute("SELECT role FROM users WHERE username=?", (saved_user,))
+  role_data = c.fetchone()
+  if role_data:
+    st.session_state["logged_in"] = True
+    st.session_state["username"] = saved_user
+    st.session_state["user_role"] = role_data[0]
 
 
 # =========================================================
@@ -177,7 +185,7 @@ if not st.session_state["logged_in"]:
   with tab1:
     username = st.text_input("ইউজারনেম", key="login_user")
     password = st.text_input("পাসওয়ার্ড", type="password", key="login_pass")
-    remember_me = st.checkbox("আমাকে মনে রাখুন (Auto Login)", value=True)
+    remember_me = st.checkbox("আমাকে মনে রাখুন (Permanent Login)", value=True)
 
     if st.button("লগইন করুন", type="primary"):
       c.execute("SELECT password, role FROM users WHERE username=?", (username,))
@@ -186,8 +194,11 @@ if not st.session_state["logged_in"]:
         st.session_state["logged_in"] = True
         st.session_state["username"] = username
         st.session_state["user_role"] = user_data[1]
+        
+        # অটো লগইন পার্মানেন্ট করার জন্য query_params এ ইউজার নেম সেট করা হলো
         if remember_me:
           st.query_params["user"] = username
+          
         st.success("লগইন সফল হয়েছে!")
         st.rerun()
       else:
@@ -321,7 +332,7 @@ with st.sidebar:
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
-    st.query_params.clear()
+    st.query_params.clear()  # লগআউট করলে কুয়েরি প্যারামিটার পরিষ্কার হয়ে যাবে যাতে পুনরায় লগইন পেজ আসে
     st.rerun()
 
 
@@ -384,12 +395,12 @@ if choice == "📍 নতুন লোকেশন এড করুন":
   col1, col2 = st.columns(2)
 
   with col1:
-    st.write("### 📍 জিপিএস পিন")
+    st.write("### 📍 কারেন্ট লোকেশন পিন")
     if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন"):
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
-        st.success("✅ পিন সেট হয়েছে!")
+        st.success("✅ কারেন্ট লোকেশন সিলেক্ট হয়েছে!")
         st.rerun()
       else:
         st.warning("⚠️ GPS সিগন্যাল পাওয়া যায়নি। অনুগ্রহ করে ফোনের লোকেশন/GPS অন রাখুন।")
@@ -411,14 +422,41 @@ if choice == "📍 নতুন লোকেশন এড করুন":
           conn.commit()
           st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
 
-  m_click = folium.Map(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]], zoom_start=16)
-  folium.Marker([st.session_state["selected_lat"], st.session_state["selected_lon"]], icon=folium.Icon(color="red", icon="map-marker", prefix="fa"), draggable=True).add_to(m_click)
+  map_center = [st.session_state["selected_lat"], st.session_state["selected_lon"]]
+  m_click = folium.Map(
+      location=map_center,
+      zoom_start=16,
+      tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+      attr="Google"
+  )
+
+  if gps_lat and gps_lon:
+    folium.CircleMarker(
+        location=[gps_lat, gps_lon],
+        radius=9,
+        color="white",
+        weight=2,
+        fill=True,
+        fill_color="#1a73e8",
+        fill_opacity=1.0,
+        tooltip="আপনার কারেন্ট লোকেশন (Live)"
+    ).add_to(m_click)
+
+  folium.Marker(
+      [st.session_state["selected_lat"], st.session_state["selected_lon"]],
+      popup="সিলেক্টেড লোকেশন",
+      icon=folium.Icon(color="red", icon="map-marker", prefix="fa")
+  ).add_to(m_click)
+
   map_data = st_folium(m_click, width=900, height=450, key="interactive_map")
 
   if map_data and map_data.get("last_clicked"):
-    st.session_state["selected_lat"] = map_data["last_clicked"]["lat"]
-    st.session_state["selected_lon"] = map_data["last_clicked"]["lng"]
-    st.rerun()
+    clicked_lat = map_data["last_clicked"]["lat"]
+    clicked_lon = map_data["last_clicked"]["lng"]
+    if clicked_lat != st.session_state["selected_lat"] or clicked_lon != st.session_state["selected_lon"]:
+      st.session_state["selected_lat"] = clicked_lat
+      st.session_state["selected_lon"] = clicked_lon
+      st.rerun()
 
   with st.form("new_location_form", clear_on_submit=True):
     party_name = st.text_input("পার্টির নাম")
@@ -576,7 +614,12 @@ elif choice == "📊 অ্যাডমিন লাইভ ট্র্যাক
             df_parties_dist = df_parties_dist.sort_values(by="দূরত্ব (মিটারে)")
           st.dataframe(df_parties_dist, use_container_width=True, hide_index=True)
 
-          m_agent = folium.Map(location=[ag_lat, ag_lon], zoom_start=15)
+          m_agent = folium.Map(
+              location=[ag_lat, ag_lon],
+              zoom_start=15,
+              tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+              attr="Google"
+          )
           folium.Marker([ag_lat, ag_lon], tooltip=f"Agent: {selected_agent}", icon=folium.Icon(color="blue", icon="user", prefix="fa")).add_to(m_agent)
           
           for _, p in all_parties_df.iterrows():
