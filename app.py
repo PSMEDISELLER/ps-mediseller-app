@@ -52,8 +52,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_details TEXT,
     order_date TEXT NOT NULL,
     status TEXT DEFAULT 'Pending',
-    payment_collected TEXT DEFAULT '0',
-    completed_time TEXT
+    payment_collected TEXT DEFAULT '0'
 )
 """)
 c.execute("""
@@ -66,39 +65,6 @@ CREATE TABLE IF NOT EXISTS agent_live_locations (
     completed_dues INTEGER DEFAULT 0
 )
 """)
-c.execute("""
-CREATE TABLE IF NOT EXISTS delivery_plans (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    agent_name TEXT NOT NULL,
-    party_name TEXT NOT NULL,
-    task_type TEXT NOT NULL, -- 'ডেলিভারি' বা 'ডিউ কালেকশন'
-    due_amount TEXT DEFAULT '0',
-    status TEXT DEFAULT 'Pending',
-    assigned_date TEXT NOT NULL,
-    completed_time TEXT
-)
-""")
-
-# ডাটাবেসের পুরোনো ডেটা ক্লিনআপ (২৪ ঘণ্টা পার হওয়া কমপ্লিট অর্ডার ও প্ল্যান অটো ডিলিট)
-current_time_str = datetime.now()
-c.execute("SELECT id, completed_time FROM orders WHERE status='Completed'")
-for o_id, c_time in c.fetchall():
-  if c_time:
-    try:
-      if (current_time_str - datetime.strptime(c_time, "%Y-%m-%d %H:%M:%S")) > timedelta(hours=24):
-        c.execute("DELETE FROM orders WHERE id=?", (o_id,))
-    except:
-      pass
-
-c.execute("SELECT id, completed_time FROM delivery_plans WHERE status='Completed'")
-for p_id, c_time in c.fetchall():
-  if c_time:
-    try:
-      if (current_time_str - datetime.strptime(c_time, "%Y-%m-%d %H:%M:%S")) > timedelta(hours=24):
-        c.execute("DELETE FROM delivery_plans WHERE id=?", (p_id,))
-    except:
-      pass
-conn.commit()
 
 # কলাম চেক ও আপডেট
 c.execute("PRAGMA table_info(locations)")
@@ -108,8 +74,17 @@ if "party_phone" not in existing_cols_loc:
 
 c.execute("PRAGMA table_info(orders)")
 existing_cols_ord = [row[1] for row in c.fetchall()]
-if "completed_time" not in existing_cols_ord:
-  c.execute("ALTER TABLE orders ADD COLUMN completed_time TEXT")
+if "payment_collected" not in existing_cols_ord:
+  c.execute("ALTER TABLE orders ADD COLUMN payment_collected TEXT DEFAULT '0'")
+if "status" not in existing_cols_ord:
+  c.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'Pending'")
+
+c.execute("PRAGMA table_info(agent_live_locations)")
+existing_cols_agent = [row[1] for row in c.fetchall()]
+if "completed_deliveries" not in existing_cols_agent:
+  c.execute("ALTER TABLE agent_live_locations ADD COLUMN completed_deliveries INTEGER DEFAULT 0")
+if "completed_dues" not in existing_cols_agent:
+  c.execute("ALTER TABLE agent_live_locations ADD COLUMN completed_dues INTEGER DEFAULT 0")
 
 conn.commit()
 
@@ -128,7 +103,7 @@ for u in all_app_users:
 conn.commit()
 
 # =========================================================
-# LOCALSTORAGE LOGIN PERSISTENCE
+# PERMANENT LOCALSTORAGE LOGIN PERSISTENCE
 # =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
@@ -149,9 +124,34 @@ if not st.session_state["logged_in"] and local_user:
     st.session_state["user_role"] = r_data[0]
 
 # =========================================================
-# HEADER & LOGOUT
+# 24-HOUR PENDING ORDER CHECK FOR RED NOTIFICATION
+# =========================================================
+now_time = datetime.now()
+c.execute("SELECT order_date FROM orders WHERE status='Pending'")
+pending_orders_all = c.fetchall()
+has_urgent_pending = False
+for p_ord in pending_orders_all:
+  try:
+    ord_dt = datetime.strptime(p_ord[0], "%Y-%m-%d %H:%M:%S")
+    if (now_time - ord_dt) > timedelta(hours=24):
+      has_urgent_pending = True
+      break
+  except:
+    pass
+
+# =========================================================
+# MAIN APP HEADER & LOGOUT
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
+
+if has_urgent_pending:
+  st.markdown(
+      '<div style="background-color:#ff4b4b; color:white; padding:10px;'
+      ' border-radius:5px; text-align:center; font-weight:bold; margin-bottom:'
+      ' 15px;">🔴 সতর্কতা: ২৪ ঘণ্টার বেশি সময় ধরে কিছু অর্ডার পেন্ডিং রয়েছে!'
+      ' দয়া করে চেক করুন!</div>',
+      unsafe_allow_html=True,
+  )
 
 col_u1, col_u3 = st.columns([3, 1])
 with col_u1:
@@ -166,7 +166,7 @@ with col_u3:
 st.write("---")
 
 # =========================================================
-# GPS TRACKING (Background - Hidden to agents)
+# GPS TRACKING (Background)
 # =========================================================
 loc = get_geolocation(component_key="safe_gps_tracker")
 gps_lat, gps_lon = None, None
@@ -243,6 +243,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
   # Map Display
   st.write("### 🗺️ ম্যাপ লোকেশন সিলেক্ট করুন")
+  
   m_click = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
       zoom_start=16,
@@ -250,6 +251,18 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       attr="Google"
   )
   
+  if gps_lat and gps_lon:
+    folium.CircleMarker(
+        location=[gps_lat, gps_lon],
+        radius=8,
+        color="white",
+        weight=2,
+        fill=True,
+        fill_color="#1a73e8",
+        fill_opacity=1.0,
+        popup="আপনার কারেন্ট লোকেশন"
+    ).add_to(m_click)
+
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
       popup="সিলেক্টেড পিন",
@@ -299,130 +312,75 @@ elif selected_menu == "🔍 সার্চ":
     st.info("কোনো পার্টি পাওয়া যায়নি।")
 
 # =========================================================
-# 3. PENDING ORDERS (Auto-delete after 24 hours)
+# 3. PENDING ORDERS
 # =========================================================
 elif selected_menu == "📦 পেন্ডিং অর্ডার":
-  st.write("### 📦 পেন্ডিং অর্ডার তালিকা")
+  st.write("### 📦 পেন্ডিং অর্ডার তালিকা (তারিখ অনুযায়ী)")
   
   orders_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
   if not orders_df.empty:
-    for index, row in orders_df.iterrows():
-      cols = st.columns([2, 4, 2, 2])
-      cols[0].write(f"**{row['party_name']}**\n\n_{row['order_date']}_")
-      cols[1].write(row['order_details'])
-      
-      status_text = "✅ সম্পন্ন" if row['status'] == "Completed" else "⏳ পেন্ডিং"
-      cols[2].write(status_text)
+    orders_df["date_only"] = orders_df["order_date"].astype(str).str.split(" ").str[0]
+    unique_dates = orders_df["date_only"].unique()
 
-      if row['status'] == "Pending":
-        if cols[3].button("✔️ টিক দিন", key=f"ord_btn_{row['id']}"):
-          complete_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-          c.execute("UPDATE orders SET status='Completed', completed_time=? WHERE id=?", (complete_time_str, row['id']))
-          c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
-          conn.commit()
-          st.success("অর্ডার কমপ্লিট হিসেবে মার্ক করা হয়েছে! এটি ২৪ ঘণ্টা পর অটো মুছে যাবে।")
-          st.rerun()
-      else:
-        cols[3].write("সম্পন্ন")
+    for u_date in unique_dates:
+      st.markdown(f"#### 📅 তারিখ: {u_date}")
+      date_df = orders_df[orders_df["date_only"] == u_date]
+
+      for index, row in date_df.iterrows():
+        cols = st.columns([2, 4, 2, 2])
+        cols[0].write(f"**{row['party_name']}**")
+        cols[1].write(row['order_details'])
+        
+        status_text = "✅ সম্পন্ন/বিল হয়েছে" if row['status'] == "Completed" else "⏳ পেন্ডিং"
+        cols[2].write(status_text)
+
+        if row['status'] == "Pending":
+          if cols[3].button("✔️ টিক দিন", key=f"ord_btn_{row['id']}"):
+            c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
+            conn.commit()
+            c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
+            conn.commit()
+            st.success("অর্ডার কমপ্লিট হিসেবে মার্ক করা হয়েছে!")
+            st.rerun()
+        else:
+          cols[3].write("সম্পন্ন")
       st.write("---")
   else:
-    st.info("কোনো পেন্ডিং অর্ডার নেই।")
+    st.info("কোনো অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN (With Agent Allocation & Search)
+# 4. DUE CLEAR & DELIVERY PLAN
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
-  st.write("### 📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান ম্যানেজমেন্ট")
+  st.write("### 📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান")
+  locations_df = pd.read_sql_query("SELECT * FROM locations", conn)
 
-  if st.session_state["user_role"] == "admin":
-    st.write("#### ➕ এজেন্টকে নতুন কাজ এসাইন করুন")
-    c.execute("SELECT username FROM users WHERE role='staff'")
-    staff_list = [r[0] for r in c.fetchall()]
-    c.execute("SELECT party_name FROM locations")
-    loc_list = [r[0] for r in c.fetchall()]
-
-    if staff_list and loc_list:
-      with st.form("assign_plan_form"):
-        sel_agent = st.selectbox("এজেন্ট সিলেক্ট করুন", staff_list)
-        sel_party = st.selectbox("পার্টি সিলেক্ট করুন", loc_list)
-        task_type = st.selectbox("কাজের ধরন", ["ডেলিভারি", "ডিউ কালেকশন"])
-        due_amt = st.text_input("ডিউ টাকার পরিমাণ (যদি থাকে)", "0")
-        
-        assign_btn = st.form_submit_button("প্ল্যান এসাইন করুন")
-        if assign_btn:
-          c.execute(
-              "INSERT INTO delivery_plans (agent_name, party_name, task_type, due_amount, status, assigned_date) VALUES (?, ?, ?, ?, ?, ?)",
-              (sel_agent, sel_party, task_type, due_amt, "Pending", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-          )
-          conn.commit()
-          st.success("✅ সফলভাবে প্ল্যান এসাইন করা হয়েছে!")
-          st.rerun()
-    else:
-      st.info("প্রথমে ইউজার ম্যানেজমেন্ট থেকে স্টাফ এবং লোকেশন যোগ করুন।")
-    st.write("---")
-
-  # Search & View Tasks
-  st.write("#### 🔍 ডিউ ও ডেলিভারি সার্চ ও লিস্ট")
-  search_plan = st.text_input("পার্টির নাম দিয়ে সার্চ করুন প্ল্যান লিস্টে")
-
-  query_str = "SELECT * FROM delivery_plans"
-  if st.session_state["user_role"] != "admin":
-    query_str += f" WHERE agent_name='{st.session_state['username']}'"
-  
-  plans_df = pd.read_sql_query(query_str, conn)
-  if search_plan:
-    plans_df = plans_df[plans_df["party_name"].str.contains(search_plan, case=False, na=False)]
-
-  if not plans_df.empty:
-    # Home-to-Home Route Map Button Generation
-    if st.button("🗺️ হোম-টু-হোম সহজ রুট ও ম্যাপ দেখুন"):
-      st.info("সৈনিক/এজেন্টদের জন্য অপ্টিমাইজড রুট ম্যাপ:")
-      c.execute("SELECT lat, lon, party_name FROM locations")
-      route_locs = c.fetchall()
-      if route_locs:
-        route_map = folium.Map(location=[route_locs[0][0], route_locs[0][1]], zoom_start=14)
-        points = []
-        for r_lat, r_lon, r_name in route_locs:
-          if r_lat and r_lon:
-            points.append([r_lat, r_lon])
-            folium.Marker([r_lat, r_lon], popup=r_name, icon=folium.Icon(color="blue", icon="info-sign")).add_to(route_map)
-        if len(points) > 1:
-          folium.PolyLine(points, color="red", weight=3, opacity=0.8).add_to(route_map)
-        st_folium(route_map, width=900, height=400, key="route_map_view")
-
-    st.write("---")
-    for index, row in plans_df.iterrows():
-      cols = st.columns([2, 2, 2, 2, 2])
-      cols[0].write(f"**এজেন্ট:** {row['agent_name']}")
-      cols[1].write(f"**পার্টি:** {row['party_name']}")
-      cols[2].write(f"**কাজ:** {row['task_type']}")
-      cols[3].write(f"**ডিউ:** ₹{row['due_amount']}" if row['task_type'] == "ডিউ কালেকশন" else "ডেলিভারি অর্ডার")
+  if not locations_df.empty:
+    for index, row in locations_df.iterrows():
+      cols = st.columns([3, 2, 2])
+      cols[0].write(f"**{row['party_name']}**\n\n_{row['address'] if row['address'] else ''}_")
       
-      if row['status'] == "Pending":
-        if cols[4].button("✔️ সম্পন্ন করুন", key=f"plan_done_{row['id']}"):
-          comp_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-          c.execute("UPDATE delivery_plans SET status='Completed', completed_time=? WHERE id=?", (comp_time, row['id']))
-          if row['task_type'] == "ডেলিভারি":
-            c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-          else:
-            c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
-          conn.commit()
-          st.success("কাজ সম্পন্ন হয়েছে! এটি ২৪ ঘণ্টা পর স্বয়ংক্রিয়ভাবে মুছে যাবে।")
-          st.rerun()
-      else:
-        cols[4].write("✅ সম্পন্ন")
+      due_input = cols[1].text_input("ডিউ টাকা লিখুন", key=f"due_{row['id']}")
+      
+      if cols[2].button("🚚 ডেলিভারি সম্পন্ন", key=f"del_{row['id']}"):
+        c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
+        if due_input.strip():
+          c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (st.session_state["username"],))
+        conn.commit()
+        st.success(f"{row['party_name']}-এর ডেলিভারি সফলভাবে আপডেট হলো!")
+        st.rerun()
       st.write("---")
   else:
-    st.info("কোনো ডিউ বা ডেলিভারি প্ল্যান নেই।")
+    st.info("কোনো লোকেশন বা পার্টি সেভ করা নেই।")
 
 # =========================================================
-# 5. ADMIN LIVE TRACKING (Hidden tracking from agents)
+# 5. ADMIN LIVE TRACKING
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
-    st.write("### 📊 ডেলিভারি পার্টনার লাইভ ট্র্যাকিং ও স্ট্যাটাস (গোপন ট্র্যাকিং)")
+    st.write("### 📊 ডেলিভারি পার্টনার লাইভ ট্র্যাকিং ও স্ট্যাটাস")
     
     agent_df = pd.read_sql_query("SELECT * FROM agent_live_locations", conn)
     if not agent_df.empty:
