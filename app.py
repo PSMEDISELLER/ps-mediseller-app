@@ -88,7 +88,7 @@ if c.fetchone()[0] == 0:
   conn.commit()
 
 # =========================================================
-# ADVANCED PERSISTENT SESSION (URL Token Sync)
+# SESSION MANAGEMENT
 # =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
@@ -180,7 +180,7 @@ selected_menu = st.radio("মেনু সিলেক্ট করুন:", men
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY
+# 1. ADD NEW LOCATION & ORDER ENTRY (HTML LOCALSTORAGE PASSTHROUGH)
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
   col1, col2 = st.columns(2)
@@ -196,20 +196,68 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       else:
         st.warning("GPS সিগন্যাল পাওয়া যায়নি।")
 
-    p_name = st.text_input("পার্টির নাম", key="input_party_name")
-    p_addr = st.text_input("ঠিকানা", key="input_party_address")
-    p_phone = st.text_input("ফোন নম্বর", key="input_party_phone")
+    # ব্রাউজারের নিজস্ব মেমোরি (LocalStorage) ব্যবহার করে ইনপুট ধরে রাখার ব্যবস্থা
+    html_form_code = """
+    <div style="background-color:transparent; padding:0px; font-family:sans-serif;">
+      <form id="locForm" onsubmit="saveData(event)">
+        <label style="font-size:14px; font-weight:600; color:#31333F;">পার্টির নাম:</label><br>
+        <input type="text" id="p_name" name="p_name" style="width:100%; padding:8px; margin-top:4px; margin-bottom:12px; border:1px solid #cccccc; border-radius:4px;" oninput="localStorage.setItem('p_name', this.value)"><br>
+        
+        <label style="font-size:14px; font-weight:600; color:#31333F;">ঠিকানা:</label><br>
+        <input type="text" id="p_addr" name="p_addr" style="width:100%; padding:8px; margin-top:4px; margin-bottom:12px; border:1px solid #cccccc; border-radius:4px;" oninput="localStorage.setItem('p_addr', this.value)"><br>
+        
+        <label style="font-size:14px; font-weight:600; color:#31333F;">ফোন নম্বর:</label><br>
+        <input type="text" id="p_phone" name="p_phone" style="width:100%; padding:8px; margin-top:4px; margin-bottom:12px; border:1px solid #cccccc; border-radius:4px;" oninput="localStorage.setItem('p_phone', this.value)"><br>
+        
+        <button type="submit" style="background-color:#FF4B4B; color:white; border:none; padding:10px 20px; border-radius:4px; font-weight:bold; cursor:pointer; width:100%;">💾 লোকেশন সেভ করুন</button>
+      </form>
+    </div>
 
-    if st.button("💾 লোকেশন সেভ করুন", type="primary", key="save_loc_direct_btn"):
-      if p_name.strip() and p_phone.strip():
+    <script>
+      document.getElementById('p_name').value = localStorage.getItem('p_name') || '';
+      document.getElementById('p_addr').value = localStorage.getItem('p_addr') || '';
+      document.getElementById('p_phone').value = localStorage.getItem('p_phone') || '';
+
+      function saveData(e) {
+        e.preventDefault();
+        const pName = document.getElementById('p_name').value;
+        const pAddr = document.getElementById('p_addr').value;
+        const pPhone = document.getElementById('p_phone').value;
+        
+        if(!pName || !pPhone) {
+          alert("পার্টির নাম এবং ফোন নম্বর আবশ্যক।");
+          return;
+        }
+        
+        // Streamlit-এর সাথে ডেটা সিঙ্ক করার জন্য প্যারামিটার পাঠানো
+        const url = new URL(window.location.href);
+        url.searchParams.set('action', 'save_loc');
+        url.searchParams.set('p_name', encodeURIComponent(pName));
+        url.searchParams.set('p_addr', encodeURIComponent(pAddr));
+        url.searchParams.set('p_phone', encodeURIComponent(pPhone));
+        window.location.href = url.toString();
+      }
+    </script>
+    """
+    st.components.v1.html(html_form_code, height=320)
+
+    # পাইথন ব্যাকএন্ডে ডেটা রিসিভ ও সেভ করার লজিক
+    params = st.query_params
+    if params.get("action") == "save_loc":
+      r_name = urllib.parse.unquote(params.get("p_name", ""))
+      r_addr = urllib.parse.unquote(params.get("p_addr", ""))
+      r_phone = urllib.parse.unquote(params.get("p_phone", ""))
+      
+      if r_name and r_phone:
         c.execute(
             "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-            (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
+            (r_name, r_addr, r_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
         )
         conn.commit()
         st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-      else:
-        st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
+        st.query_params.clear()
+        st.query_params["auth_user"] = st.session_state["username"]
+        st.rerun()
 
   with col2:
     st.write("### 📦 নতুন অর্ডার এন্ট্রি")
