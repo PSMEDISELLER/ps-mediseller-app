@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import folium
-from folium.plugins import MousePosition, Search
+from folium.plugins import MousePosition
 import pandas as pd
 import sqlite3
 import streamlit as st
@@ -217,7 +217,7 @@ if loc and "coords" in loc:
   conn.commit()
 
 # =========================================================
-# NAVIGATION MENU
+# NAVIGATION MENU (Staff লাইভ ট্র্যাকিং দেখবে না)
 # =========================================================
 menu_options = [
     "📍 নতুন লোকেশন এড",
@@ -233,12 +233,13 @@ selected_menu = st.radio("মেনু সিলেক্ট করুন:", men
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY (Advanced Google Map Experience)
+# 1. ADD NEW LOCATION & ORDER ENTRY (ম্যাপ নিচে এবং সবশেষে সেভ)
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
-  st.write("### 📍 নতুন লোকেশন ফর্ম")
+  st.write("### 📍 নতুন লোকেশন ও অর্ডার ফর্ম")
   
-  with st.form("location_form", clear_on_submit=True):
+  with st.form("combined_location_order_form"):
+    st.write("#### ১. পার্টির বিবরণ দিন")
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
       p_name = st.text_input("পার্টির নাম")
@@ -247,7 +248,86 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     with col_f3:
       p_phone = st.text_input("ফোন নম্বর")
     
-    submitted_loc = st.form_submit_button("💾 লোকেশন সেভ করুন", type="primary")
+    st.write("---")
+    st.write("#### ২. ম্যাপ থেকে লোকেশন সিলেক্ট করুন (ম্যাপে ক্লিক করুন)")
+    
+    col_m1, col_m2 = st.columns([1, 4])
+    with col_m1:
+      use_current_gps = st.form_submit_button("📍 কারেন্ট লোকেশন")
+    with col_m2:
+      st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
+
+    if use_current_gps:
+      if gps_lat and gps_lon:
+        st.session_state["selected_lat"] = gps_lat
+        st.session_state["selected_lon"] = gps_lon
+        st.success("কারেন্ট জিপিএস লোকেশন নেওয়া হয়েছে!")
+      else:
+        st.warning("জিপিএস পাওয়া যায়নি!")
+
+    advanced_map = folium.Map(
+        location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
+        zoom_start=17,
+        tiles=None
+    )
+
+    folium.TileLayer(
+        tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        attr="Google Maps Street",
+        name="গুগল স্ট্রিট ভিউ",
+        overlay=False,
+        control=True
+    ).add_to(advanced_map)
+
+    folium.TileLayer(
+        tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        attr="Google Maps Satellite",
+        name="গুগল স্যাটেলাইট ভিউ",
+        overlay=False,
+        control=True
+    ).add_to(advanced_map)
+
+    folium.Marker(
+        [st.session_state["selected_lat"], st.session_state["selected_lon"]],
+        popup="<b>নির্বাচিত পয়েন্ট</b>",
+        tooltip="এখানে সেভ হবে",
+        icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
+    ).add_to(advanced_map)
+
+    if gps_lat and gps_lon:
+      folium.CircleMarker(
+          location=[gps_lat, gps_lon],
+          radius=9,
+          color="#0056b3",
+          fill=True,
+          fill_color="#1a73e8",
+          fill_opacity=0.9,
+          popup="আপনার বর্তমান জিপিএস লোকেশন"
+      ).add_to(advanced_map)
+
+    formatter = "function(num) {return L.Util.formatNum(num, 5) + ' ° ';};"
+    MousePosition(
+        position="bottomright",
+        separator=" | ",
+        prefix="লেট/লং: ",
+        lat_formatter=formatter,
+        lng_formatter=formatter
+    ).add_to(advanced_map)
+
+    folium.LayerControl().add_to(advanced_map)
+
+    map_data = st_folium(advanced_map, width="100%", height=420, key="google_style_interactive_map")
+    
+    if map_data and map_data.get("last_clicked"):
+      clicked_lat = map_data["last_clicked"]["lat"]
+      clicked_lon = map_data["last_clicked"]["lng"]
+      if clicked_lat != st.session_state["selected_lat"] or clicked_lon != st.session_state["selected_lon"]:
+        st.session_state["selected_lat"] = clicked_lat
+        st.session_state["selected_lon"] = clicked_lon
+
+    st.write("---")
+    submitted_loc = st.form_submit_button("💾 সবকিছু ঠিক আছে, এখন লোকেশন সেভ করুন", type="primary")
+    
     if submitted_loc:
       if p_name.strip() and p_phone.strip():
         c.execute(
@@ -258,89 +338,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
       else:
         st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
-
-  st.write("### 🗺️ অ্যাডভান্সড গুগল ম্যাপ (ম্যাপে ক্লিক করে বা পিন ড্র্যাগ করে লোকেশন সেট করুন)")
-
-  col_m1, col_m2 = st.columns([1, 4])
-  with col_m1:
-    if st.button("📍 কারেন্ট লোকেশন"):
-      if gps_lat and gps_lon:
-        st.session_state["selected_lat"] = gps_lat
-        st.session_state["selected_lon"] = gps_lon
-        st.success("লোকেশন আপডেট!")
-        st.rerun()
-      else:
-        st.warning("জিপিএস পাওয়া যায়নি!")
-
-  with col_m2:
-    st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
-
-  # Google Map-style Interactive Leaflet Map with Satellite/Street View Layers
-  advanced_map = folium.Map(
-      location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      zoom_start=17,
-      tiles=None # Custom Tile Layers
-  )
-
-  # Google Maps Standard Street View Layer
-  folium.TileLayer(
-      tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-      attr="Google Maps Street",
-      name="গুগল স্ট্রিট ভিউ",
-      overlay=False,
-      control=True
-  ).add_to(advanced_map)
-
-  # Google Maps Satellite Hybrid View Layer
-  folium.TileLayer(
-      tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-      attr="Google Maps Satellite",
-      name="গুগল স্যাটেলাইট ভিউ",
-      overlay=False,
-      control=True
-  ).add_to(advanced_map)
-
-  # Selected Marker (Draggable experience simulation via click)
-  folium.Marker(
-      [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      popup="<b>নির্বাচিত পয়েন্ট</b><br>এখানে ক্লিক করে লোকেশন পরিবর্তন করা যাবে।",
-      tooltip="এখানে সেভ হবে",
-      icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
-  ).add_to(advanced_map)
-
-  # Live GPS Marker if available
-  if gps_lat and gps_lon:
-    folium.CircleMarker(
-        location=[gps_lat, gps_lon],
-        radius=9,
-        color="#0056b3",
-        fill=True,
-        fill_color="#1a73e8",
-        fill_opacity=0.9,
-        popup="আপনার বর্তমান জিপিএস লোকেশন"
-    ).add_to(advanced_map)
-
-  # Add Mouse Coordinate Tracker
-  formatter = "function(num) {return L.Util.formatNum(num, 5) + ' ° ';};"
-  MousePosition(
-      position="bottomright",
-      separator=" | ",
-      prefix="লেট/লং: ",
-      lat_formatter=formatter,
-      lng_formatter=formatter
-  ).add_to(advanced_map)
-
-  folium.LayerControl().add_to(advanced_map)
-
-  map_data = st_folium(advanced_map, width="100%", height=480, key="google_style_interactive_map")
-  
-  if map_data and map_data.get("last_clicked"):
-    clicked_lat = map_data["last_clicked"]["lat"]
-    clicked_lon = map_data["last_clicked"]["lng"]
-    if clicked_lat != st.session_state["selected_lat"] or clicked_lon != st.session_state["selected_lon"]:
-      st.session_state["selected_lat"] = clicked_lat
-      st.session_state["selected_lon"] = clicked_lon
-      st.rerun()
 
   st.write("---")
   st.write("### 📦 নতুন অর্ডার এন্ট্রি")
@@ -373,7 +370,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
 # =========================================================
-# 2. SEARCH PARTY
+# 2. SEARCH PARTY & ADMIN DELETE OPTION
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   st.write("### 🔍 সেভ করা পার্টি তালিকা ও ডিরেকশন")
@@ -384,13 +381,25 @@ elif selected_menu == "🔍 সার্চ":
   
   if not df.empty:
     for index, row in df.iterrows():
-      cols = st.columns([3, 2, 2, 2])
+      if st.session_state["user_role"] == "admin":
+        cols = st.columns([3, 2, 2, 2, 1.5])
+      else:
+        cols = st.columns([3, 2, 2, 2])
+
       cols[0].write(f"**{row['party_name']}**")
       cols[1].write(row['party_phone'] if row['party_phone'] else "নম্বার নেই")
       cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
       
       maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
       cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ডিরেকশন</button></a>', unsafe_allow_html=True)
+
+      if st.session_state["user_role"] == "admin":
+        if cols[4].button("🗑️ ডিলিট", key=f"del_loc_{row['id']}"):
+          c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+          conn.commit()
+          st.success(f"✅ '{row['party_name']}' সফলভাবে ডিলিট করা হয়েছে!")
+          st.rerun()
+
       st.write("---")
   else:
     st.info("কোনো পার্টি পাওয়া যায়নি।")
@@ -547,7 +556,7 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
     st.info("রুট দেখানোর জন্য কোনো লোকেশন সেভ করা নেই।")
 
 # =========================================================
-# 6. ADMIN LIVE TRACKING
+# 6. ADMIN LIVE TRACKING (Only for Admin)
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
