@@ -10,7 +10,7 @@ from streamlit_js_eval import get_geolocation
 
 
 # =========================================================
-# PAGE CONFIGURATION & PWA / INSTALL SETTINGS
+# PAGE CONFIGURATION & PWA SETTINGS
 # =========================================================
 
 st.set_page_config(
@@ -20,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# PWA Metadata for Add to Home Screen (App Installation)
 st.markdown(
     """
     <head>
@@ -36,7 +35,7 @@ st.markdown(
 
 
 # =========================================================
-# DATABASE (Real-time Sync & Data Safe Persistence)
+# DATABASE SETUP
 # =========================================================
 
 DB_FILE = "mediseller_delivery.db"
@@ -49,7 +48,6 @@ def get_db_connection():
 conn = get_db_connection()
 c = conn.cursor()
 
-# টেবিল ক্রিয়েশন
 c.execute("""
 CREATE TABLE IF NOT EXISTS users (
     username TEXT PRIMARY KEY,
@@ -76,30 +74,32 @@ CREATE TABLE IF NOT EXISTS orders (
     party_name TEXT NOT NULL,
     order_details TEXT,
     order_date TEXT NOT NULL,
-    status TEXT DEFAULT 'Pending'
+    status TEXT DEFAULT 'Pending',
+    payment_collected TEXT DEFAULT '0'
 )
 """)
 
-# ডাটাবেस কলাম আপডেট চেক (মাইগ্রেশন সেফটি)
 c.execute("PRAGMA table_info(locations)")
-existing_columns = [row[1] for row in c.fetchall()]
-
-if "party_phone" not in existing_columns:
+existing_cols_loc = [row[1] for row in c.fetchall()]
+if "party_phone" not in existing_cols_loc:
   c.execute("ALTER TABLE locations ADD COLUMN party_phone TEXT")
-
-if "route_order" not in existing_columns:
+if "route_order" not in existing_cols_loc:
   c.execute("ALTER TABLE locations ADD COLUMN route_order INTEGER DEFAULT 0")
+
+c.execute("PRAGMA table_info(orders)")
+existing_cols_ord = [row[1] for row in c.fetchall()]
+if "payment_collected" not in existing_cols_ord:
+  c.execute("ALTER TABLE orders ADD COLUMN payment_collected TEXT DEFAULT '0'")
+
 conn.commit()
 
 
 # =========================================================
-# DEFAULT USERS CREATION
+# DEFAULT USERS
 # =========================================================
 
 c.execute("SELECT COUNT(*) FROM users")
-user_count = c.fetchone()[0]
-
-if user_count == 0:
+if c.fetchone()[0] == 0:
   c.execute(
       "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
       ("admin", "admin123", "admin"),
@@ -112,21 +112,17 @@ if user_count == 0:
 
 
 # =========================================================
-# SESSION & AUTO-LOGIN MANAGEMENT
+# SESSION MANAGEMENT
 # =========================================================
 
 if "logged_in" not in st.session_state:
   st.session_state["logged_in"] = False
-
 if "username" not in st.session_state:
   st.session_state["username"] = None
-
 if "user_role" not in st.session_state:
   st.session_state["user_role"] = None
-
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
-
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
@@ -147,15 +143,8 @@ if not st.session_state["logged_in"]:
 # =========================================================
 
 if not st.session_state["logged_in"]:
-
   st.title("🔑 লগইন পোর্টাল")
   st.subheader("P.S Mediseller Location App")
-
-  st.info(
-      "📲 **ফোনে অ্যাপ হিসেবে ইনস্টল করুন:**\n\nব্রাউজারের ৩টি ডট (⋮) মেনুতে"
-      " ক্লিক করে **'Install App'** বা **'Add to Home screen'** অপশনে চাপ"
-      " দিন।"
-  )
 
   tab1, tab2 = st.tabs(["লগইন", "পাসওয়ার্ড ভুলে গেছেন?"])
 
@@ -167,22 +156,18 @@ if not st.session_state["logged_in"]:
     if st.button("লগইন করুন", type="primary"):
       c.execute("SELECT password, role FROM users WHERE username=?", (username,))
       user_data = c.fetchone()
-
       if user_data and user_data[0] == password:
         st.session_state["logged_in"] = True
         st.session_state["username"] = username
         st.session_state["user_role"] = user_data[1]
-
         if remember_me:
           st.query_params["user"] = username
-
         st.success("লগইন সফল হয়েছে!")
         st.rerun()
       else:
         st.error("❌ ভুল ইউজারনেম অথবা পাসওয়ার্ড!")
 
   with tab2:
-    st.write("অ্যাডমিন পাসওয়ার্ড ব্যবহার করে ইউজারের পাসওয়ার্ড পরিবর্তন করুন।")
     f_user = st.text_input("ইউজারনেম", key="forgot_user")
     new_pass = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_pass_admin")
     admin_pass = st.text_input("বর্তমান অ্যাডমিন পাসওয়ার্ড", type="password", key="admin_auth")
@@ -190,26 +175,16 @@ if not st.session_state["logged_in"]:
     if st.button("পাসওয়ার্ড রিসেট করুন"):
       c.execute("SELECT password FROM users WHERE username='admin'")
       admin_data = c.fetchone()
-
       if admin_data and admin_pass == admin_data[0]:
         c.execute("SELECT username FROM users WHERE username=?", (f_user,))
-        user_exists = c.fetchone()
-
-        if user_exists:
-          if new_pass:
-            c.execute(
-                "UPDATE users SET password=? WHERE username=?",
-                (new_pass, f_user),
-            )
-            conn.commit()
-            st.success("✅ পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।")
-          else:
-            st.error("নতুন পাসওয়ার্ড দিন।")
+        if c.fetchone():
+          c.execute("UPDATE users SET password=? WHERE username=?", (new_pass, f_user))
+          conn.commit()
+          st.success("✅ পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।")
         else:
           st.error("এই ইউজারনেম পাওয়া যায়নি।")
       else:
         st.error("❌ অ্যাডমিন পাসওয়ার্ড ভুল!")
-
   st.stop()
 
 
@@ -220,88 +195,33 @@ if not st.session_state["logged_in"]:
 with st.sidebar:
   st.header("👤 ইউজার তথ্য")
   st.write(f"ইউজার: **{st.session_state['username']}**")
-
   if st.session_state["user_role"] == "admin":
     st.success("রোল: ADMIN")
   else:
     st.info("রোল: DELIVERY USER")
 
-  with st.expander("📲 ফোনে অ্যাপ হিসেবে ইনস্টল করুন"):
-    st.write("**Android Chrome এ:**")
-    st.caption("১. উপরে ডানদিকের ৩টি ডট-এ (⋮) ক্লিক করুন।")
-    st.caption("২. **'Add to Home screen'** বা **'Install App'** নির্বাচন করুন।")
-
-  st.write("---")
-
-  with st.expander("🔒 নিজ পাসওয়ার্ড পরিবর্তন করুন"):
-    old_p = st.text_input("পুরোনো পাসওয়ার্ড", type="password", key="old_password")
-    new_p = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_password")
-
-    if st.button("পাসওয়ার্ড আপডেট করুন"):
-      curr_user = st.session_state["username"]
-      c.execute("SELECT password FROM users WHERE username=?", (curr_user,))
-      db_data = c.fetchone()
-
-      if db_data and old_p == db_data[0]:
-        if new_p:
-          c.execute(
-              "UPDATE users SET password=? WHERE username=?",
-              (new_p, curr_user),
-          )
-          conn.commit()
-          st.success("✅ আপনার পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।")
-        else:
-          st.error("নতুন পাসওয়ার্ড দিন।")
-      else:
-        st.error("❌ পুরোনো পাসওয়ার্ড ভুল!")
-
   if st.session_state["user_role"] == "admin":
     with st.expander("⚙️ অ্যাডমিন কন্ট্রোল (ইউজার ম্যানেজমেন্ট)"):
       c.execute("SELECT username, role FROM users")
       all_users = c.fetchall()
+      st.info(f"👥 মোট ইউজার সংখ্যা: **{len(all_users)} জন**")
+      for u_name, u_role in all_users:
+        st.caption(f"• নাম: **{u_name}** | রোল: `{u_role}`")
+
       user_list = [u[0] for u in all_users]
+      selected_u = st.selectbox("ইউজার সিলেক্ট করুন", user_list)
+      del_target_user = st.selectbox("ডিলিট ইউজার", user_list, key="del_u_box")
 
-      selected_u = st.selectbox("ইউজার নির্বাচন করুন", user_list)
-
-      new_u_id = st.text_input(
-          "নতুন ইউজার ID (Username)", value=selected_u, key="edit_u_id"
-      )
-      new_u_pass = st.text_input(
-          "নতুন পাসওয়ার্ড (ঐচ্ছিক)", type="password", key="edit_u_pass"
-      )
-
-      if st.button("💾 আইডি/পাসওয়ার্ড আপডেট করুন"):
-        if not new_u_id.strip():
-          st.error("❌ ইউজার আইডি ফাঁকা রাখা যাবে না।")
+      if st.button("🗑️ ইউজার রিমুভ করুন", type="primary"):
+        if del_target_user == st.session_state["username"]:
+          st.error("❌ নিজের অ্যাকাউন্ট ডিলিট করা নিষেধ!")
         else:
-          try:
-            if new_u_id != selected_u:
-              c.execute(
-                  "UPDATE users SET username=? WHERE username=?",
-                  (new_u_id, selected_u),
-              )
-              if selected_u == st.session_state["username"]:
-                st.session_state["username"] = new_u_id
-                if "user" in st.query_params:
-                  st.query_params["user"] = new_u_id
-
-            if new_u_pass.strip():
-              c.execute(
-                  "UPDATE users SET password=? WHERE username=?",
-                  (new_u_pass, new_u_id),
-              )
-
-            conn.commit()
-            st.success(
-                f"✅ {new_u_id}-এর আইডি/পাসওয়ার্ড সফলভাবে আপডেট হয়েছে!"
-            )
-            st.rerun()
-
-          except sqlite3.IntegrityError:
-            st.error("❌ এই ইউজার আইডিটি আগেই অন্য কেউ ব্যবহার করছে।")
+          c.execute("DELETE FROM users WHERE username=?", (del_target_user,))
+          conn.commit()
+          st.success(f"✅ '{del_target_user}' রিমুভ করা হয়েছে।")
+          st.rerun()
 
   st.write("---")
-
   if st.button("🚪 লগআউট"):
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
@@ -311,47 +231,24 @@ with st.sidebar:
 
 
 # =========================================================
-# MAIN TITLE & GPS
+# BACKGROUND SILENT GPS TRACKER FOR DELIVERY AGENT
 # =========================================================
 
 st.title("🚚 পি এস মেডিসেলার")
-st.subheader("ডেলিভারি ও রুট প্ল্যানার")
 
-c.execute("SELECT id, party_name, order_date FROM orders WHERE status='Pending'")
-pending_orders_check = c.fetchall()
-now_time = datetime.now()
-delayed_orders = []
-for p_ord in pending_orders_check:
-  try:
-    ord_dt = datetime.strptime(p_ord[2], "%Y-%m-%d %H:%M:%S")
-    if now_time - ord_dt > timedelta(hours=24):
-      delayed_orders.append(f"{p_ord[1]}")
-  except:
-    pass
+loc = get_geolocation(component_key="silent_gps_tracker")
 
-if delayed_orders:
-  st.error(
-      "⚠️ **সতর্কবার্তা!** নিম্নলিখিত পার্টিগুলোর অর্ডার ২৪ ঘণ্টার বেশি সময় ধরে"
-      " পেন্ডিং আছে: "
-      + ", ".join(delayed_orders)
-  )
-
-loc = get_geolocation(component_key="global_gps")
-
-gps_lat = None
-gps_lon = None
-
+gps_lat, gps_lon = None, None
 if loc and "coords" in loc:
   gps_lat = loc["coords"]["latitude"]
   gps_lon = loc["coords"]["longitude"]
-  st.success(f"✅ জিপিএস অ্যাক্টিভ (Lat: {gps_lat:.4f}, Lon: {gps_lon:.4f})")
 
-is_admin = st.session_state["user_role"] == "admin"
-
-
-# =========================================================
-# MENU
-# =========================================================
+  if "optimized_route" in st.session_state:
+    for stop in st.session_state["optimized_route"]:
+      dist_meters = math.sqrt((stop["lat"] - gps_lat)**2 + (stop["lon"] - gps_lon)**2) * 111000
+      if dist_meters <= 40:
+        c.execute("UPDATE orders SET status='Completed' WHERE party_name=? AND status='Pending'", (stop["party_name"],))
+        conn.commit()
 
 menu = [
     "📍 নতুন লোকেশন এড করুন",
@@ -360,207 +257,70 @@ menu = [
     "📦 পেন্ডিং অর্ডার ও বিলিং",
 ]
 
+# শুধুমাত্র অ্যাডমিনের জন্য আলাদা কন্ট্রোল ঘর মেনুতে যোগ করা হলো
+if st.session_state["user_role"] == "admin":
+  menu.append("📊 অ্যাডমিন লাইভ ট্র্যাকিং ঘর")
+
 choice = st.sidebar.selectbox("মেনু নির্বাচন করুন", menu)
 
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY (GOOGLE MAP STYLE: BLUE DOT + RED PIN)
+# 1. ADD NEW LOCATION & ORDER ENTRY
 # =========================================================
 
 if choice == "📍 নতুন লোকেশন এড করুন":
-
   st.header("📍 নতুন পার্টির লোকেশন ও অর্ডার যোগ করুন")
-  col1, col2 = st.columns([1, 1])
+  col1, col2 = st.columns(2)
 
   with col1:
-    st.write("### 📍 বর্তমান জিপিএস কোঅর্ডিনেট")
-    st.info(
-        f"অক্ষাংশ (Lat):"
-        f" {st.session_state['selected_lat']:.6f}\n\nদ্রাঘিমাংশ (Lon):"
-        f" {st.session_state['selected_lon']:.6f}"
-    )
-
-    if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন", type="secondary"):
+    st.write("### 📍 জিপিএস পিন")
+    if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন"):
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
-        st.success("✅ লাল পিনটি আপনার বর্তমান জিপিএস লোকেশনে সেট হয়েছে!")
+        st.success("✅ পিন সেট হয়েছে!")
         st.rerun()
       else:
-        st.warning(
-            "⚠️ GPS সিগন্যাল পাওয়া যাচ্ছে না, ফোনের লোকেশন অন ও পারমিশন চেক করুন।"
-        )
+        st.warning("⚠️ GPS সিগন্যাল পাওয়া যায়নি।")
 
   with col2:
-    st.write("### 🔍 জায়গা সার্চ")
-    search_place = st.text_input("স্থান / এলাকার নাম লিখুন")
-
-    if st.button("স্থান খুঁজুন"):
-      if search_place:
-        try:
-          geolocator = Nominatim(user_agent="ps_mediseller_location_app")
-          location = geolocator.geocode(search_place + ", West Bengal, India")
-
-          if location:
-            st.session_state["selected_lat"] = location.latitude
-            st.session_state["selected_lon"] = location.longitude
-            st.success(f"✅ {search_place} পাওয়া গেছে।")
-            st.rerun()
-          else:
-            st.error("স্থানটি পাওয়া যায়নি।")
-        except Exception:
-          st.error("স্থান সার্চে সমস্যা হয়েছে।")
-      else:
-        st.warning("স্থান লিখুন।")
-
-    st.write("---")
-    st.write("### 📦 পার্টির নতুন অর্ডার এন্ট্রি করুন")
-
+    st.write("### 📦 পার্টির নতুন অর্ডার এন্ট্রি")
     c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
     all_parties_db = [row[0] for row in c.fetchall()]
 
-    # অর্ডার ফর্ম (সাবমিটের পর ফিল্ডগুলো অটোমেটিক খালি হয়ে যাবে)
     with st.form("order_entry_form", clear_on_submit=True):
-      order_party_name = st.selectbox(
-          "পার্টি নির্বাচন করুন",
-          ["-- সিলেক্ট করুন --"] + all_parties_db,
-          key="order_party_selectbox",
-      )
-      order_details_input = st.text_area(
-          "অর্ডারের বিবরণ (কি অর্ডার দিচ্ছে)", key="order_details_text"
-      )
-
-      submitted_order = st.form_submit_button(
-          "🛒 অর্ডার জমা দিন", type="primary"
-      )
-
-      if submitted_order:
-        if order_party_name == "-- সিলেক্ট করুন --":
-          st.error("❌ অনুগ্রহ করে সঠিক পার্টি নির্বাচন করুন।")
-        elif not order_details_input.strip():
-          st.error("❌ অর্ডারের বিবরণ লিখুন।")
-        else:
-          current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      order_party_name = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + all_parties_db)
+      order_details_input = st.text_area("অর্ডারের বিবরণ")
+      if st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary"):
+        if order_party_name != "-- সিলেক্ট করুন --" and order_details_input.strip():
           c.execute(
-              "INSERT INTO orders (party_name, order_details, order_date,"
-              " status) VALUES (?, ?, ?, ?)",
-              (
-                  order_party_name,
-                  order_details_input,
-                  current_timestamp,
-                  "Pending",
-              ),
+              "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
+              (order_party_name, order_details_input, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
           )
           conn.commit()
-          st.success(f"✅ {order_party_name}-এর অর্ডার সফলভাবে সেভ হয়েছে!")
+          st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
 
-  st.write("---")
-  st.write("### 🗺️ গুগল ম্যাপ স্টাইল ম্যাপ ইন্টারফেস")
-  st.caption(
-      "🔵 **ব্লু ডট (Blue Dot):** আপনার বর্তমান জিপিএস লোকেশন।\n🔴 **লাল পিন"
-      " (Red Pin):** আপনি যেখানে পিন বসাতে চান (ম্যাপে ক্লিক করুন অথবা পিনটি টেনে"
-      " যেকোনো জায়গায় নিয়ে যান)।"
-  )
+  m_click = folium.Map(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]], zoom_start=16)
+  folium.Marker([st.session_state["selected_lat"], st.session_state["selected_lon"]], icon=folium.Icon(color="red", icon="map-marker", prefix="fa"), draggable=True).add_to(m_click)
+  map_data = st_folium(m_click, width=900, height=450, key="interactive_map")
 
-  map_center_lat = (
-      gps_lat if gps_lat else float(st.session_state["selected_lat"])
-  )
-  map_center_lon = (
-      gps_lon if gps_lon else float(st.session_state["selected_lon"])
-  )
+  if map_data and map_data.get("last_clicked"):
+    st.session_state["selected_lat"] = map_data["last_clicked"]["lat"]
+    st.session_state["selected_lon"] = map_data["last_clicked"]["lng"]
+    st.rerun()
 
-  google_tiles = "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-
-  m_click = folium.Map(
-      location=[map_center_lat, map_center_lon],
-      zoom_start=16,
-      tiles=google_tiles,
-      attr="Google Maps",
-  )
-
-  if gps_lat and gps_lon:
-    folium.CircleMarker(
-        location=[gps_lat, gps_lon],
-        radius=10,
-        color="#ffffff",
-        weight=3,
-        fill=True,
-        fill_color="#1a73e8",
-        fill_opacity=1.0,
-        popup="আপনার বর্তমান লোকেশন (Blue Dot)",
-        tooltip="Current Location",
-    ).add_to(m_click)
-
-  current_lat = float(st.session_state["selected_lat"])
-  current_lon = float(st.session_state["selected_lon"])
-
-  folium.Marker(
-      [current_lat, current_lon],
-      tooltip="পিনটি টেনে সঠিক স্থানে বসান বা ম্যাপে ক্লিক করুন",
-      popup="নির্বাচিত লোকেশন",
-      icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
-      draggable=True,
-  ).add_to(m_click)
-
-  map_data = st_folium(m_click, width=900, height=480, key="interactive_map")
-
-  updated_lat = None
-  updated_lon = None
-
-  if map_data:
-    if map_data.get("last_marker_dragged"):
-      updated_lat = map_data["last_marker_dragged"]["lat"]
-      updated_lon = map_data["last_marker_dragged"]["lng"]
-    elif map_data.get("last_clicked"):
-      updated_lat = map_data["last_clicked"]["lat"]
-      updated_lon = map_data["last_clicked"]["lng"]
-
-  if updated_lat and updated_lon:
-    if (abs(st.session_state["selected_lat"] - updated_lat) > 0.0001) or (
-        abs(st.session_state["selected_lon"] - updated_lon) > 0.0001
-    ):
-      st.session_state["selected_lat"] = updated_lat
-      st.session_state["selected_lon"] = updated_lon
-      st.rerun()
-
-  st.write("---")
-  st.write("### 📝 নতুন পার্টি সেভ করুন")
-
-  # নতুন পার্টি সেভ করার ফর্ম (clear_on_submit=True দেওয়ায় সাবমিটের পর নাম, ঠিকানা ও ফোন নম্বর অটোমেটিক মুছে যাবে)
   with st.form("new_location_form", clear_on_submit=True):
-    party_name = st.text_input("পার্টি / দোকানের নাম")
-    address = st.text_input("ঠিকানা / এলাকা")
+    party_name = st.text_input("পার্টির নাম")
+    address = st.text_input("ঠিকানা")
     party_phone = st.text_input("ফোন নম্বর")
-
-    col_lat, col_lon = st.columns(2)
-    with col_lat:
-      lat = st.number_input(
-          "অক্ষাংশ (Latitude)",
-          value=float(st.session_state["selected_lat"]),
-          format="%.6f",
-      )
-    with col_lon:
-      lon = st.number_input(
-          "দ্রাঘিমাংশ (Longitude)",
-          value=float(st.session_state["selected_lon"]),
-          format="%.6f",
-      )
-
-    submitted_location = st.form_submit_button(
-        "💾 লোকেশন সেভ করুন", type="primary"
-    )
-
-    if submitted_location:
-      if not party_name or not party_phone:
-        st.error("❌ পার্টির নাম ও ফোন নম্বর অবশ্যই দিন।")
-      else:
+    if st.form_submit_button("💾 লোকেশন সেভ করুন", type="primary"):
+      if party_name and party_phone:
         c.execute(
-            "INSERT INTO locations (party_name, address, party_phone, lat, lon,"
-            " route_order) VALUES (?, ?, ?, ?, ?, ?)",
-            (party_name, address, party_phone, lat, lon, 0),
+            "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+            (party_name, address, party_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
         )
         conn.commit()
-        st.success("✅ পার্টির লোকেশন সফলভাবে সেভ হয়েছে!")
+        st.success("✅ লোকেশন সেভ হয়েছে!")
 
 
 # =========================================================
@@ -568,233 +328,64 @@ if choice == "📍 নতুন লোকেশন এড করুন":
 # =========================================================
 
 elif choice == "🔍 পার্টি ও লোকেশন সার্চ":
-
   st.header("🔍 পার্টি ও লোকেশন সার্চ")
-
-  search_query = st.text_input("পার্টির নাম / এলাকা / ফোন নম্বর দিয়ে সার্চ করুন")
-
-  df = pd.read_sql_query(
-      "SELECT * FROM locations ORDER BY route_order ASC, id ASC", conn
-  )
-
+  df = pd.read_sql_query("SELECT * FROM locations", conn)
+  search_query = st.text_input("সার্চ করুন")
   if search_query:
-    search_text = search_query.lower()
-    df = df[
-        df["party_name"].fillna("").str.lower().str.contains(search_text)
-        | df["address"].fillna("").str.lower().str.contains(search_text)
-        | df["party_phone"].fillna("").str.lower().str.contains(search_text)
-    ]
-
-  if not df.empty:
-    df["Google Maps Direction"] = df.apply(
-        lambda row: (
-            "https://www.google.com/maps/dir/?api=1&destination="
-            f"{row['lat']},{row['lon']}"
-        ),
-        axis=1,
-    )
-
-    st.subheader("📋 পার্টির তালিকা")
-
-    st.dataframe(
-        df[[
-            "route_order",
-            "party_name",
-            "address",
-            "party_phone",
-            "Google Maps Direction",
-        ]],
-        column_config={
-            "route_order": "ক্রম",
-            "party_name": "পার্টি",
-            "address": "ঠিকানা",
-            "party_phone": "ফোন নম্বর",
-            "Google Maps Direction": st.column_config.LinkColumn(
-                "গুগল ম্যাপস", display_text="🗺️ Direction"
-            ),
-        },
-        use_container_width=True,
-        hide_index=True,
-    )
-  else:
-    st.warning("কোনো পার্টির তথ্য পাওয়া যায়নি।")
-
-  if is_admin and not df.empty:
-    st.write("---")
-    st.subheader("🗑️ অ্যাডমিন কন্ট্রোল")
-
-    delete_options = {
-        f"{row['party_name']} - ID: {row['id']}": int(row["id"])
-        for _, row in df.iterrows()
-    }
-    selected_delete = st.selectbox(
-        "যে পার্টিটি ডিলিট করবেন:", list(delete_options.keys())
-    )
-
-    if st.button("🗑️ পার্টি ডিলিট করুন", type="primary"):
-      c.execute(
-          "DELETE FROM locations WHERE id=?", (delete_options[selected_delete],)
-      )
-      conn.commit()
-      st.success("✅ পার্টি সফলভাবে ডিলিট হয়েছে।")
-      st.rerun()
+    df = df[df["party_name"].str.contains(search_query, case=False, na=False)]
+  st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 # =========================================================
-# 3. ROUTE PLANNING & MAP
+# 3. ROUTE PLANNING
 # =========================================================
 
 elif choice == "🗺️ রুট প্ল্যানিং ও ম্যাপ":
-
-  st.header("🗺️ স্মার্ট ডেলিভারি ও কালেকশন রুট প্ল্যানার")
+  st.header("🗺️ স্মার্ট রুট প্ল্যানার")
 
   locations_df = pd.read_sql_query("SELECT * FROM locations", conn)
-
   if locations_df.empty:
-    st.info("এখনো কোনো লোকেশন সেভ করা হয়নি।")
+    st.info("কোনো লোকেশন নেই।")
   else:
-    st.subheader("🎯 আজকের ডেলিভারি ও কালেকশন পার্টি নির্বাচন করুন")
+    selected_parties = st.multiselect("পার্টি সিলেক্ট করুন:", locations_df["party_name"].tolist(), default=locations_df["party_name"].tolist())
 
-    party_names_list = locations_df["party_name"].tolist()
-    selected_parties = st.multiselect(
-        "পার্টির নাম সার্চ করে সিলেক্ট করুন:",
-        party_names_list,
-        default=party_names_list,
-    )
-
-    if selected_parties:
-      st.write("---")
-      st.subheader("💰 পেমেন্ট ও ডেলিভারি বিবরণ এন্ট্রি করুন")
-
+    if st.button("🚀 শর্টকাট রুট ও ম্যাপ তৈরি করুন", type="primary"):
       route_input_data = []
       for p_name in selected_parties:
         p_row = locations_df[locations_df["party_name"] == p_name].iloc[0]
+        route_input_data.append({
+            "party_name": p_name,
+            "address": p_row["address"],
+            "party_phone": p_row["party_phone"],
+            "lat": float(p_row["lat"]),
+            "lon": float(p_row["lon"]),
+        })
 
-        with st.expander(f"🏢 {p_name} ({p_row['address']})"):
-          col_d, col_p = st.columns(2)
-          with col_d:
-            del_item = st.text_input(
-                f"ডেলিভারি বিবরণ", value="মেডিসিন ডেলিভারি", key=f"del_{p_name}"
-            )
-          with col_p:
-            pay_amt = st.text_input(
-                f"কালেকশন পেমেন্ট (টাকা)", value="0", key=f"pay_{p_name}"
-            )
+      home_lat = gps_lat if gps_lat else route_input_data[0]["lat"]
+      home_lon = gps_lon if gps_lon else route_input_data[0]["lon"]
+      unvisited = route_input_data.copy()
+      optimized_route = []
+      curr_lat, curr_lon = home_lat, home_lon
 
-          route_input_data.append({
-              "party_name": p_name,
-              "address": p_row["address"],
-              "party_phone": p_row["party_phone"],
-              "lat": float(p_row["lat"]),
-              "lon": float(p_row["lon"]),
-              "delivery_info": del_item,
-              "payment_info": pay_amt,
-          })
+      while unvisited:
+        next_stop = min(unvisited, key=lambda x: math.sqrt((x["lat"] - curr_lat)**2 + (x["lon"] - curr_lon)**2))
+        optimized_route.append(next_stop)
+        curr_lat, curr_lon = next_stop["lat"], next_stop["lon"]
+        unvisited.remove(next_stop)
 
-      if st.button("🚀 শর্টকাট রুট ও ম্যাপ তৈরি করুন", type="primary"):
-        home_lat = gps_lat if gps_lat else route_input_data[0]["lat"]
-        home_lon = gps_lon if gps_lon else route_input_data[0]["lon"]
+      st.session_state["optimized_route"] = optimized_route
+      st.success("✅ শর্টকাট রুট তৈরি হয়েছে!")
+      st.rerun()
 
-        unvisited = route_input_data.copy()
-        optimized_route = []
-        curr_lat, curr_lon = home_lat, home_lon
-
-        while unvisited:
-          next_stop = min(
-              unvisited,
-              key=lambda x: math.sqrt(
-                  (x["lat"] - curr_lat) ** 2 + (x["lon"] - curr_lon) ** 2
-              ),
-          )
-          optimized_route.append(next_stop)
-          curr_lat, curr_lon = next_stop["lat"], next_stop["lon"]
-          unvisited.remove(next_stop)
-
-        st.session_state["optimized_route"] = optimized_route
-        st.session_state["home_coords"] = (home_lat, home_lon)
-        st.success("✅ শর্টকাট রুট সফলভাবে সাজানো হয়েছে!")
-        st.rerun()
-
-    if "optimized_route" in st.session_state and st.session_state["optimized_route"]:
+    if "optimized_route" in st.session_state:
       route = st.session_state["optimized_route"]
-      h_lat, h_lon = st.session_state["home_coords"]
-
-      st.write("---")
-      st.subheader("🗺️ লাইভ রুট ম্যাপ")
-
-      google_tiles = "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-      m = folium.Map(
-          location=[h_lat, h_lon],
-          zoom_start=13,
-          tiles=google_tiles,
-          attr="Google Maps",
-      )
-
-      folium.Marker(
-          location=[h_lat, h_lon],
-          popup="🏠 হোম / গুদাম (স্টার্ট পয়েন্ট)",
-          tooltip="Start & End Point",
-          icon=folium.Icon(color="green", icon="home"),
-      ).add_to(m)
-
-      points = [[h_lat, h_lon]]
+      st.subheader("📋 রুট লিস্ট ও লাইভ স্ট্যাটাস")
       for idx, stop in enumerate(route, 1):
-        lat_val, lon_val = stop["lat"], stop["lon"]
-        points.append([lat_val, lon_val])
-
-        gmaps_url = (
-            "https://www.google.com/maps/dir/?api=1&destination="
-            f"{lat_val},{lon_val}"
-        )
-        popup_html = f"""
-                <div style="width:220px">
-                    <b>{idx}. {stop['party_name']}</b><br>
-                    📍 {stop['address']}<br>
-                    📞 {stop['party_phone']}<br>
-                    📦 ডেলিভারি: {stop['delivery_info']}<br>
-                    💵 পেমেন্ট: ₹{stop['payment_info']}<br><br>
-                    <a href="tel:{stop['party_phone']}" style="padding:4px 6px; background:#28a745; color:white; text-decoration:none; border-radius:3px;">📞 কল</a>
-                    <a href="{gmaps_url}" target="_blank" style="padding:4px 6px; background:#4285F4; color:white; text-decoration:none; border-radius:3px;">🗺️ Navigate</a>
-                </div>
-                """
-
-        folium.Marker(
-            location=[lat_val, lon_val],
-            popup=folium.Popup(popup_html, max_width=300),
-            tooltip=f"{idx}. {stop['party_name']}",
-            icon=folium.Icon(color="blue", icon="info-sign"),
-        ).add_to(m)
-
-      points.append([h_lat, h_lon])
-      folium.PolyLine(points, color="red", weight=4, opacity=0.8).add_to(m)
-      st_folium(m, width=1000, height=550)
-
-      st.write("---")
-      st.subheader("📋 ক্রমানুসারে ডেলিভারি ও পেমেন্ট তালিকা")
-
-      table_df = pd.DataFrame([{
-          "ক্রম": i + 1,
-          "পার্টি": s["party_name"],
-          "ঠিকানা": s["address"],
-          "ফোন": s["party_phone"],
-          "ডেলিভারি": s["delivery_info"],
-          "কালেকশন পেমেন্ট": f"₹{s['payment_info']}",
-          "গুগল ম্যাপস নেভিগেশন": (
-              "https://www.google.com/maps/dir/?api=1&destination="
-              f"{s['lat']},{s['lon']}"
-          ),
-      } for i, s in enumerate(route)])
-
-      st.dataframe(
-          table_df,
-          column_config={
-              "গুগল ম্যাপস নেভিগেশন": st.column_config.LinkColumn(
-                  "নেভিগেশন লিংক", display_text="🗺️ Direction"
-              )
-          },
-          use_container_width=True,
-          hide_index=True,
-      )
+        c.execute("SELECT status FROM orders WHERE party_name=?", (stop["party_name"],))
+        ord_status = c.fetchone()
+        status_text = ord_status[0] if ord_status else "Pending"
+        badge = "🟢 সম্পন্ন (Completed)" if status_text == "Completed" else "⏳ বাকি আছে (Pending)"
+        st.write(f"**{idx}. {stop['party_name']}** — {badge}")
 
 
 # =========================================================
@@ -802,76 +393,49 @@ elif choice == "🗺️ রুট প্ল্যানিং ও ম্যা�
 # =========================================================
 
 elif choice == "📦 পেন্ডিং অর্ডার ও বিলিং":
+  st.header("📦 পেন্ডিং অর্ডার ও বিলিং ম্যানেজমেন্ট (অ্যাডমিন প্যানেল)")
 
-  st.header("📦 পার্টির পেন্ডিং অর্ডার ও বিলিং ম্যানেজমেন্ট")
-
-  orders_df = pd.read_sql_query(
-      "SELECT * FROM orders ORDER BY order_date DESC", conn
-  )
-
+  orders_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
   if orders_df.empty:
-    st.info("বর্তমানে কোনো অর্ডার জমা নেই।")
+    st.info("কোনো অর্ডার নেই।")
   else:
-    unique_dates = orders_df["order_date"].str.split(" ").str[0].unique()
-    selected_date_filter = st.selectbox(
-        "📅 তারিখ অনুযায়ী অর্ডার ফিল্টার করুন",
-        ["সকল তারিখ"] + list(unique_dates),
-    )
-
-    if selected_date_filter != "সকল তারিখ":
-      orders_df = orders_df[
-          orders_df["order_date"].str.startswith(selected_date_filter)
-      ]
-
-    st.subheader("📋 অর্ডারের তালিকা ও স্ট্যাটাস")
-
     for _, row in orders_df.iterrows():
-      order_id = row["id"]
-      p_name = row["party_name"]
-      details = row["order_details"]
-      o_date = row["order_date"]
-      status = row["status"]
-
-      is_delayed = False
-      try:
-        if status == "Pending" and (
-            datetime.now()
-            - datetime.strptime(o_date, "%Y-%m-%d %H:%M:%S")
-            > timedelta(hours=24)
-        ):
-          is_delayed = True
-      except:
-        pass
-
-      col_box1, col_box2 = st.columns([3, 1])
-      with col_box1:
-        if is_delayed:
-          st.markdown(f"🔴 **[২৪ ঘণ্টা পার হয়েছে!] পার্টি:** {p_name}")
-        else:
-          st.markdown(f"🟢 **পার্টি:** {p_name}")
-
-        st.write(f"📝 **অর্ডারের বিবরণ:** {details}")
-        st.caption(f"🕒 সময়: {o_date} | স্ট্যাটাস: **{status}**")
-
-      with col_box2:
-        if status == "Pending":
-          if st.button(
-              "✅ Order Done (বিলিং সম্পন্ন)", key=f"done_btn_{order_id}"
-          ):
-            c.execute(
-                "UPDATE orders SET status='Completed' WHERE id=?", (order_id,)
-            )
-            conn.commit()
-            st.success("অর্ডার কমপ্লিট করা হয়েছে!")
-            st.rerun()
-        else:
-          st.success("সম্পন্ন হয়েছে ✅")
+      st.markdown(f"**পার্টি:** {row['party_name']} | **স্ট্যাটাস:** `{row['status']}` | **সময়:** {row['order_date']}")
+      st.write(f" বিবরণ: {row['order_details']}")
       st.write("---")
 
 
 # =========================================================
-# FOOTER
+# 5. ADMIN LIVE TRACKING ROOM (অ্যাডমিন ট্র্যাকিং ঘর)
 # =========================================================
 
+elif choice == "📊 অ্যাডমিন লাইভ ট্র্যাকিং ঘর":
+  st.header("📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং ও অটো-কমপ্লিট মনিটর")
+  st.info("এখানে আপনি দেখতে পাবেন ডেলিভারি বয় শর্টকাট রুটের কোন কোন পয়েন্টে পৌঁছে গেছে এবং কোনগুলো অটোমেটিক কমপ্লিট হয়েছে।")
+
+  if "optimized_route" in st.session_state:
+    route = st.session_state["optimized_route"]
+    
+    tracking_data = []
+    for idx, stop in enumerate(route, 1):
+      c.execute("SELECT status, order_date FROM orders WHERE party_name=?", (stop["party_name"],))
+      res = c.fetchone()
+      status = res[0] if res else "Pending"
+      time_val = res[1] if res else "-"
+
+      tracking_data.append({
+          "ক্রম": idx,
+          "পার্টির নাম": stop["party_name"],
+          "ঠিকানা": stop["address"],
+          "ফোন নম্বর": stop["party_phone"],
+          "স্ট্যাটাস": "🟢 সম্পন্ন (Completed)" if status == "Completed" else "⏳ পেন্ডিং (Pending)",
+          "সময়/তারিখ": time_val
+      })
+
+    df_track = pd.DataFrame(tracking_data)
+    st.dataframe(df_track, use_container_width=True, hide_index=True)
+  else:
+    st.warning("⚠️ বর্তমানে কোনো শর্টকাট রুট তৈরি করা হয়নি। প্রথমে 'রুট প্ল্যানিং ও ম্যাপ' থেকে রুট তৈরি করুন।")
+
 st.write("---")
-st.caption("P.S Mediseller Location App | Delivery Route Management System")
+st.caption("P.S Mediseller Location App | Admin Tracking Room")
