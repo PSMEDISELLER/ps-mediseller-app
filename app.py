@@ -232,7 +232,7 @@ selected_menu = st.radio("মেনু সিলেক্ট করুন:", men
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY
+# 1. ADD NEW LOCATION & ORDER ENTRY (Updated)
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
   col1, col2 = st.columns(2)
@@ -261,8 +261,12 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
     all_parties_db = [row[0] for row in c.fetchall()]
 
+    # পার্টি সার্চ ফিল্টার
+    ord_search_query = st.text_input("পার্টি সার্চ করুন (নাম লিখে খুঁজুন)", "", key="order_party_search")
+    filtered_ord_parties = [p for p in all_parties_db if ord_search_query.lower() in p.lower()] if ord_search_query else all_parties_db
+
     with st.form("order_form", clear_on_submit=True):
-      ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + all_parties_db)
+      ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + filtered_ord_parties)
       ord_details = st.text_area("অর্ডারের বিবরণ")
 
       submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
@@ -278,17 +282,43 @@ if selected_menu == "📍 নতুন লোকেশন এড":
           st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
   st.write("### 🗺️ ম্যাপ লোকেশন সিলেক্ট করুন")
+
+  # কারেন্ট লোকেশন রিফ্রেশ বাটন
+  if st.button("📍 আমার কারেন্ট লোকেশন রিফ্রেশ করুন"):
+    if gps_lat and gps_lon:
+      st.session_state["selected_lat"] = gps_lat
+      st.session_state["selected_lon"] = gps_lon
+      st.success("ম্যাপ কারেন্ট লোকেশনে আপডেট করা হয়েছে!")
+      st.rerun()
+    else:
+      st.warning("⚠️ জিপিএস লোকেশন পাওয়া যায়নি। ব্রাউজারের লোকেশন পারমিশন চেক করুন।")
+
+  # গুগল ম্যাপ স্টাইল ও মার্কার কনফিগারেশন
   m_click = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
       zoom_start=16,
       tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
       attr="Google"
   )
+
+  # সিলেক্ট করা জায়গায় লাল পিন
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      popup="সিলেক্টেড পিন",
+      popup="সিলেক্টেড পিন (নতুন লোকেশন)",
       icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
   ).add_to(m_click)
+
+  # ইউজার কারেন্ট লোকেশন ব্লু ডট
+  if gps_lat and gps_lon:
+    folium.CircleMarker(
+        location=[gps_lat, gps_lon],
+        radius=8,
+        color="blue",
+        fill=True,
+        fill_color="blue",
+        fill_opacity=0.7,
+        popup="আপনার বর্তমান লোকেশন (ব্লু ডট)"
+    ).add_to(m_click)
   
   map_data = st_folium(m_click, width=900, height=450, key="interactive_map_safe")
   if map_data and map_data.get("last_clicked"):
@@ -347,7 +377,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN (পাশাপাশি অপশন ও পার্টি সার্চ ফিল্টার যুক্ত)
+# 4. DUE CLEAR & DELIVERY PLAN
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
@@ -359,14 +389,12 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
-  # পার্টি সার্চ করার জন্য অপশন ও টাইপ বক্স
   st.write("#### 🔍 পার্টি সার্চ করুন বা নতুন কাজ যুক্ত করুন")
   party_search_filter = st.text_input("পার্টির নাম লিখে সার্চ করুন (খুঁজতে সুবিধা হবে)", "")
   
   filtered_parties_list = [p for p in all_parties if party_search_filter.lower() in p.lower()] if party_search_filter else all_parties
 
   with st.form("easy_assign_form", clear_on_submit=True):
-    # পাশাপাশি সুন্দরভাবে ফিল্ডগুলো সাজানো হয়েছে (পয়েন্ট ২ অনুযায়ী)
     col_e1, col_e2, col_e3, col_e4 = st.columns([2, 2, 2, 2])
     
     with col_e1:
@@ -404,7 +432,6 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
       cols[0].write(f"এজেন্ট: **{row['agent_name']}**\n\nপার্টি: **{p_name}**")
       cols[1].write(f"কাজ: {row['task_type']}\n\nডিউ: {row['due_amount']} টাকা")
 
-      # ২০-৩০ মিটার দূরত্বের মধ্যে জিপিএস থাকলে অটো রিমুভ করার লজিক
       auto_completed = False
       if gps_lat and gps_lon and p_name in party_coords:
         p_lat, p_lon = party_coords[p_name]
