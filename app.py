@@ -135,11 +135,6 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-if "input_username" not in st.session_state:
-  st.session_state["input_username"] = ""
-if "input_password" not in st.session_state:
-  st.session_state["input_password"] = ""
-
 query_params = st.query_params
 saved_user = query_params.get("user", None)
 
@@ -153,7 +148,7 @@ if not st.session_state["logged_in"] and saved_user:
 
 
 # =========================================================
-# LOGIN PAGE (WITHOUT FORM TO PREVENT DATA LOSS)
+# LOGIN PAGE (STABLE STATE HANDLING)
 # =========================================================
 
 if not st.session_state["logged_in"]:
@@ -163,21 +158,14 @@ if not st.session_state["logged_in"]:
   tab1, tab2 = st.tabs(["লগইন", "পাসওয়ার্ড ভুলে গেছেন?"])
 
   with tab1:
-    # Form ব্যবহার না করে সরাসরি সেশন স্টেট বাইন্ডিং করা হয়েছে যাতে ইনপুট উবে না যায়
-    st.session_state["input_username"] = st.text_input(
-        "ইউজারনেম", value=st.session_state["input_username"]
-    )
-    st.session_state["input_password"] = st.text_input(
-        "পাসওয়ার্ড",
-        value=st.session_state["input_password"],
-        type="password",
+    # সেশন স্টেটে মান সেভ রাখার জন্য সরাসরি key ব্যবহার করা হয়েছে
+    username = st.text_input("ইউজারনেম", key="login_username_input")
+    password = st.text_input(
+        "পাসওয়ার্ড", type="password", key="login_password_input"
     )
     remember_me = st.checkbox("আমাকে মনে রাখুন (Permanent Login)", value=True)
 
     if st.button("লগইন করুন", type="primary"):
-      username = st.session_state["input_username"]
-      password = st.session_state["input_password"]
-
       c.execute(
           "SELECT password, role FROM users WHERE username=?", (username,)
       )
@@ -196,12 +184,12 @@ if not st.session_state["logged_in"]:
         st.error("❌ ভুল ইউজারনেম অথবা পাসওয়ার্ড!")
 
   with tab2:
-    f_user = st.text_input("ইউজারনেম", key="forgot_user")
+    f_user = st.text_input("ইউজারনেম", key="forgot_user_input")
     new_pass = st.text_input(
-        "নতুন পাসওয়ার্ড", type="password", key="new_pass_admin"
+        "নতুন পাসওয়ার্ড", type="password", key="new_pass_admin_input"
     )
     admin_pass = st.text_input(
-        "বর্তমান অ্যাডমিন পাসওয়ার্ড", type="password", key="admin_auth"
+        "বর্তমান অ্যাডমিন পাসওয়ার্ড", type="password", key="admin_auth_input"
     )
 
     if st.button("পাসওয়ার্ড রিসেট করুন"):
@@ -250,41 +238,39 @@ with col_u3:
 if st.session_state.get("show_settings", False):
   with st.expander("⚙️ ইউজার ও অ্যাকাউন্ট কন্ট্রোল প্যানেল", expanded=True):
     if st.session_state["user_role"] != "admin":
-      with st.form("staff_self_update_form"):
-        st.write("আপনার নাম পরিবর্তন করুন:")
-        s_new_name = st.text_input(
-            "নতুন ইউজারনেম", value=st.session_state["username"]
-        )
-        if st.form_submit_button("💾 আপডেট করুন", type="primary"):
-          if not s_new_name.strip():
-            st.error("ইউজারনেম খালি রাখা যাবে না!")
-          else:
-            try:
-              old_uname = st.session_state["username"]
+      s_new_name = st.text_input(
+          "নতুন ইউজারনেম",
+          value=st.session_state["username"],
+          key="staff_update_name",
+      )
+      if st.button("💾 আপডেট করুন", type="primary"):
+        if not s_new_name.strip():
+          st.error("ইউজারনেম খালি রাখা যাবে না!")
+        else:
+          try:
+            old_uname = st.session_state["username"]
+            c.execute("SELECT password FROM users WHERE username=?", (old_uname,))
+            current_pass = c.fetchone()[0]
+            if old_uname != s_new_name:
               c.execute(
-                  "SELECT password FROM users WHERE username=?", (old_uname,)
+                  "SELECT COUNT(*) FROM users WHERE username=?", (s_new_name,)
               )
-              current_pass = c.fetchone()[0]
-              if old_uname != s_new_name:
-                c.execute(
-                    "SELECT COUNT(*) FROM users WHERE username=?", (s_new_name,)
-                )
-                if c.fetchone()[0] > 0:
-                  st.error("❌ এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হচ্ছে!")
-                  st.stop()
-                c.execute(
-                    "INSERT INTO users (username, password, role) VALUES (?,"
-                    " ?, ?)",
-                    (s_new_name, current_pass, st.session_state["user_role"]),
-                )
-                c.execute("DELETE FROM users WHERE username=?", (old_uname,))
-              conn.commit()
-              st.session_state["username"] = s_new_name
-              st.query_params["user"] = s_new_name
-              st.success("✅ সফলভাবে আপডেট হয়েছে!")
-              st.rerun()
-            except Exception as e:
-              st.error(f"ত্রুটি: {e}")
+              if c.fetchone()[0] > 0:
+                st.error("❌ এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হচ্ছে!")
+                st.stop()
+              c.execute(
+                  "INSERT INTO users (username, password, role) VALUES (?, ?,"
+                  " ?)",
+                  (s_new_name, current_pass, st.session_state["user_role"]),
+              )
+              c.execute("DELETE FROM users WHERE username=?", (old_uname,))
+            conn.commit()
+            st.session_state["username"] = s_new_name
+            st.query_params["user"] = s_new_name
+            st.success("✅ সফলভাবে আপডেট হয়েছে!")
+            st.rerun()
+          except Exception as e:
+            st.error(f"ত্রুটি: {e}")
 
     if st.session_state["user_role"] == "admin":
       c.execute("SELECT username, role FROM users")
@@ -300,30 +286,37 @@ if st.session_state.get("show_settings", False):
       t_current_pass = t_data[1] if t_data else ""
       t_current_role = t_data[0] if t_data else "staff"
 
-      with st.form("admin_edit_user_form"):
-        new_u_name = st.text_input("নতুন ইউজারনেম", value=target_user)
-        new_u_pass = st.text_input(
-            "নতুন পাসওয়ার্ড", value=t_current_pass, type="password"
-        )
-        role_idx = 0 if t_current_role == "admin" else 1
-        new_u_role = st.selectbox(
-            "রোল নির্ধারণ করুন", ["admin", "staff"], index=role_idx
-        )
-        if st.form_submit_button("💾 পরিবর্তন সেভ করুন", type="primary"):
-          if target_user != new_u_name:
-            c.execute(
-                "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-                (new_u_name, new_u_pass, new_u_role),
-            )
-            c.execute("DELETE FROM users WHERE username=?", (target_user,))
-          else:
-            c.execute(
-                "UPDATE users SET password=?, role=? WHERE username=?",
-                (new_u_pass, new_u_role, target_user),
-            )
-          conn.commit()
-          st.success("✅ সফলভাবে আপডেট হয়েছে!")
-          st.rerun()
+      new_u_name = st.text_input(
+          "নতুন ইউজারনেম", value=target_user, key="admin_edit_uname"
+      )
+      new_u_pass = st.text_input(
+          "নতুন পাসওয়ার্ড",
+          value=t_current_pass,
+          type="password",
+          key="admin_edit_upass",
+      )
+      role_idx = 0 if t_current_role == "admin" else 1
+      new_u_role = st.selectbox(
+          "রোল নির্ধারণ করুন",
+          ["admin", "staff"],
+          index=role_idx,
+          key="admin_edit_urole",
+      )
+      if st.button("💾 পরিবর্তন সেভ করুন", type="primary"):
+        if target_user != new_u_name:
+          c.execute(
+              "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+              (new_u_name, new_u_pass, new_u_role),
+          )
+          c.execute("DELETE FROM users WHERE username=?", (target_user,))
+        else:
+          c.execute(
+              "UPDATE users SET password=?, role=? WHERE username=?",
+              (new_u_pass, new_u_role, target_user),
+          )
+        conn.commit()
+        st.success("✅ সফলভাবে আপডেট হয়েছে!")
+        st.rerun()
 
 st.write("---")
 
@@ -438,28 +431,31 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     )
     all_parties_db = [row[0] for row in c.fetchall()]
 
-    with st.form("order_entry_form", clear_on_submit=True):
-      order_party_name = st.selectbox(
-          "পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + all_parties_db
-      )
-      order_details_input = st.text_area("অর্ডারের বিবরণ")
-      if st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary"):
-        if (
-            order_party_name != "-- সিলেক্ট করুন --"
-            and order_details_input.strip()
-        ):
-          c.execute(
-              "INSERT INTO orders (party_name, order_details, order_date,"
-              " status) VALUES (?, ?, ?, ?)",
-              (
-                  order_party_name,
-                  order_details_input,
-                  datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                  "Pending",
-              ),
-          )
-          conn.commit()
-          st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
+    order_party_name = st.selectbox(
+        "পার্টি নির্বাচন করুন",
+        ["-- সিলেক্ট করুন --"] + all_parties_db,
+        key="order_party_box",
+    )
+    order_details_input = st.text_area(
+        "অর্ডারের বিবরণ", key="order_details_box"
+    )
+    if st.button("🛒 অর্ডার জমা দিন", type="primary"):
+      if (
+          order_party_name != "-- সিলেক্ট করুন --"
+          and order_details_input.strip()
+      ):
+        c.execute(
+            "INSERT INTO orders (party_name, order_details, order_date,"
+            " status) VALUES (?, ?, ?, ?)",
+            (
+                order_party_name,
+                order_details_input,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Pending",
+            ),
+        )
+        conn.commit()
+        st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
 
   map_center = [
       st.session_state["selected_lat"],
@@ -503,25 +499,24 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.session_state["selected_lon"] = clicked_lon
       st.rerun()
 
-  with st.form("new_location_form", clear_on_submit=True):
-    party_name = st.text_input("পার্টির নাম")
-    address = st.text_input("ঠিকানা")
-    party_phone = st.text_input("ফোন নম্বর")
-    if st.form_submit_button("💾 লোকেশন সেভ করুন", type="primary"):
-      if party_name and party_phone:
-        c.execute(
-            "INSERT INTO locations (party_name, address, party_phone, lat, lon)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (
-                party_name,
-                address,
-                party_phone,
-                st.session_state["selected_lat"],
-                st.session_state["selected_lon"],
-            ),
-        )
-        conn.commit()
-        st.success("✅ লোকেশন সেভ হয়েছে!")
+  party_name = st.text_input("পার্টির নাম", key="new_party_name_input")
+  address = st.text_input("ঠিকানা", key="new_party_address_input")
+  party_phone = st.text_input("ফোন নম্বর", key="new_party_phone_input")
+  if st.button("💾 লোকেশন সেভ করুন", type="primary"):
+    if party_name and party_phone:
+      c.execute(
+          "INSERT INTO locations (party_name, address, party_phone, lat, lon)"
+          " VALUES (?, ?, ?, ?, ?)",
+          (
+              party_name,
+              address,
+              party_phone,
+              st.session_state["selected_lat"],
+              st.session_state["selected_lon"],
+          ),
+      )
+      conn.commit()
+      st.success("✅ লোকেশন সেভ হয়েছে!")
 
 
 # =========================================================
@@ -531,7 +526,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 elif selected_menu == "🔍 সার্চ":
   st.header("🔍 পার্টি ও লোকেশন সার্চ")
   df = pd.read_sql_query("SELECT * FROM locations", conn)
-  search_query = st.text_input("সার্চ করুন")
+  search_query = st.text_input("সার্চ করুন", key="search_party_input")
   if search_query:
     df = df[df["party_name"].str.contains(search_query, case=False, na=False)]
   st.dataframe(df, use_container_width=True, hide_index=True)
@@ -552,6 +547,7 @@ elif selected_menu == "🗺️ রুট প্ল্যান":
         "পার্টি সিলেক্ট করুন:",
         locations_df["party_name"].tolist(),
         default=locations_df["party_name"].tolist(),
+        key="route_parties_multiselect",
     )
 
     if st.button("🚀 শর্টকাট রুট ও ম্যাপ তৈরি করুন", type="primary"):
@@ -652,7 +648,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   else:
     st.write("### 👤 ডেলিভারি বয় তালিকা:")
     selected_agent = st.radio(
-        "স্টাফ নির্বাচন করুন:", staff_list, horizontal=True
+        "স্টাফ নির্বাচন করুন:", staff_list, horizontal=True, key="live_staff_radio"
     )
 
     if selected_agent:
