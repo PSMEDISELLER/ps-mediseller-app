@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS delivery_plans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     agent_name TEXT NOT NULL,
     party_name TEXT NOT NULL,
-    task_type TEXT NOT NULL, -- 'ডেলিভারি' বা 'ডিউ কালেকশন'
+    task_type TEXT NOT NULL,
     due_amount TEXT DEFAULT '0',
     status TEXT DEFAULT 'Pending',
     assigned_date TEXT NOT NULL,
@@ -120,7 +120,6 @@ if c.fetchone()[0] == 0:
   c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", ("delivery", "user123", "staff"))
   conn.commit()
 
-# সমস্ত ইউজারের জন্য লাইভ লোকেশন রো নিশ্চিত করা
 c.execute("SELECT username FROM users")
 all_app_users = c.fetchall()
 for u in all_app_users:
@@ -128,17 +127,20 @@ for u in all_app_users:
 conn.commit()
 
 # =========================================================
-# LOCALSTORAGE LOGIN PERSISTENCE
+# SESSION STATE & LOCALSTORAGE PERSISTENCE INITIALIZATION
 # =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
-
-local_user = streamlit_js_eval(js_expressions="localStorage.getItem('ps_perma_user')", key="get_local_user")
-
 if "logged_in" not in st.session_state:
   st.session_state["logged_in"] = False
+if "username" not in st.session_state:
+  st.session_state["username"] = "admin"
+if "user_role" not in st.session_state:
+  st.session_state["user_role"] = "admin"
+
+local_user = streamlit_js_eval(js_expressions="localStorage.getItem('ps_perma_user')", key="get_local_user")
 
 if not st.session_state["logged_in"] and local_user:
   c.execute("SELECT role FROM users WHERE username=?", (local_user,))
@@ -149,13 +151,37 @@ if not st.session_state["logged_in"] and local_user:
     st.session_state["user_role"] = r_data[0]
 
 # =========================================================
+# LOGIN GATE (If not logged in, show simple login form)
+# =========================================================
+if not st.session_state["logged_in"]:
+  st.title("🔐 পি এস মেডিসেলার - লগইন")
+  with st.form("login_form"):
+    u_input = st.text_input("ইউজারনেম")
+    p_input = st.text_input("পাসওয়ার্ড", type="password")
+    login_btn = st.form_submit_button("লগইন করুন", type="primary")
+    
+    if login_btn:
+      c.execute("SELECT role FROM users WHERE username=? AND password=?", (u_input, p_input))
+      user_row = c.fetchone()
+      if user_row:
+        st.session_state["logged_in"] = True
+        st.session_state["username"] = u_input
+        st.session_state["user_role"] = user_row[0]
+        streamlit_js_eval(js_expressions=f"localStorage.setItem('ps_perma_user', '{u_input}')", key="set_local_user")
+        st.success("লগইন সফল হয়েছে!")
+        st.rerun()
+      else:
+        st.error("ভুল ইউজারনেম বা পাসওয়ার্ড!")
+  st.stop()
+
+# =========================================================
 # HEADER & LOGOUT
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
 col_u1, col_u3 = st.columns([3, 1])
 with col_u1:
-  st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
+  st.write(f"👤 ইউজার: **{st.session_state.get('username', 'admin')}** (`{st.session_state.get('user_role', 'admin')}`)")
 with col_u3:
   if st.button("🚪 লগআউট"):
     st.session_state["logged_in"] = False
@@ -189,7 +215,7 @@ menu_options = [
     "📦 পেন্ডিং অর্ডার",
     "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান",
 ]
-if st.session_state["user_role"] == "admin":
+if st.session_state.get("user_role") == "admin":
   menu_options.extend(["📊 লাইভ ট্র্যাকিং", "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট"])
 
 selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed")
@@ -334,7 +360,6 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান ম্যানেজমেন্ট")
 
-  # এখন যেকেউ (স্টাফ বা অ্যাডমিন) নতুন কাজ এসাইন বা যোগ করতে পারবে
   st.write("#### ➕ নতুন কাজ বা প্ল্যান যোগ করুন")
   c.execute("SELECT username FROM users")
   staff_list = [r[0] for r in c.fetchall()]
@@ -366,16 +391,11 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   search_plan = st.text_input("পার্টির নাম দিয়ে সার্চ করুন প্ল্যান লিস্টে")
 
   query_str = "SELECT * FROM delivery_plans"
-  if st.session_state["user_role"] != "admin":
-    # স্টাফ চাইলে নিজের পাশাপাশি সব বা ফিল্টারড দেখতে পারবে, এখানে স্টাফ শুধু নিজের দেখতে চাইলে ফিল্টার রাখতে পারেন বা সব দেখতে চাইলে কুয়েরি ওপেন রাখতে পারেন। আপাতত সবাই সব দেখতে ও এন্ট্রি করতে পারবে।
-    pass
-  
   plans_df = pd.read_sql_query(query_str, conn)
   if search_plan:
     plans_df = plans_df[plans_df["party_name"].str.contains(search_plan, case=False, na=False)]
 
   if not plans_df.empty:
-    # Home-to-Home Route Map Button Generation
     if st.button("🗺️ হোম-টু-হোম সহজ রুট ও ম্যাপ দেখুন"):
       st.info("অপ্টিমাইজড রুট ম্যাপ:")
       c.execute("SELECT lat, lon, party_name FROM locations")
@@ -420,7 +440,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 # 5. ADMIN LIVE TRACKING (Hidden tracking from agents)
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
-  if st.session_state["user_role"] != "admin":
+  if st.session_state.get("user_role") != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
     st.write("### 📊 ডেলিভারি পার্টনার লাইভ ট্র্যাকিং ও স্ট্যাটাস (গোপন ট্র্যাকিং)")
@@ -449,7 +469,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
 # 6. SETTINGS & AGENT MANAGEMENT
 # =========================================================
 elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
-  if st.session_state["user_role"] != "admin":
+  if st.session_state.get("user_role") != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
     st.write("### 👥 ডেলিভারি এজেন্ট তালিকা ও ম্যানেজমেন্ট")
