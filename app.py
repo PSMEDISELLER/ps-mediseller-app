@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import folium
+from folium.plugins import MousePosition, Search
 import pandas as pd
 import sqlite3
 import streamlit as st
@@ -232,56 +233,33 @@ selected_menu = st.radio("মেনু সিলেক্ট করুন:", men
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY (Advanced & Smooth Map)
+# 1. ADD NEW LOCATION & ORDER ENTRY (Advanced Google Map Experience)
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
-  col1, col2 = st.columns(2)
-
-  with col1:
-    st.write("### 📍 নতুন লোকেশন ফর্ম")
-    with st.form("location_form", clear_on_submit=True):
+  st.write("### 📍 নতুন লোকেশন ফর্ম")
+  
+  with st.form("location_form", clear_on_submit=True):
+    col_f1, col_f2, col_f3 = st.columns(3)
+    with col_f1:
       p_name = st.text_input("পার্টির নাম")
+    with col_f2:
       p_addr = st.text_input("ঠিকানা")
+    with col_f3:
       p_phone = st.text_input("ফোন নম্বর")
-      
-      submitted_loc = st.form_submit_button("💾 লোকেশন সেভ করুন", type="primary")
-      if submitted_loc:
-        if p_name.strip() and p_phone.strip():
-          c.execute(
-              "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-              (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
-          )
-          conn.commit()
-          st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-        else:
-          st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
+    
+    submitted_loc = st.form_submit_button("💾 লোকেশন সেভ করুন", type="primary")
+    if submitted_loc:
+      if p_name.strip() and p_phone.strip():
+        c.execute(
+            "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+            (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
+        )
+        conn.commit()
+        st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+      else:
+        st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
-  with col2:
-    st.write("### 📦 নতুন অর্ডার এন্ট্রি")
-    c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
-    all_parties_db = [row[0] for row in c.fetchall()]
-
-    # পার্টি সার্চ ফিল্টার
-    ord_search_query = st.text_input("পার্টি সার্চ করুন (নাম লিখে খুঁজুন)", "", key="order_party_search")
-    filtered_ord_parties = [p for p in all_parties_db if ord_search_query.lower() in p.lower()] if ord_search_query else all_parties_db
-
-    with st.form("order_form", clear_on_submit=True):
-      ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + filtered_ord_parties)
-      ord_details = st.text_area("অর্ডারের বিবরণ")
-
-      submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
-      if submitted_ord:
-        if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
-          c.execute(
-              "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
-              (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
-          )
-          conn.commit()
-          st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
-        else:
-          st.error("সঠিক পার্টি এবং বিবরণ দিন।")
-
-  st.write("### 🗺️ ম্যাপ লোকেশন সিলেক্ট করুন (ম্যাপে যেকোনো জায়গায় ক্লিক করুন)")
+  st.write("### 🗺️ অ্যাডভান্সড গুগল ম্যাপ (ম্যাপে ক্লিক করে বা পিন ড্র্যাগ করে লোকেশন সেট করুন)")
 
   col_m1, col_m2 = st.columns([1, 4])
   with col_m1:
@@ -297,31 +275,64 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   with col_m2:
     st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
 
-  m_click = folium.Map(
+  # Google Map-style Interactive Leaflet Map with Satellite/Street View Layers
+  advanced_map = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      zoom_start=16,
-      tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-      attr="Google"
+      zoom_start=17,
+      tiles=None # Custom Tile Layers
   )
 
+  # Google Maps Standard Street View Layer
+  folium.TileLayer(
+      tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+      attr="Google Maps Street",
+      name="গুগল স্ট্রিট ভিউ",
+      overlay=False,
+      control=True
+  ).add_to(advanced_map)
+
+  # Google Maps Satellite Hybrid View Layer
+  folium.TileLayer(
+      tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      attr="Google Maps Satellite",
+      name="গুগল স্যাটেলাইট ভিউ",
+      overlay=False,
+      control=True
+  ).add_to(advanced_map)
+
+  # Selected Marker (Draggable experience simulation via click)
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      popup="নির্বাচিত লোকেশন",
+      popup="<b>নির্বাচিত পয়েন্ট</b><br>এখানে ক্লিক করে লোকেশন পরিবর্তন করা যাবে।",
+      tooltip="এখানে সেভ হবে",
       icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
-  ).add_to(m_click)
+  ).add_to(advanced_map)
 
+  # Live GPS Marker if available
   if gps_lat and gps_lon:
     folium.CircleMarker(
         location=[gps_lat, gps_lon],
-        radius=8,
-        color="blue",
+        radius=9,
+        color="#0056b3",
         fill=True,
-        fill_color="blue",
-        fill_opacity=0.8,
-        popup="আপনার বর্তমান লোকেশন"
-    ).add_to(m_click)
-  
-  map_data = st_folium(m_click, width="100%", height=450, key="advanced_interactive_map")
+        fill_color="#1a73e8",
+        fill_opacity=0.9,
+        popup="আপনার বর্তমান জিপিএস লোকেশন"
+    ).add_to(advanced_map)
+
+  # Add Mouse Coordinate Tracker
+  formatter = "function(num) {return L.Util.formatNum(num, 5) + ' ° ';};"
+  MousePosition(
+      position="bottomright",
+      separator=" | ",
+      prefix="লেট/লং: ",
+      lat_formatter=formatter,
+      lng_formatter=formatter
+  ).add_to(advanced_map)
+
+  folium.LayerControl().add_to(advanced_map)
+
+  map_data = st_folium(advanced_map, width="100%", height=480, key="google_style_interactive_map")
   
   if map_data and map_data.get("last_clicked"):
     clicked_lat = map_data["last_clicked"]["lat"]
@@ -330,6 +341,36 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.session_state["selected_lat"] = clicked_lat
       st.session_state["selected_lon"] = clicked_lon
       st.rerun()
+
+  st.write("---")
+  st.write("### 📦 নতুন অর্ডার এন্ট্রি")
+  
+  c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
+  all_parties_db = [row[0] for row in c.fetchall()]
+
+  ord_search_query = st.text_input("পার্টি সার্চ করুন (নাম লিখে খুঁজুন)", "", key="order_party_search")
+  filtered_ord_parties = [p for p in all_parties_db if ord_search_query.lower() in p.lower()] if ord_search_query else all_parties_db
+
+  with st.form("order_form", clear_on_submit=True):
+    col_o1, col_o2 = st.columns(2)
+    with col_o1:
+      ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + filtered_ord_parties)
+    with col_o2:
+      st.write("")
+      
+    ord_details = st.text_area("অর্ডারের বিবরণ")
+    submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
+    
+    if submitted_ord:
+      if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
+        c.execute(
+            "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
+            (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
+        )
+        conn.commit()
+        st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
+      else:
+        st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
 # =========================================================
 # 2. SEARCH PARTY
@@ -474,9 +515,14 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
     route_map = folium.Map(
         location=[m_center_lat, m_center_lon],
         zoom_start=14,
-        tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-        attr="Google"
+        tiles=None
     )
+
+    folium.TileLayer(
+        tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        attr="Google Maps",
+        name="গুগল ম্যাপ"
+    ).add_to(route_map)
 
     coordinates_list = []
     seq_num = 1
