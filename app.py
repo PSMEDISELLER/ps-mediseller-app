@@ -131,25 +131,31 @@ for row_task in c.fetchall():
 conn.commit()
 
 # =========================================================
-# PERMANENT LOCALSTORAGE LOGIN PERSISTENCE
+# PERSISTENT LOGIN CHECK (URL Query Params + LocalStorage)
 # =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-local_user = streamlit_js_eval(js_expressions="localStorage.getItem('ps_perma_user')", key="get_local_user")
-
 if "logged_in" not in st.session_state:
   st.session_state["logged_in"] = False
 
-if not st.session_state["logged_in"] and local_user:
-  c.execute("SELECT role FROM users WHERE username=?", (local_user,))
+# URL অথবা LocalStorage থেকে ইউজার চেক করা
+query_params = st.query_params
+saved_user_param = query_params.get("user", None)
+local_user = streamlit_js_eval(js_expressions="localStorage.getItem('ps_perma_user')", key="get_local_user")
+
+active_user = saved_user_param if saved_user_param else local_user
+
+if not st.session_state["logged_in"] and active_user:
+  c.execute("SELECT role FROM users WHERE username=?", (active_user,))
   r_data = c.fetchone()
   if r_data:
     st.session_state["logged_in"] = True
-    st.session_state["username"] = local_user
+    st.session_state["username"] = active_user
     st.session_state["user_role"] = r_data[0]
+    st.query_params["user"] = active_user
 
 # =========================================================
 # LOGIN SCREEN
@@ -173,6 +179,7 @@ if not st.session_state.get("logged_in", False):
         st.session_state["logged_in"] = True
         st.session_state["username"] = sel_user
         st.session_state["user_role"] = user_row[1]
+        st.query_params["user"] = sel_user
         streamlit_js_eval(js_expressions=f"localStorage.setItem('ps_perma_user', '{sel_user}')", key="set_local_user")
         st.success("লগইন সফল হয়েছে!")
         st.rerun()
@@ -193,6 +200,8 @@ with col_u3:
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
+    if "user" in st.query_params:
+      del st.query_params["user"]
     streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
     st.rerun()
 st.write("---")
@@ -217,7 +226,7 @@ if loc and "coords" in loc:
   conn.commit()
 
 # =========================================================
-# NAVIGATION MENU (Staff লাইভ ট্র্যাকিং দেখবে না)
+# NAVIGATION MENU
 # =========================================================
 menu_options = [
     "📍 নতুন লোকেশন এড",
@@ -266,7 +275,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   with col_m2:
     st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
 
-  # ম্যাপ কনফিগারেশন (ডিফল্ট স্ট্রিট ভিউ আগে রাখা হয়েছে যাতে এটিই সিলেক্টেড থাকে)
   advanced_map = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
       zoom_start=17,
@@ -332,7 +340,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.session_state["selected_lon"] = clicked_lon
       st.rerun()
 
-  # লোকেশন সেভ করার প্রসেস ফর্ম সাবমিটের পর হ্যান্ডেল করা
   if submitted_loc:
     p_n = st.session_state.get("input_p_name", "")
     p_a = st.session_state.get("input_p_addr", "")
