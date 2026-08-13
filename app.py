@@ -135,6 +135,12 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
+# ইউজারনেম ও পাসওয়ার্ডের জন্য সেশন স্টেট ইনিশিয়ালাইজেশন
+if "login_user_val" not in st.session_state:
+  st.session_state["login_user_val"] = ""
+if "login_pass_val" not in st.session_state:
+  st.session_state["login_pass_val"] = ""
+
 query_params = st.query_params
 saved_user = query_params.get("user", None)
 
@@ -148,7 +154,7 @@ if not st.session_state["logged_in"] and saved_user:
 
 
 # =========================================================
-# LOGIN PAGE (STABLE STATE HANDLING)
+# LOGIN PAGE (STATE PRESERVED)
 # =========================================================
 
 if not st.session_state["logged_in"]:
@@ -158,25 +164,43 @@ if not st.session_state["logged_in"]:
   tab1, tab2 = st.tabs(["লগইন", "পাসওয়ার্ড ভুলে গেছেন?"])
 
   with tab1:
-    # সেশন স্টেটে মান সেভ রাখার জন্য সরাসরি key ব্যবহার করা হয়েছে
-    username = st.text_input("ইউজারনেম", key="login_username_input")
-    password = st.text_input(
-        "পাসওয়ার্ড", type="password", key="login_password_input"
+    # অন-চেঞ্জ কলব্যাক বা সরাসরি স্টেট সিঙ্ক ব্যবহার করে ভ্যালু সুরক্ষিত রাখা হয়েছে
+    def update_user():
+      st.session_state["login_user_val"] = st.session_state.temp_user
+
+    def update_pass():
+      st.session_state["login_pass_val"] = st.session_state.temp_pass
+
+    st.text_input(
+        "ইউজারনেম",
+        value=st.session_state["login_user_val"],
+        key="temp_user",
+        on_change=update_user,
     )
+    st.text_input(
+        "পাসওয়ার্ড",
+        value=st.session_state["login_pass_val"],
+        type="password",
+        key="temp_pass",
+        on_change=update_pass,
+    )
+
     remember_me = st.checkbox("আমাকে মনে রাখুন (Permanent Login)", value=True)
 
     if st.button("লগইন করুন", type="primary"):
-      c.execute(
-          "SELECT password, role FROM users WHERE username=?", (username,)
-      )
+      # সাবমিট করার সময় ফাইনাল মানগুলো ফেচ করা
+      u_name = st.session_state.get("temp_user", "")
+      p_word = st.session_state.get("temp_pass", "")
+
+      c.execute("SELECT password, role FROM users WHERE username=?", (u_name,))
       user_data = c.fetchone()
-      if user_data and user_data[0] == password:
+      if user_data and user_data[0] == p_word:
         st.session_state["logged_in"] = True
-        st.session_state["username"] = username
+        st.session_state["username"] = u_name
         st.session_state["user_role"] = user_data[1]
 
         if remember_me:
-          st.query_params["user"] = username
+          st.query_params["user"] = u_name
 
         st.success("লগইন সফল হয়েছে!")
         st.rerun()
