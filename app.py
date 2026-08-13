@@ -30,31 +30,21 @@ st.markdown(
         <meta name="theme-color" content="#FF4B4B">
     </head>
     <script>
-        // অটোমেটিক সাইডবার ক্লোজ করার উন্নত স্ক্রিপ্ট
+        // সাইডবারের যেকোনো বাটনে বা রেডিও অপশনে ক্লিক করলেই মোবাইল ভিউতে সাইডবার ক্লোজ করার স্ক্রিপ্ট
         document.addEventListener('click', function(e) {
             const target = e.target;
             const sidebar = document.querySelector('[data-testid="stSidebar"]');
             
             if (sidebar && sidebar.contains(target)) {
-                // যদি কোনো বাটন, রেডিও, লেবেল অথবা সিলেক্টবক্সের (stSelectbox / baseweb dropdown) ওপর ক্লিক করা হয়
-                if (
-                    target.closest('button') || 
-                    target.closest('label') || 
-                    target.closest('[data-baseweb="radio"]') || 
-                    target.closest('[data-baseweb="select"]') ||
-                    target.closest('.stSelectbox')
-                ) {
-                    // এক্সপ্যান্ডার বা ড্রপডাউন লিস্টের ভেতরের অপশন সিলেক্ট করার সময় যাতে ইনস্ট্যান্ট বন্ধ না হয়ে যায়, তার ছোট ডিলে রাখা হলো
-                    const isDropdownList = target.closest('[role="listbox"]') || target.closest('[data-baseweb="popover"]');
-                    
-                    if (!target.closest('[data-testid="stExpander"]') || isDropdownList) {
+                if (target.closest('button') || target.closest('label') || target.closest('[data-baseweb="radio"]')) {
+                    if (!target.closest('[data-testid="stExpander"]')) {
                         setTimeout(() => {
                             const closeButton = document.querySelector('button[kind="header"]');
                             const computedStyle = window.getComputedStyle(sidebar);
                             if (closeButton && computedStyle.display !== 'none' && window.innerWidth <= 992) {
                                 closeButton.click();
                             }
-                        }, isDropdownList ? 150 : 250);
+                        }, 150);
                     }
                 }
             }
@@ -189,44 +179,50 @@ if not st.session_state["logged_in"]:
   tab1, tab2 = st.tabs(["লগইন", "পাসওয়ার্ড ভুলে গেছেন?"])
 
   with tab1:
-    username = st.text_input("ইউজারনেম", key="login_user")
-    password = st.text_input("পাসওয়ার্ড", type="password", key="login_pass")
-    remember_me = st.checkbox("আমাকে মনে রাখুন (Permanent Login)", value=True)
+    with st.form("login_form"):
+      username = st.text_input("ইউজারনেম", key="login_user")
+      password = st.text_input("পাসওয়ার্ড", type="password", key="login_pass")
+      remember_me = st.checkbox("আমাকে মনে রাখুন (Permanent Login)", value=True)
 
-    if st.button("লগইন করুন", type="primary"):
-      c.execute("SELECT password, role FROM users WHERE username=?", (username,))
-      user_data = c.fetchone()
-      if user_data and user_data[0] == password:
-        st.session_state["logged_in"] = True
-        st.session_state["username"] = username
-        st.session_state["user_role"] = user_data[1]
-        
-        if remember_me:
-          st.query_params["user"] = username
+      submit_login = st.form_submit_button("লগইন করুন", type="primary")
+
+      if submit_login:
+        c.execute("SELECT password, role FROM users WHERE username=?", (username,))
+        user_data = c.fetchone()
+        if user_data and user_data[0] == password:
+          st.session_state["logged_in"] = True
+          st.session_state["username"] = username
+          st.session_state["user_role"] = user_data[1]
           
-        st.success("লগইন সফল হয়েছে!")
-        st.rerun()
-      else:
-        st.error("❌ ভুল ইউজারনেম অথবা পাসওয়ার্ড!")
+          if remember_me:
+            st.query_params["user"] = username
+            
+          st.success("লগইন সফল হয়েছে!")
+          st.rerun()
+        else:
+          st.error("❌ ভুল ইউজারনেম অথবা পাসওয়ার্ড!")
 
   with tab2:
-    f_user = st.text_input("ইউজারনেম", key="forgot_user")
-    new_pass = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_pass_admin")
-    admin_pass = st.text_input("বর্তমান অ্যাডমিন পাসওয়ার্ড", type="password", key="admin_auth")
+    with st.form("forgot_pass_form"):
+      f_user = st.text_input("ইউজারনেম", key="forgot_user")
+      new_pass = st.text_input("নতুন পাসওয়ার্ড", type="password", key="new_pass_admin")
+      admin_pass = st.text_input("বর্তমান অ্যাডমিন পাসওয়ার্ড", type="password", key="admin_auth")
 
-    if st.button("পাসওয়ার্ড রিসেট করুন"):
-      c.execute("SELECT password FROM users WHERE username='admin'")
-      admin_data = c.fetchone()
-      if admin_data and admin_pass == admin_data[0]:
-        c.execute("SELECT username FROM users WHERE username=?", (f_user,))
-        if c.fetchone():
-          c.execute("UPDATE users SET password=? WHERE username=?", (new_pass, f_user))
-          conn.commit()
-          st.success("✅ পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।")
+      submit_reset = st.form_submit_button("পাসওয়ার্ড রিসেট করুন")
+
+      if submit_reset:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        admin_data = c.fetchone()
+        if admin_data and admin_pass == admin_data[0]:
+          c.execute("SELECT username FROM users WHERE username=?", (f_user,))
+          if c.fetchone():
+            c.execute("UPDATE users SET password=? WHERE username=?", (new_pass, f_user))
+            conn.commit()
+            st.success("✅ পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।")
+          else:
+            st.error("এই ইউজারনেম পাওয়া যায়নি।")
         else:
-          st.error("এই ইউজারনেম পাওয়া যায়নি।")
-      else:
-        st.error("❌ অ্যাডমিন পাসওয়ার্ড ভুল!")
+          st.error("❌ অ্যাডমিন পাসওয়ার্ড ভুল!")
   st.stop()
 
 
@@ -388,7 +384,10 @@ menu = [
 if st.session_state["user_role"] == "admin":
   menu.append("📊 অ্যাডমিন লাইভ ট্র্যাকিং ঘর")
 
-choice = st.sidebar.selectbox("মেনু নির্বাচন করুন", menu)
+with st.sidebar:
+  st.write("---")
+  st.markdown("### মেনু নির্বাচন করুন")
+  choice = st.radio("মেনু সিলেক্ট করুন", menu, label_visibility="collapsed")
 
 
 # =========================================================
