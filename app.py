@@ -79,6 +79,15 @@ CREATE TABLE IF NOT EXISTS orders (
 )
 """)
 
+c.execute("""
+CREATE TABLE IF NOT EXISTS agent_live_locations (
+    username TEXT PRIMARY KEY,
+    lat REAL,
+    lon REAL,
+    last_updated TEXT
+)
+""")
+
 c.execute("PRAGMA table_info(locations)")
 existing_cols_loc = [row[1] for row in c.fetchall()]
 if "party_phone" not in existing_cols_loc:
@@ -189,7 +198,7 @@ if not st.session_state["logged_in"]:
 
 
 # =========================================================
-# SIDEBAR
+# SIDEBAR & PROFILE / ADMIN SETTINGS
 # =========================================================
 
 with st.sidebar:
@@ -198,20 +207,92 @@ with st.sidebar:
   if st.session_state["user_role"] == "admin":
     st.success("রোল: ADMIN")
   else:
-    st.info("রোল: DELIVERY USER")
+    st.info("রোল: DELIVERY USER (staff)")
 
+  # ১. যদি ইউজার স্টাফ হয়: সে শুধু নিজের নাম ও রোল বদলাতে পারবে (পাসওয়ার্ড নয়)
+  if st.session_state["user_role"] != "admin":
+    with st.expander("⚙️ আমার অ্যাকাউন্ট সেটিংস (নাম ও রোল)"):
+      with st.form("staff_self_update_form"):
+        st.write("আপনার নাম বা রোল পরিবর্তন করুন:")
+        s_new_name = st.text_input("নতুন ইউজারনেম", value=st.session_state["username"])
+        s_current_role_idx = 0 if st.session_state["user_role"] == "admin" else 1
+        s_new_role = st.selectbox("রোল সিলেক্ট করুন", ["admin", "staff"], index=s_current_role_idx)
+
+        if st.form_submit_button("💾 আপডেট করুন", type="primary"):
+          if not s_new_name.strip():
+            st.error("ইউজারনেম খালি রাখা যাবে না!")
+          else:
+            try:
+              old_uname = st.session_state["username"]
+              # বর্তমান পাসওয়ার্ড অপরিবর্তিত রাখা হচ্ছে
+              c.execute("SELECT password FROM users WHERE username=?", (old_uname,))
+              current_pass = c.fetchone()[0]
+
+              if old_uname != s_new_name:
+                c.execute("SELECT COUNT(*) FROM users WHERE username=?", (s_new_name,))
+                if c.fetchone()[0] > 0:
+                  st.error("❌ এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হচ্ছে!")
+                  st.stop()
+                c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (s_new_name, current_pass, s_new_role))
+                c.execute("DELETE FROM users WHERE username=?", (old_uname,))
+              else:
+                c.execute("UPDATE users SET role=? WHERE username=?", (s_new_role, old_uname))
+
+              conn.commit()
+              st.session_state["username"] = s_new_name
+              st.session_state["user_role"] = s_new_role
+              st.query_params["user"] = s_new_name
+              st.success("✅ সফলভাবে আপডেট হয়েছে!")
+              st.rerun()
+            except Exception as e:
+              st.error(f"ত্রুটি: {e}")
+
+  # ২. যদি ইউজার অ্যাডমিন হয়: সে সবার পাসওয়ার্ড, নাম ও রোল বদলাতে পারবে
   if st.session_state["user_role"] == "admin":
-    with st.expander("⚙️ অ্যাডমিন কন্ট্রোল (ইউজার ম্যানেজমেন্ট)"):
+    with st.expander("⚙️ অ্যাডমিন কন্ট্রোল (ইউজার ও পাসওয়ার্ড ম্যানেজমেন্ট)"):
       c.execute("SELECT username, role FROM users")
       all_users = c.fetchall()
       st.info(f"👥 মোট ইউজার সংখ্যা: **{len(all_users)} জন**")
-      for u_name, u_role in all_users:
-        st.caption(f"• নাম: **{u_name}** | রোল: `{u_role}`")
 
       user_list = [u[0] for u in all_users]
-      selected_u = st.selectbox("ইউজার সিলেক্ট করুন", user_list)
-      del_target_user = st.selectbox("ডিলিট ইউজার", user_list, key="del_u_box")
+      target_user = st.selectbox("ইউজার সিলেক্ট করুন", user_list)
 
+      c.execute("SELECT role, password FROM users WHERE username=?", (target_user,))
+      t_data = c.fetchone()
+      t_current_role = t_data[0] if t_data else "staff"
+      t_current_pass = t_data[1] if t_data else ""
+
+      with st.form("admin_edit_user_form"):
+        st.write(f"এডিট করছেন: `{target_user}`")
+        new_u_name = st.text_input("নতুন ইউজারনেম", value=target_user)
+        new_u_pass = st.text_input("নতুন পাসওয়ার্ড", value=t_current_pass, type="password")
+        
+        role_idx = 0 if t_current_role == "admin" else 1
+        new_u_role = st.selectbox("রোল নির্ধারণ করুন", ["admin", "staff"], index=role_idx)
+
+        if st.form_submit_button("💾 পরিবর্তন সেভ করুন", type="primary"):
+          if not new_u_name.strip():
+            st.error("ইউজারনেম খালি রাখা যাবে না!")
+          else:
+            try:
+              if target_user != new_u_name:
+                c.execute("SELECT COUNT(*) FROM users WHERE username=?", (new_u_name,))
+                if c.fetchone()[0] > 0:
+                  st.error("❌ এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হচ্ছে!")
+                  st.stop()
+                c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (new_u_name, new_u_pass, new_u_role))
+                c.execute("DELETE FROM users WHERE username=?", (target_user,))
+              else:
+                c.execute("UPDATE users SET password=?, role=? WHERE username=?", (new_u_pass, new_u_role, target_user))
+              
+              conn.commit()
+              st.success(f"✅ '{target_user}'-এর তথ্য সফলভাবে আপডেট করা হয়েছে!")
+              st.rerun()
+            except Exception as e:
+              st.error(f"ত্রুটি: {e}")
+
+      st.write("---")
+      del_target_user = st.selectbox("ডিলিট ইউজার", user_list, key="del_u_box")
       if st.button("🗑️ ইউজার রিমুভ করুন", type="primary"):
         if del_target_user == st.session_state["username"]:
           st.error("❌ নিজের অ্যাকাউন্ট ডিলিট করা নিষেধ!")
@@ -243,12 +324,19 @@ if loc and "coords" in loc:
   gps_lat = loc["coords"]["latitude"]
   gps_lon = loc["coords"]["longitude"]
 
-  if "optimized_route" in st.session_state:
-    for stop in st.session_state["optimized_route"]:
-      dist_meters = math.sqrt((stop["lat"] - gps_lat)**2 + (stop["lon"] - gps_lon)**2) * 111000
-      if dist_meters <= 40:
-        c.execute("UPDATE orders SET status='Completed' WHERE party_name=? AND status='Pending'", (stop["party_name"],))
-        conn.commit()
+  current_user_name = st.session_state["username"]
+  c.execute(
+      "INSERT OR REPLACE INTO agent_live_locations (username, lat, lon, last_updated) VALUES (?, ?, ?, ?)",
+      (current_user_name, gps_lat, gps_lon, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+  )
+  conn.commit()
+
+  all_locs_df = pd.read_sql_query("SELECT * FROM locations", conn)
+  for _, p_row in all_locs_df.iterrows():
+    dist_meters = math.sqrt((p_row["lat"] - gps_lat)**2 + (p_row["lon"] - gps_lon)**2) * 111000
+    if dist_meters <= 42:
+      c.execute("UPDATE orders SET status='Completed' WHERE party_name=? AND status='Pending'", (p_row["party_name"],))
+      conn.commit()
 
 menu = [
     "📍 নতুন লোকেশন এড করুন",
@@ -257,7 +345,6 @@ menu = [
     "📦 পেন্ডিং অর্ডার ও বিলিং",
 ]
 
-# শুধুমাত্র অ্যাডমিনের জন্য আলাদা কন্ট্রোল ঘর মেনুতে যোগ করা হলো
 if st.session_state["user_role"] == "admin":
   menu.append("📊 অ্যাডমিন লাইভ ট্র্যাকিং ঘর")
 
@@ -406,36 +493,65 @@ elif choice == "📦 পেন্ডিং অর্ডার ও বিলি�
 
 
 # =========================================================
-# 5. ADMIN LIVE TRACKING ROOM (অ্যাডমিন ট্র্যাকিং ঘর)
+# 5. ADMIN LIVE TRACKING ROOM
 # =========================================================
 
 elif choice == "📊 অ্যাডমিন লাইভ ট্র্যাকিং ঘর":
-  st.header("📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং ও অটো-কমপ্লিট মনিটর")
-  st.info("এখানে আপনি দেখতে পাবেন ডেলিভারি বয় শর্টকাট রুটের কোন কোন পয়েন্টে পৌঁছে গেছে এবং কোনগুলো অটোমেটিক কমপ্লিট হয়েছে।")
+  st.header("📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং ও মনিটর")
+  st.info("এখানে আপনার সমস্ত ডেলিভারি বয় বা স্টাফদের নাম দেখতে পাবেন। যেকোনো একটি নামের ওপর ক্লিক করলেই তার বর্তমান লোকেশন এবং কোন কোন পার্টির কাছাকাছি রয়েছে তা দেখতে পাবেন।")
 
-  if "optimized_route" in st.session_state:
-    route = st.session_state["optimized_route"]
-    
-    tracking_data = []
-    for idx, stop in enumerate(route, 1):
-      c.execute("SELECT status, order_date FROM orders WHERE party_name=?", (stop["party_name"],))
-      res = c.fetchone()
-      status = res[0] if res else "Pending"
-      time_val = res[1] if res else "-"
+  c.execute("SELECT username FROM users WHERE role='staff'")
+  staff_rows = c.fetchall()
+  staff_list = [row[0] for row in staff_rows]
 
-      tracking_data.append({
-          "ক্রম": idx,
-          "পার্টির নাম": stop["party_name"],
-          "ঠিকানা": stop["address"],
-          "ফোন নম্বর": stop["party_phone"],
-          "স্ট্যাটাস": "🟢 সম্পন্ন (Completed)" if status == "Completed" else "⏳ পেন্ডিং (Pending)",
-          "সময়/তারিখ": time_val
-      })
-
-    df_track = pd.DataFrame(tracking_data)
-    st.dataframe(df_track, use_container_width=True, hide_index=True)
+  if not staff_list:
+    st.warning("⚠️ কোনো ডেলিভারি স্টাফ ইউজার পাওয়া যায়নি।")
   else:
-    st.warning("⚠️ বর্তমানে কোনো শর্টকাট রুট তৈরি করা হয়নি। প্রথমে 'রুট প্ল্যানিং ও ম্যাপ' থেকে রুট তৈরি করুন।")
+    st.write("### 👤 ডেলিভারি বয় তালিকা:")
+    selected_agent = st.radio("স্টাফ নির্বাচন করুন:", staff_list, horizontal=True)
+
+    if selected_agent:
+      st.write("---")
+      st.subheader(f"📌 স্টাফ: `{selected_agent}` -এর লাইভ লোকেশন ও স্ট্যাটাস")
+
+      c.execute("SELECT lat, lon, last_updated FROM agent_live_locations WHERE username=?", (selected_agent,))
+      agent_loc_data = c.fetchone()
+
+      if agent_loc_data and agent_loc_data[0] is not None:
+        ag_lat, ag_lon, ag_time = agent_loc_data[0], agent_loc_data[1], agent_loc_data[2]
+        st.success(f"🟢 সর্বশেষ আপডেট সময়: {ag_time}")
+
+        all_parties_df = pd.read_sql_query("SELECT * FROM locations", conn)
+        party_distance_list = []
+        for _, p in all_parties_df.iterrows():
+          dist = math.sqrt((p["lat"] - ag_lat)**2 + (p["lon"] - ag_lon)**2) * 111000
+          
+          c.execute("SELECT status FROM orders WHERE party_name=?", (p["party_name"],))
+          ord_res = c.fetchone()
+          p_status = ord_res[0] if ord_res else "Pending"
+
+          party_distance_list.append({
+              "পার্টির নাম": p["party_name"],
+              "ঠিকানা": p["address"],
+              "ফোন": p["party_phone"],
+              "দূরত্ব (মিটারে)": round(dist, 1),
+              "অর্ডার স্ট্যাটাস": "🟢 সম্পন্ন" if p_status == "Completed" else "⏳ পেন্ডিং"
+          })
+
+        df_parties_dist = pd.DataFrame(party_distance_list)
+        df_parties_dist = df_parties_dist.sort_values(by="দূরত্ব (মিটারে)")
+        st.dataframe(df_parties_dist, use_container_width=True, hide_index=True)
+
+        m_agent = folium.Map(location=[ag_lat, ag_lon], zoom_start=15)
+        folium.Marker([ag_lat, ag_lon], tooltip=f"Agent: {selected_agent}", icon=folium.Icon(color="blue", icon="user", prefix="fa")).add_to(m_agent)
+        
+        for _, p in all_parties_df.iterrows():
+          folium.Marker([p["lat"], p["lon"]], tooltip=p["party_name"], icon=folium.Icon(color="red", icon="shopping-cart", prefix="fa")).add_to(m_agent)
+
+        st_folium(m_agent, width=900, height=400, key=f"map_{selected_agent}")
+
+      else:
+        st.warning(f"⚠️ '{selected_agent}' এখনো অ্যাপে লগইন করেনি অথবা জিপিএস সিগন্যাল পাওয়া যায়নি।")
 
 st.write("---")
-st.caption("P.S Mediseller Location App | Admin Tracking Room")
+st.caption("P.S Mediseller Location App | Staff Name/Role & Admin Control")
