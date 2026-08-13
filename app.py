@@ -94,7 +94,6 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-# ব্রাউজারের লোকাল স্টোরেজ থেকে পার্মানেন্ট ইউজার চেক করা
 local_user = streamlit_js_eval(js_expressions="localStorage.getItem('ps_perma_user')", key="get_local_user")
 
 if "logged_in" not in st.session_state:
@@ -109,7 +108,7 @@ if not st.session_state["logged_in"] and local_user:
     st.session_state["user_role"] = r_data[0]
 
 # =========================================================
-# LOGIN SCREEN (PERMANENT)
+# LOGIN SCREEN
 # =========================================================
 if not st.session_state.get("logged_in", False):
   st.title("🔑 পি এস মেডিসেলার - লগইন পোর্টাল")
@@ -130,11 +129,8 @@ if not st.session_state.get("logged_in", False):
         st.session_state["logged_in"] = True
         st.session_state["username"] = sel_user
         st.session_state["user_role"] = user_row[1]
-        
-        # ব্রাউজারের লোকাল স্টোরেজে ইউজারনেম পার্মানেন্টলি সেভ করে রাখা
         streamlit_js_eval(js_expressions=f"localStorage.setItem('ps_perma_user', '{sel_user}')", key="set_local_user")
-        
-        st.success("লগইন সফল হয়েছে! অ্যাপ লোড হচ্ছে...")
+        st.success("লগইন সফল হয়েছে!")
         st.rerun()
       else:
         st.error("❌ ভুল পাসওয়ার্ড!")
@@ -143,7 +139,7 @@ if not st.session_state.get("logged_in", False):
 # =========================================================
 # MAIN APP HEADER & LOGOUT
 # =========================================================
-st.title("🚚 পি এস মেডিসেলার")
+st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
 col_u1, col_u3 = st.columns([3, 1])
 with col_u1:
@@ -153,7 +149,6 @@ with col_u3:
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
-    # লগআউট করলে লোকাল স্টোরেজ ক্লিয়ার হয়ে যাবে
     streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
     st.rerun()
 st.write("---")
@@ -178,7 +173,7 @@ if loc and "coords" in loc:
 # =========================================================
 menu_options = ["📍 নতুন লোকেশন এড", "🔍 সার্চ", "🗺️ রুট প্ল্যান", "📦 অর্ডার ও বিলিং"]
 if st.session_state["user_role"] == "admin":
-  menu_options.append("📊 লাইভ ট্র্যাকিং")
+  menu_options.extend(["📊 লাইভ ট্র্যাকিং", "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট"])
 
 selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed")
 st.write("---")
@@ -190,16 +185,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   col1, col2 = st.columns(2)
 
   with col1:
-    st.write("### 📍 লোকেশন পিন করুন")
-    if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন"):
-      if gps_lat and gps_lon:
-        st.session_state["selected_lat"] = gps_lat
-        st.session_state["selected_lon"] = gps_lon
-        st.success("✅ লোকেশন আপডেট হয়েছে!")
-        st.rerun()
-      else:
-        st.warning("GPS সিগন্যাল পাওয়া যায়নি।")
-
+    st.write("### 📍 নতুন লোকেশন ফর্ম")
     with st.form("location_form", clear_on_submit=True):
       p_name = st.text_input("পার্টির নাম")
       p_addr = st.text_input("ঠিকানা")
@@ -238,20 +224,48 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         else:
           st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
-  # Map Display
+  # Map Display (গুগল ম্যাপের মতো নীল ডট ও লাল পিন এবং নিচে কারেন্ট লোকেশন বাটন)
+  st.write("### 🗺️ ম্যাপ লোকেশন সিলেক্ট করুন")
+  
   m_click = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
       zoom_start=16,
       tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
       attr="Google"
   )
+  
+  # যদি জিপিএস কারেন্ট লোকেশন থাকে তবে নীল ডট দেখানো হবে
+  if gps_lat and gps_lon:
+    folium.CircleMarker(
+        location=[gps_lat, gps_lon],
+        radius=8,
+        color="white",
+        weight=2,
+        fill=True,
+        fill_color="#1a73e8",
+        fill_opacity=1.0,
+        popup="আপনার কারেন্ট লোকেশন"
+    ).add_to(m_click)
+
+  # সিলেক্টেড লোকেশনে লাল পিন
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      popup="সিলেক্টেড লোকেশন",
+      popup="সিলেক্টেড পিন",
       icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
   ).add_to(m_click)
   
   map_data = st_folium(m_click, width=900, height=450, key="interactive_map_safe")
+  
+  # ম্যাপের নিচে কারেন্ট লোকেশন সেট করার বাটন
+  if st.button("🔄 কারেন্ট লোকেশনে পিন সেট করুন", type="secondary"):
+    if gps_lat and gps_lon:
+      st.session_state["selected_lat"] = gps_lat
+      st.session_state["selected_lon"] = gps_lon
+      st.success("✅ কারেন্ট লোকেশন সেট হয়েছে!")
+      st.rerun()
+    else:
+      st.warning("GPS সিগন্যাল পাওয়া যায়নি।")
+
   if map_data and map_data.get("last_clicked"):
     clicked_lat = map_data["last_clicked"]["lat"]
     clicked_lon = map_data["last_clicked"]["lng"]
@@ -261,14 +275,27 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.rerun()
 
 # =========================================================
-# 2. SEARCH PARTY
+# 2. SEARCH PARTY (ডিরেকশন অপশনসহ)
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
+  st.write("### 🔍 সেভ করা পার্টি তালিকা ও ডিরেকশন")
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   search_query = st.text_input("সার্চ করুন (পার্টির নাম)")
   if search_query:
     df = df[df["party_name"].str.contains(search_query, case=False, na=False)]
-  st.dataframe(df, use_container_width=True, hide_index=True)
+  
+  if not df.empty:
+    for index, row in df.iterrows():
+      cols = st.columns([3, 2, 2, 2])
+      cols[0].write(f"**{row['party_name']}**")
+      cols[1].write(row['party_phone'] if row['party_phone'] else "নম্বার নেই")
+      cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
+      
+      # সরাসরি গুগল ম্যাপে ডিরেকশন খোলার লিংক
+      maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
+      cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ডিরেকশন</button></a>', unsafe_allow_html=True)
+      st.write("---")
+  else: কোনো পার্টি পাওয়া যায়নি।
 
 # =========================================================
 # 3. ROUTE PLANNING
@@ -292,3 +319,52 @@ elif selected_menu == "📦 অর্ডার ও বিলিং":
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   st.info("লাইভ ট্র্যাকিং প্যানেল সচল রয়েছে।")
+
+# =========================================================
+# 6. SETTINGS & AGENT MANAGEMENT (Admin Only)
+# =========================================================
+elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
+  if st.session_state["user_role"] != "admin":
+    st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
+  else:
+    st.write("### 👥 ডেলিভারি এজেন্ট তালিকা ও ম্যানেজমেন্ট")
+    c.execute("SELECT username, role FROM users")
+    agents = c.fetchall()
+    st.write(f"মোট রেজিস্টার্ড ইউজার/এজেন্ট সংখ্যা: **{len(agents)}**")
+
+    for ag in agents:
+      u_name, u_role = ag
+      with st.expander(f"এজেন্ট: {u_name} ({u_role})"):
+        with st.form(f"edit_form_{u_name}"):
+          new_name = st.text_input("নাম এডিট করুন", value=u_name, key=f"name_{u_name}")
+          new_pass = st.text_input("নতুন পাসওয়ার্ড দিন", type="password", key=f"pass_{u_name}")
+          update_btn = st.form_submit_button("পরিবর্তন সেভ করুন")
+          
+          if update_btn:
+            if new_pass.strip():
+              c.execute("UPDATE users SET username=?, password=? WHERE username=?", (new_name, new_pass, u_name))
+              conn.commit()
+              st.success("সফলভাবে আপডেট হয়েছে!")
+              st.rerun()
+            else:
+              st.warning("পাসওয়ার্ড খালি রাখা যাবে না।")
+
+    st.write("---")
+    st.write("### ➕ নতুন এজেন্ট যোগ করুন")
+    with st.form("new_agent_form"):
+      n_user = st.text_input("নতুন ইউজারের নাম")
+      n_pass = st.text_input("পাসওয়ার্ড", type="password")
+      n_role = st.selectbox("রোল", ["staff", "admin"])
+      add_agent_btn = st.form_submit_button("এজেন্ট যুক্ত করুন")
+
+      if add_agent_btn:
+        if n_user and n_pass:
+          try:
+            c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (n_user, n_pass, n_role))
+            conn.commit()
+            st.success("নতুন এজেন্ট সফলভাবে যোগ করা হয়েছে!")
+            st.rerun()
+          except:
+            st.error("এই ইউজারনেমটি আগেই রয়েছে।")
+        else:
+          st.error("সব ঘর পূরণ করুন।")
