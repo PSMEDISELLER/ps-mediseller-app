@@ -95,13 +95,6 @@ if c.fetchone()[0] == 0:
   c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", ("delivery", "user123", "staff"))
   conn.commit()
 
-# সমস্ত ইউজারের জন্য লাইভ লোকেশন রো নিশ্চিত করা
-c.execute("SELECT username FROM users")
-all_app_users = c.fetchall()
-for u in all_app_users:
-  c.execute("INSERT OR IGNORE INTO agent_live_locations (username, completed_deliveries, completed_dues) VALUES (?, 0, 0)", (u[0],))
-conn.commit()
-
 # =========================================================
 # PERMANENT LOCALSTORAGE LOGIN PERSISTENCE
 # =========================================================
@@ -122,6 +115,35 @@ if not st.session_state["logged_in"] and local_user:
     st.session_state["logged_in"] = True
     st.session_state["username"] = local_user
     st.session_state["user_role"] = r_data[0]
+
+# =========================================================
+# LOGIN SCREEN
+# =========================================================
+if not st.session_state.get("logged_in", False):
+  st.title("🔑 পি এস মেডিসেলার - লগইন পোর্টাল")
+  st.write("একবার লগইন করলে বারবার পাসওয়ার্ড দিতে হবে না।")
+
+  c.execute("SELECT username FROM users")
+  all_users = [row[0] for row in c.fetchall()]
+
+  with st.form("login_form_perma"):
+    sel_user = st.selectbox("ইউজারনেম নির্বাচন করুন", all_users)
+    input_pass = st.text_input("পাসওয়ার্ড দিন", type="password")
+    submit_login = st.form_submit_button("🔒 স্থায়ীভাবে লগইন করুন", type="primary")
+
+    if submit_login:
+      c.execute("SELECT password, role FROM users WHERE username=?", (sel_user,))
+      user_row = c.fetchone()
+      if user_row and user_row[0] == input_pass:
+        st.session_state["logged_in"] = True
+        st.session_state["username"] = sel_user
+        st.session_state["user_role"] = user_row[1]
+        streamlit_js_eval(js_expressions=f"localStorage.setItem('ps_perma_user', '{sel_user}')", key="set_local_user")
+        st.success("লগইন সফল হয়েছে!")
+        st.rerun()
+      else:
+        st.error("❌ ভুল পাসওয়ার্ড!")
+  st.stop()
 
 # =========================================================
 # 24-HOUR PENDING ORDER CHECK FOR RED NOTIFICATION
@@ -178,6 +200,11 @@ if loc and "coords" in loc:
       "UPDATE agent_live_locations SET lat=?, lon=?, last_updated=? WHERE username=?",
       (gps_lat, gps_lon, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), st.session_state["username"]),
   )
+  if c.rowcount == 0:
+    c.execute(
+        "INSERT INTO agent_live_locations (username, lat, lon, last_updated) VALUES (?, ?, ?, ?)",
+        (st.session_state["username"], gps_lat, gps_lon, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+    )
   conn.commit()
 
 # =========================================================
@@ -312,13 +339,14 @@ elif selected_menu == "🔍 সার্চ":
     st.info("কোনো পার্টি পাওয়া যায়নি।")
 
 # =========================================================
-# 3. PENDING ORDERS
+# 3. PENDING ORDERS (তারিখ অনুযায়ী আলাদা ও টিক মার্ক ফিচার)
 # =========================================================
 elif selected_menu == "📦 পেন্ডিং অর্ডার":
   st.write("### 📦 পেন্ডিং অর্ডার তালিকা (তারিখ অনুযায়ী)")
   
   orders_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
   if not orders_df.empty:
+    # তারিখ আলাদা করা (YYYY-MM-DD)
     orders_df["date_only"] = orders_df["order_date"].astype(str).str.split(" ").str[0]
     unique_dates = orders_df["date_only"].unique()
 
@@ -334,10 +362,12 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
         status_text = "✅ সম্পন্ন/বিল হয়েছে" if row['status'] == "Completed" else "⏳ পেন্ডিং"
         cols[2].write(status_text)
 
+        # টিক মার্ক বা স্ট্যাটাস পরিবর্তনের বাটন
         if row['status'] == "Pending":
           if cols[3].button("✔️ টিক দিন", key=f"ord_btn_{row['id']}"):
             c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
             conn.commit()
+            # এজেন্টের কাউন্ট আপডেট করা
             c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
             conn.commit()
             st.success("অর্ডার কমপ্লিট হিসেবে মার্ক করা হয়েছে!")
@@ -349,7 +379,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN
+# 4. DUE CLEAR & DELIVERY PLAN (ডিউ এন্ট্রি ও ডেলিভারি টিক)
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান")
@@ -360,8 +390,10 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
       cols = st.columns([3, 2, 2])
       cols[0].write(f"**{row['party_name']}**\n\n_{row['address'] if row['address'] else ''}_")
       
+      # ডিউ এন্ট্রি ইনপুট
       due_input = cols[1].text_input("ডিউ টাকা লিখুন", key=f"due_{row['id']}")
       
+      # ডেলিভারি টিক বাটন
       if cols[2].button("🚚 ডেলিভারি সম্পন্ন", key=f"del_{row['id']}"):
         c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
         if due_input.strip():
@@ -374,7 +406,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
     st.info("কোনো লোকেশন বা পার্টি সেভ করা নেই।")
 
 # =========================================================
-# 5. ADMIN LIVE TRACKING
+# 5. ADMIN LIVE TRACKING (এজেন্ট স্ট্যাটাস ও অফলাইন সিঙ্ক সাপোর্ট)
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
@@ -385,25 +417,20 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
     agent_df = pd.read_sql_query("SELECT * FROM agent_live_locations", conn)
     if not agent_df.empty:
       for index, row in agent_df.iterrows():
-        last_up = row['last_updated'] if row['last_updated'] else "এখনও সিঙ্ক হয়নি"
-        lat_val = row['lat'] if row['lat'] else "লোকেশন নেই"
-        lon_val = row['lon'] if row['lon'] else ""
-        
-        with st.expander(f"👤 এজেন্ট: {row['username']} (শেষ আপডেট: {last_up})"):
-          st.write(f"📍 বর্তমান স্থানাঙ্ক (Lat, Lon): `{lat_val}, {lon_val}`")
+        with st.expander(f"👤 এজেন্ট: {row['username']} (শেষ আপডেট: {row['last_updated']})"):
+          st.write(f"📍 বর্তমান স্থানাঙ্ক (Lat, Lon): `{row['lat']}, {row['lon']}`")
           st.write(f"✅ সম্পন্ন ডেলিভারি সংখ্যা: **{row['completed_deliveries']} টি**")
           st.write(f"💰 ডিউ ক্লিয়ারেন্স সংখ্যা: **{row['completed_dues']} টি**")
           
+          # গুগল ম্যাপে এজেন্ট কোথায় আছে তা দেখার ডিরেকশন লিংক
           if row['lat'] and row['lon']:
             agent_map_url = f"https://www.google.com/maps/search/?api=1&query={row['lat']},{row['lon']}"
             st.markdown(f'<a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ম্যাপে এজেন্ট কোথায় আছেন দেখুন</button></a>', unsafe_allow_html=True)
-          else:
-            st.warning("এই এজেন্ট এখনও জিপিএস লোকেশন শেয়ার করেনি।")
     else:
-      st.info("কোনো এজেন্টের ডেটা পাওয়া যায়নি।")
+      st.info("কোনো এজেন্টের লাইভ লোকেশন পাওয়া যায়নি।")
 
 # =========================================================
-# 6. SETTINGS & AGENT MANAGEMENT
+# 6. SETTINGS & AGENT MANAGEMENT (Admin Only)
 # =========================================================
 elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
   if st.session_state["user_role"] != "admin":
@@ -425,7 +452,6 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
           if update_btn:
             if new_pass.strip():
               c.execute("UPDATE users SET username=?, password=? WHERE username=?", (new_name, new_pass, u_name))
-              c.execute("UPDATE agent_live_locations SET username=? WHERE username=?", (new_name, u_name))
               conn.commit()
               st.success("সফলভাবে আপডেট হয়েছে!")
               st.rerun()
@@ -444,7 +470,6 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
         if n_user and n_pass:
           try:
             c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (n_user, n_pass, n_role))
-            c.execute("INSERT OR IGNORE INTO agent_live_locations (username, completed_deliveries, completed_dues) VALUES (?, 0, 0)", (n_user,))
             conn.commit()
             st.success("নতুন এজেন্ট সফলভাবে যোগ করা হয়েছে!")
             st.rerun()
