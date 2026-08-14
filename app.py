@@ -348,68 +348,298 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  import json
-  parties_json = json.dumps(all_parties_db)
-
-  # ড্রপডাউন থেকে সিলেক্ট করলে বা টাইপ করলে Hidden Input-এ ভالু সেট হবে এবং সাবমিট বাটন কাজ করবে
-  search_html = f"""
-  <form id="order_submit_form" style="margin-bottom: 15px;">
-    <div style="position: relative; margin-bottom: 15px;">
-      <label style="font-weight: 600; font-size: 14px; color: #31333F;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
-      <input type="text" id="party_search_box" name="selected_party" placeholder="এখানে টাইপ করুন..." style="width: 100%; padding: 10px; border: 1px solid #cccccc; border-radius: 4px; font-size: 16px; margin-top: 5px; background-color: #ffffff; color: #000000;" autocomplete="off">
-      <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);"></div>
-    </div>
-  </form>
-
-  <script>
-    const allParties = {parties_json};
-    const searchBox = document.getElementById("party_search_box");
-    const suggestionsList = document.getElementById("suggestions_list");
-
-    searchBox.addEventListener("input", function() {{
-      const query = this.value.toLowerCase().trim();
-      suggestionsList.innerHTML = "";
-      if (query === "") {{
-        suggestionsList.style.display = "none";
-        return;
-      }}
-      const filtered = allParties.filter(p => p.toLowerCase().includes(query));
-      if (filtered.length > 0) {{
-        suggestionsList.style.display = "block";
-        filtered.forEach(party => {{
-          const item = document.createElement("div");
-          item.innerText = party;
-          item.style.padding = "10px";
-          item.style.cursor = "pointer";
-          item.style.borderBottom = "1px solid #f0f2f6";
-          item.style.color = "#000000";
-          item.onmouseover = function() {{ this.style.backgroundColor = "#f0f2f6"; }};
-          item.onmouseout = function() {{ this.style.backgroundColor = "#ffffff"; }};
-          item.onclick = function() {{
-            searchBox.value = party;
-            suggestionsList.style.display = "none";
-          }};
-          suggestionsList.appendChild(item);
-        }});
-      }} else {{
-        suggestionsList.style.display = "none";
-      }}
-    }});
-
-    document.addEventListener("click", function(e) {{
-      if (!searchBox.contains(e.target) && !suggestionsList.contains(e.target)) {{
-        suggestionsList.style.display = "none";
-      }}
-    }});
-  </script>
-  """
-  st.components.v1.html(search_html, height=115)
-
+  # স্ট্রিমিটের নিজস্ব ডিফল্ট এবং মার্জিন ঠিকঠাক রেখে নিখুঁত ড্রপডাউন সার্চ সিস্টেম
+  ord_party = st.selectbox("পার্টি সার্চ করুন (নামের অক্ষর লিখুন বা সিলেক্ট করুন)", ["-- সিলেক্ট করুন --"] + all_parties_db, index=0)
   ord_details = st.text_area("অর্ডারের বিবরণ")
   
   if st.button("🛒 অর্ডার জমা দিন", type="primary"):
-    # স্ট্রিমিট কম্পোনেন্ট বা টেক্সট ইনপুট থেকে ইউজার যেই পার্টি সিলেক্ট বা টাইপ করেছে তা ক্যাচ করার ব্যবস্থা
-    # সুবিধার্থে স্ট্রিমিট টেক্সট ইনপুট অথবা সরাসরি হ্যান্ডেল করার জন্য স্ট্রিমিট কম্পোনেন্ট রিঅ্যাক্ট ব্যবহার করা হয়েছে।
-    st.warning("দয়া করে সার্চ বক্সে পার্টির সঠিক নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে অর্ডার জমা দিন।")
+    if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
+      c.execute(
+          "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
+          (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
+      )
+      conn.commit()
+      st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
+    else:
+      st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
-# বিকল্প সহজ ও পারফেক্ট স্ট্রিমিট নেটিভ সলিউশন যদি চান সরাসরি ড্রপডাউন বক্স ছাড়া রাখতে:
+# =========================================================
+# 2. SEARCH PARTY & ADMIN DELETE OPTION
+# =========================================================
+elif selected_menu == "🔍 সার্চ":
+  st.write("### 🔍 সেভ করা পার্টি তালিকা ও ডিরেকশন")
+  df = pd.read_sql_query("SELECT * FROM locations", conn)
+  search_query = st.text_input("সার্চ করুন (পার্টির নাম)")
+  if search_query:
+    df = df[df["party_name"].str.contains(search_query, case=False, na=False)]
+  
+  if not df.empty:
+    for index, row in df.iterrows():
+      if st.session_state["user_role"] == "admin":
+        cols = st.columns([3, 2, 2, 2, 1.5])
+      else:
+        cols = st.columns([3, 2, 2, 2])
+
+      cols[0].write(f"**{row['party_name']}**")
+      cols[1].write(row['party_phone'] if row['party_phone'] else "নম্বার নেই")
+      cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
+      
+      maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
+      cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ডিরেকশন</button></a>', unsafe_allow_html=True)
+
+      if st.session_state["user_role"] == "admin":
+        if cols[4].button("🗑️ ডিলিট", key=f"del_loc_{row['id']}"):
+          c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+          conn.commit()
+          st.success(f"✅ '{row['party_name']}' সফলভাবে ডিলিট করা হয়েছে!")
+          st.rerun()
+
+      st.write("---")
+  else:
+    st.info("কোনো পার্টি পাওয়া যায়নি।")
+
+# =========================================================
+# 3. PENDING ORDERS
+# =========================================================
+elif selected_menu == "📦 পেন্ডিং অর্ডার":
+  st.write("### 📦 পেন্ডিং অর্ডার তালিকা")
+  orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
+  if not orders_df.empty:
+    for index, row in orders_df.iterrows():
+      cols = st.columns([2, 4, 2, 2])
+      cols[0].write(f"**{row['party_name']}**")
+      cols[1].write(row['order_details'])
+      cols[2].write("⏳ পেন্ডিং")
+
+      if cols[3].button("✔️ টিক দিন", key=f"ord_btn_{row['id']}"):
+        c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
+        conn.commit()
+        c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
+        conn.commit()
+        st.success("অর্ডার কমপ্লিট করা হয়েছে!")
+        st.rerun()
+      st.write("---")
+  else:
+    st.info("কোনো পেন্ডিং অর্ডার নেই।")
+
+# =========================================================
+# 4. DUE CLEAR & DELIVERY PLAN
+# =========================================================
+elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
+  st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
+  
+  c.execute("SELECT username FROM users")
+  all_agents = [r[0] for r in c.fetchall()]
+  c.execute("SELECT DISTINCT party_name, lat, lon FROM locations")
+  loc_data = c.fetchall()
+  all_parties = [r[0] for r in loc_data]
+  party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
+
+  task_search_key = st.text_input("সার্চ করুন (পার্টির নাম)", key="live_task_search_box")
+  if task_search_key:
+    filtered_task_parties = [p for p in all_parties if task_search_key.lower() in p.lower()]
+  else:
+    filtered_task_parties = all_parties
+
+  with st.form("easy_assign_form", clear_on_submit=True):
+    col_e1, col_e2 = st.columns(2)
+    with col_e1:
+      sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
+    with col_e2:
+      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", filtered_task_parties if filtered_task_parties else ["-- পার্টি নেই --"])
+
+    st.write("**কাজের ধরণ নির্বাচন করুন:**")
+    col_chk1, col_chk2 = st.columns(2)
+    with col_chk1:
+      chk_delivery = st.checkbox("🚚 ডেলিভারি")
+    with col_chk2:
+      chk_due = st.checkbox("💰 ডিউ কালেকশন")
+
+    d_amount = st.text_input("ডিউ টাকা (যদি থাকে)", "0")
+
+    submit_easy_task = st.form_submit_button("🎯 কাজ যোগ করুন", type="primary")
+
+    if submit_easy_task and sel_pt != "-- পার্টি নেই --":
+      selected_tasks = []
+      if chk_delivery:
+        selected_tasks.append("ডেলিভারি")
+      if chk_due:
+        selected_tasks.append("ডিউ কালেকশন")
+
+      if selected_tasks:
+        t_type_str = " ও ".join(selected_tasks)
+        c.execute(
+            "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (sel_ag, sel_pt, t_type_str, d_amount, "Pending", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        conn.commit()
+        st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
+        st.rerun()
+      else:
+        st.warning("অন্তত একটি কাজের ধরণ (ডেলিভারি বা ডিউ কালেকশন) সিলেক্ট করুন।")
+
+  st.write("---")
+  st.write("### 📋 বর্তমান কাজের তালিকা")
+
+  if st.session_state["user_role"] == "admin":
+    tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
+  else:
+    tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(st.session_state["username"],))
+
+  if not tasks_df.empty:
+    for idx, row in tasks_df.iterrows():
+      p_name = row['party_name']
+      cols = st.columns([2, 2, 2, 2])
+      cols[0].write(f"এজেন্ট: **{row['agent_name']}**\n\nপার্টি: **{p_name}**")
+      cols[1].write(f"কাজ: {row['task_type']}\n\nডিউ: {row['due_amount']} টাকা")
+
+      auto_completed = False
+      if gps_lat and gps_lon and p_name in party_coords:
+        p_lat, p_lon = party_coords[p_name]
+        if p_lat and p_lon:
+          import math
+          dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
+          if dist <= 30:
+            auto_completed = True
+
+      if cols[2].button("✅ সম্পন্ন", key=f"comp_task_{row['id']}") or auto_completed:
+        c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
+        if "ডেলিভারি" in row['task_type']:
+          c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
+        if "ডিউ" in row['task_type']:
+          c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
+        conn.commit()
+        st.success(f"{p_name}-এর কাজ সম্পন্ন ও লিস্ট থেকে রিমুভ হলো!")
+        st.rerun()
+
+      cols[3].write("পেন্ডিং (২৪ ঘণ্টা মেয়াদ)")
+      st.write("---")
+  else:
+    st.info("কোনো কাজ অ্যাসাইন করা নেই।")
+
+# =========================================================
+# 5. HOME-TO-HOME AUTO ROUTE & MAP
+# =========================================================
+elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্যাপ":
+  st.write("### 🗺️ অটোমেটিক হোম-টু-হোম রুট প্ল্যানিং")
+
+  locs_df = pd.read_sql_query("SELECT * FROM locations ORDER BY id ASC", conn)
+  
+  if not locs_df.empty:
+    m_center_lat = locs_df.iloc[0]["lat"] if locs_df.iloc[0]["lat"] else 22.8620
+    m_center_lon = locs_df.iloc[0]["lon"] if locs_df.iloc[0]["lon"] else 87.3320
+
+    route_map = folium.Map(
+        location=[m_center_lat, m_center_lon],
+        zoom_start=14,
+        tiles=None
+    )
+
+    folium.TileLayer(
+        tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        attr="Google Maps",
+        name="গুগল ম্যাপ"
+    ).add_to(route_map)
+
+    coordinates_list = []
+    seq_num = 1
+    for idx, row in locs_df.iterrows():
+      if row["lat"] and row["lon"]:
+        lat, lon = row["lat"], row["lon"]
+        coordinates_list.append([lat, lon])
+        
+        folium.Marker(
+            [lat, lon],
+            popup=f"<b>রুট নং {seq_num}: {row['party_name']}</b><br>{row['address']}",
+            tooltip=f"{seq_num}. {row['party_name']}",
+            icon=folium.Icon(color="blue", icon="info-sign")
+        ).add_to(route_map)
+        seq_num += 1
+
+    if len(coordinates_list) > 1:
+      folium.PolyLine(coordinates_list, color="#ff4b4b", weight=5, opacity=0.85, tooltip="অটো প্ল্যানড ডেলিভারি রুট").add_to(route_map)
+
+    st_folium(route_map, width=900, height=500, key="auto_route_map")
+  else:
+    st.info("রুট দেখানোর জন্য কোনো লোকেশন সেভ করা নেই।")
+
+# =========================================================
+# 6. ADMIN LIVE TRACKING
+# =========================================================
+elif selected_menu == "📊 লাইভ ট্র্যাকিং":
+  if st.session_state["user_role"] != "admin":
+    st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
+  else:
+    st.write("### 📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং")
+    c.execute("SELECT username, role FROM users")
+    all_system_users = c.fetchall()
+
+    if all_system_users:
+      for u_name, u_role in all_system_users:
+        c.execute("SELECT lat, lon, last_updated, completed_deliveries, completed_dues FROM agent_live_locations WHERE username=?", (u_name,))
+        agent_data = c.fetchone()
+
+        with st.expander(f"👤 এজেন্ট: {u_name} (রোল: {u_role})"):
+          if agent_data and agent_data[0] is not None:
+            lat, lon, last_updated, comp_del, comp_due = agent_data
+            st.success("🟢 রিয়েল-টাইম লোকেশন সক্রিয়")
+            st.write(f"📍 স্থানাঙ্ক: `{lat}, {lon}`")
+            st.write(f"🕒 শেষ আপডেট: `{last_updated}`")
+            st.write(f"✅ সম্পন্ন ডেলিভারি: **{comp_del} টি**")
+            st.write(f"💰 ডিউ ক্লিয়ারেন্স: **{comp_due} টি**")
+            
+            agent_map_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            st.markdown(f'<a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ম্যাপে দেখুন</button></a>', unsafe_allow_html=True)
+          else:
+            st.warning("🔴 এজেন্ট বর্তমানে অফলাইন বা লোকেশন পাওয়া যায়নি।")
+    else:
+      st.info("কোনো ইউজার পাওয়া যায়নি।")
+
+# =========================================================
+# 7. সেটিংস ও এজেন্ট ম্যানেজমেন্ট
+# =========================================================
+elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
+  if st.session_state["user_role"] != "admin":
+    st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
+  else:
+    st.write("### 👥 ডেলিভারি এজেন্ট তালিকা ও ম্যানেজমেন্ট")
+    c.execute("SELECT username, role FROM users")
+    agents = c.fetchall()
+    st.write(f"মোট রেজিস্টার্ড ইউজার/এজেন্ট সংখ্যা: **{len(agents)}**")
+
+    for ag in agents:
+      u_name, u_role = ag
+      with st.expander(f"এজেন্ট: {u_name} ({u_role})"):
+        with st.form(f"edit_form_{u_name}"):
+          new_name = st.text_input("নাম এডিট করুন", value=u_name, key=f"name_{u_name}")
+          new_pass = st.text_input("নতুন পাসওয়ার্ড দিন", type="password", key=f"pass_{u_name}")
+          update_btn = st.form_submit_button("পরিবর্তন সেভ করুন")
+          
+          if update_btn:
+            if new_pass.strip():
+              c.execute("UPDATE users SET username=?, password=? WHERE username=?", (new_name, new_pass, u_name))
+              conn.commit()
+              st.success("সফলভাবে আপডেট হয়েছে!")
+              st.rerun()
+            else:
+              st.warning("পাসওয়ার্ড খালি রাখা যাবে না।")
+
+    st.write("---")
+    st.write("### ➕ নতুন এজেন্ট যোগ করুন")
+    with st.form("new_agent_form"):
+      n_user = st.text_input("নতুন ইউজারের নাম")
+      n_pass = st.text_input("পাসওয়ার্ড", type="password")
+      n_role = st.selectbox("রোল", ["staff", "admin"])
+      add_agent_btn = st.form_submit_button("এজেন্ট যুক্ত করুন")
+
+      if add_agent_btn:
+        if n_user and n_pass:
+          try:
+            c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (n_user, n_pass, n_role))
+            conn.commit()
+            st.success("নতুন এজেন্ট সফলভাবে যোগ করা হয়েছে!")
+            st.rerun()
+          except:
+            st.error("এই ইউজারনেমটি আগেই রয়েছে।")
+        else:
+          st.error("সব ঘর পূরণ করুন।")
