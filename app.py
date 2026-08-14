@@ -1010,15 +1010,25 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
     st.write("#### 📊 মাসিক উপস্থিতি রিপোর্ট ও টোটাল সামারি")
     
     current_month_str = datetime.now().strftime("%Y-%m")
-    st.write(f"বর্তমান মাস: **{current_month_str}** (মাস শেষের ৩০/৩১ তারিখে টোটাল স্বয়ংক্রিয়ভাবে হিসাব হচ্ছে)")
+    current_user = st.session_state["username"]
+    user_role = st.session_state["user_role"]
 
-    # Monthly Summary Query
-    summary_df = pd.read_sql_query("""
-        SELECT username, COUNT(*) as total_present 
-        FROM attendance 
-        WHERE strftime('%Y-%m', date) = ? 
-        GROUP BY username
-    """, conn, params=(current_month_str,))
+    if user_role == "admin":
+      st.write(f"বর্তমান মাস: **{current_month_str}** (অ্যাডমিন ভিউ: সকল স্টাফের মাসিক সামারি)")
+      summary_df = pd.read_sql_query("""
+          SELECT username, COUNT(*) as total_present 
+          FROM attendance 
+          WHERE strftime('%Y-%m', date) = ? 
+          GROUP BY username
+      """, conn, params=(current_month_str,))
+    else:
+      st.write(f"বর্তমান মাস: **{current_month_str}** (আপনার নিজের মাসিক সামারি)")
+      summary_df = pd.read_sql_query("""
+          SELECT username, COUNT(*) as total_present 
+          FROM attendance 
+          WHERE strftime('%Y-%m', date) = ? AND username = ?
+          GROUP BY username
+      """, conn, params=(current_month_str, current_user))
 
     if not summary_df.empty:
       st.dataframe(summary_df, use_container_width=True)
@@ -1027,9 +1037,12 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
 
     # Detailed history and admin edit controls
     st.write("---")
-    st.write("#### 📋 বিস্তারিত রেকর্ড ও অ্যাডমিন এডিট প্যানেল")
-    
-    all_att_df = pd.read_sql_query("SELECT * FROM attendance ORDER BY date DESC, check_time DESC", conn)
+    if user_role == "admin":
+      st.write("#### 📋 বিস্তারিত রেকর্ড ও অ্যাডমিন এডিট প্যানেল (সকলের)")
+      all_att_df = pd.read_sql_query("SELECT * FROM attendance ORDER BY date DESC, check_time DESC", conn)
+    else:
+      st.write("#### 📋 আপনার বিস্তারিত উপস্থিতির ইতিহাস")
+      all_att_df = pd.read_sql_query("SELECT * FROM attendance WHERE username=? ORDER BY date DESC, check_time DESC", conn, params=(current_user,))
     
     if not all_att_df.empty:
       for idx, row in all_att_df.iterrows():
@@ -1039,7 +1052,7 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
         cols[2].write(f"সময়: {row['check_time']}")
         cols[3].write(f"স্ট্যাটাস: {row['status']}")
 
-        if st.session_state["user_role"] == "admin":
+        if user_role == "admin":
           if cols[4].button("🗑️ ডিলিট", key=f"del_att_{row['id']}"):
             c.execute("DELETE FROM attendance WHERE id=?", (row['id'],))
             conn.commit()
