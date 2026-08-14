@@ -176,7 +176,7 @@ if not st.session_state.get("logged_in", False):
   st.stop()
 
 # =========================================================
-# MAIN APP HEADER & ULTRA-STRONG PARENT-FRAME SCROLL BUTTON
+# MAIN APP HEADER & ROBUST FLOATING SCROLL-TO-TOP BUTTON
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
@@ -194,76 +194,76 @@ with col_u2:
 floating_top_badge = """
 <style>
   #floatingTopBtn {
-    position: fixed;
-    left: 20px;
-    bottom: 90px;
-    z-index: 9999999;
-    background-color: rgba(26, 115, 232, 0.4);
-    color: white;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4);
-    text-decoration: none;
-    font-size: 24px;
-    cursor: pointer;
-    border: 2px solid rgba(255, 255, 255, 0.6);
-    opacity: 0.6;
+    position: fixed !important;
+    left: 20px !important;
+    bottom: 90px !important;
+    z-index: 9999999 !important;
+    background-color: rgba(26, 115, 232, 0.85) !important;
+    color: white !important;
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4) !important;
+    text-decoration: none !important;
+    font-size: 24px !important;
+    cursor: pointer !important;
+    border: 2px solid white !important;
+    opacity: 0.9 !important;
     pointer-events: auto !important;
-    transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
+    transition: transform 0.2s ease, background-color 0.2s ease;
   }
   #floatingTopBtn:hover, #floatingTopBtn:active {
-    transform: scale(1.2);
-    opacity: 1;
-    background-color: rgba(26, 115, 232, 1);
+    transform: scale(1.15) !important;
+    background-color: rgb(26, 115, 232) !important;
+    opacity: 1 !important;
   }
 </style>
 <div id="floatingTopBtn" title="উপরে চলুন">⬆️</div>
 <script>
   (function() {
-    const btn = document.getElementById('floatingTopBtn');
-    if (btn) {
-      const goTop = function(e) {
-        if(e) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
+    const initScrollBtn = function() {
+      const btn = document.getElementById('floatingTopBtn');
+      if (btn && !btn.dataset.initialized) {
+        btn.dataset.initialized = "true";
         
-        // Target main parent window and document (escapes component iframe)
-        const targetWindow = window.parent || window;
-        const targetDoc = targetWindow.document;
-
-        // 1. Window scroll
-        targetWindow.scrollTo({ top: 0, behavior: 'smooth' });
-        targetDoc.documentElement.scrollTop = 0;
-        targetDoc.body.scrollTop = 0;
-        
-        // 2. Streamlit container explicit scroll
-        const containers = targetDoc.querySelectorAll('[data-testid="stAppViewContainer"], section.main, .main, div[tabindex="0"], [data-testid="stMain"]');
-        containers.forEach(function(el) {
-          el.scrollTo({ top: 0, behavior: 'smooth' });
-          el.scrollTop = 0;
-        });
-
-        // 3. Force scroll on any element in parent document
-        targetDoc.querySelectorAll('*').forEach(function(el) {
-          if (el.scrollTop > 0) {
-            el.scrollTop = 0;
+        const goTop = function(e) {
+          if(e) {
+            e.preventDefault();
+            e.stopPropagation();
           }
-        });
-      };
+          
+          // Window scroll
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+          
+          // Streamlit container scroll
+          const containers = document.querySelectorAll('[data-testid="stAppViewContainer"], section.main, .main, div[tabindex="0"]');
+          containers.forEach(function(el) {
+            el.scrollTo({ top: 0, behavior: 'smooth' });
+            el.scrollTop = 0;
+          });
+        };
 
-      btn.addEventListener('click', goTop, { passive: false });
-      btn.addEventListener('touchend', goTop, { passive: false });
-      btn.addEventListener('pointerdown', goTop, { passive: false });
+        btn.addEventListener('click', goTop, { passive: false });
+        btn.addEventListener('touchend', goTop, { passive: false });
+        btn.addEventListener('pointerdown', goTop, { passive: false });
+      }
+    };
+
+    if (document.readyState === 'complete') {
+      initScrollBtn();
+    } else {
+      window.addEventListener('load', initScrollBtn);
     }
+    setTimeout(initScrollBtn, 500);
   })();
 </script>
 """
-st.components.v1.html(floating_top_badge, height=65)
+st.markdown(floating_top_badge, unsafe_allow_html=True)
 
 st.write("---")
 
