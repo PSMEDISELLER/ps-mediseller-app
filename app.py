@@ -1,6 +1,4 @@
 from datetime import datetime, timedelta
-import json
-import math
 import urllib.parse
 import folium
 from folium.plugins import MousePosition
@@ -128,68 +126,20 @@ for row_task in c.fetchall():
 conn.commit()
 
 # =========================================================
-# PERMANENT LOCALSTORAGE LOGIN PERSISTENCE
+# SESSION STATE INITIALIZATION (DEFAULT DELIVERY AGENT)
 # =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
 
-local_user = streamlit_js_eval(js_expressions="localStorage.getItem('ps_perma_user')", key="get_local_user")
-
-if "logged_in" not in st.session_state:
-  st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"] and local_user:
-  c.execute("SELECT role FROM users WHERE username=?", (local_user,))
-  r_data = c.fetchone()
-  if r_data:
-    st.session_state["logged_in"] = True
-    st.session_state["username"] = local_user
-    st.session_state["user_role"] = r_data[0]
+if "username" not in st.session_state:
+  st.session_state["username"] = "delivery"
+if "user_role" not in st.session_state:
+  st.session_state["user_role"] = "staff"
 
 # =========================================================
-# LOGIN SCREEN (UPDATED: PASSWORD FREE FOR STAFF, PROTECTED FOR ADMIN)
-# =========================================================
-if not st.session_state.get("logged_in", False):
-  st.title("🔑 পি এস মেডিসেলার - লগইন পোর্টাল")
-  st.write("অ্যাডমিনের জন্য পাসওয়ার্ড প্রয়োজন, তবে ডেলিভারি এজেন্টরা পাসওয়ার্ড ছাড়াই প্রবেশ করতে পারবেন।")
-
-  c.execute("SELECT username, role FROM users")
-  all_users_data = c.fetchall()
-  user_map = {u[0]: u[1] for u in all_users_data}
-  all_usernames = list(user_map.keys())
-
-  sel_user = st.selectbox("ইউজারনেম / আইডি নির্বাচন করুন", all_usernames)
-  user_role = user_map.get(sel_user, "staff")
-
-  if user_role == "admin":
-    input_pass = st.text_input("অ্যাডমিন পাসওয়ার্ড দিন", type="password")
-    if st.button("🔒 অ্যাডমিন লগইন", type="primary"):
-      c.execute("SELECT password, role FROM users WHERE username=?", (sel_user,))
-      user_row = c.fetchone()
-      if user_row and user_row[0] == input_pass:
-        st.session_state["logged_in"] = True
-        st.session_state["username"] = sel_user
-        st.session_state["user_role"] = user_row[1]
-        streamlit_js_eval(js_expressions=f"localStorage.setItem('ps_perma_user', '{sel_user}')", key="set_local_user")
-        st.success("লগইন সফল হয়েছে!")
-        st.rerun()
-      else:
-        st.error("❌ ভুল পাসওয়ার্ড!")
-  else:
-    if st.button("🚀 প্রবেশ করুন (পাসওয়ার্ড লাগবে না)", type="primary"):
-      st.session_state["logged_in"] = True
-      st.session_state["username"] = sel_user
-      st.session_state["user_role"] = user_role
-      streamlit_js_eval(js_expressions=f"localStorage.setItem('ps_perma_user', '{sel_user}')", key="set_local_user")
-      st.success("লগইন সফল হয়েছে!")
-      st.rerun()
-      
-  st.stop()
-
-# =========================================================
-# MAIN APP HEADER
+# MAIN APP HEADER & ADMIN LOGIN OPTION
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
@@ -197,12 +147,40 @@ col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
   st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
 with col_u2:
-  if st.button("🚪 লগআউট"):
-    st.session_state["logged_in"] = False
-    st.session_state["username"] = None
-    st.session_state["user_role"] = None
-    streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
-    st.rerun()
+  if st.session_state["user_role"] == "admin":
+    if st.button("🚪 অ্যাডমিন লগআউট"):
+      st.session_state["username"] = "delivery"
+      st.session_state["user_role"] = "staff"
+      st.rerun()
+  else:
+    if st.button("🔐 অ্যাডমিন লগইন"):
+      st.session_state["show_admin_login"] = True
+      st.rerun()
+
+if st.session_state.get("show_admin_login", False):
+  with st.form("admin_login_popup_form"):
+    st.write("#### 🔑 অ্যাডমিন লগইন")
+    admin_pass_input = st.text_input("অ্যাডমিন পাসওয়ার্ড দিন", type="password")
+    col_al1, col_al2 = st.columns(2)
+    with col_al1:
+      submit_admin = st.form_submit_button("লগইন করুন", type="primary")
+    with col_al2:
+      cancel_admin = st.form_submit_button("বাতিল")
+
+    if submit_admin:
+      c.execute("SELECT password, role FROM users WHERE username='admin'")
+      adm_row = c.fetchone()
+      if adm_row and adm_row[0] == admin_pass_input:
+        st.session_state["username"] = "admin"
+        st.session_state["user_role"] = "admin"
+        st.session_state["show_admin_login"] = False
+        st.success("অ্যাডমিন লগইন সফল হয়েছে!")
+        st.rerun()
+      else:
+        st.error("❌ ভুল পাসওয়ার্ড!")
+    if cancel_admin:
+      st.session_state["show_admin_login"] = False
+      st.rerun()
 
 st.write("---")
 
@@ -416,6 +394,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
+  import json
   parties_json = json.dumps(all_parties_db)
 
   search_html = f"""
@@ -581,6 +560,8 @@ elif selected_menu == "🔍 সার্চ":
     if r[1]: search_items.append(r[1])
   
   unique_search_items = sorted(list(set(search_items)))
+
+  import json
   search_items_json = json.dumps(unique_search_items)
 
   q_params = st.query_params
@@ -750,6 +731,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
+  import json
   parties_json = json.dumps(all_parties)
 
   q_params = st.query_params
@@ -875,6 +857,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
         p_coords = party_coords[p_name]
         if p_coords[0] is not None and p_coords[1] is not None:
           p_lat, p_lon = p_coords
+          import math
           dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
           if dist <= 30:
             auto_completed = True
