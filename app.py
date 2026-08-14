@@ -348,16 +348,16 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  # ফর্মের বাইরে ইনপুট বক্স দিয়ে সহজে ফিল্টার করা হয়েছে যাতে মোবাইলে কোনো সমস্যা না হয়
-  search_key_input = st.text_input("🔍 পার্টি খুঁজতে এখানে নাম লিখুন", key="live_party_search_box")
+  # সার্চ পেজের মতো একদম সহজ ও সুন্দর টেক্সট ইনপুট সার্চ বক্স
+  ord_party_search = st.text_input("সার্চ করুন (পার্টির নাম)", key="order_party_search_input")
   
-  if search_key_input:
-    filtered_parties = [p for p in all_parties_db if search_key_input.lower() in p.lower()]
+  if ord_party_search:
+    matched_parties = [p for p in all_parties_db if ord_party_search.lower() in p.lower()]
   else:
-    filtered_parties = all_parties_db
+    matched_parties = all_parties_db
 
   with st.form("order_form", clear_on_submit=True):
-    ord_party = st.selectbox("তালিকা থেকে পার্টি সিলেক্ট করুন", ["-- সিলেক্ট করুন --"] + filtered_parties)
+    ord_party = st.selectbox("পার্টি সিলেক্ট করুন", ["-- সিলেক্ট করুন --"] + matched_parties)
     ord_details = st.text_area("অর্ডারের বিবরণ")
     submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
     
@@ -444,7 +444,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
-  task_search_key = st.text_input("🔍 পার্টি খুঁজতে এখানে নাম লিখুন", key="live_task_search_box")
+  task_search_key = st.text_input("সার্চ করুন (পার্টির নাম)", key="live_task_search_box")
   if task_search_key:
     filtered_task_parties = [p for p in all_parties if task_search_key.lower() in p.lower()]
   else:
