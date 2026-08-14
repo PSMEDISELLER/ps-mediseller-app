@@ -1034,57 +1034,64 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
               st.rerun()
 
     st.write("---")
-    st.write("### ➕ নতুন এজেন্ট যোগ করুন ও ডাইরেক্ট লগইন লিংক পাঠান")
+    st.write("### ➕ নতুন এজেন্ট যোগ করুন ও ডাইরেক্ট লগইন লিংক জেনারেট করুন")
     with st.form("new_agent_form"):
       n_fullname = st.text_input("এজেন্টের প্রকৃত নাম (পুরো নাম)")
       n_user = st.text_input("ইউজারনেম (লগইন আইডি বা শর্ট নাম)")
-      n_phone = st.text_input("এজেন্টের হোয়াটসঅ্যাপ ফোন নম্বর (যেমন: 919876543210 country code সহ)")
       n_role = st.selectbox("রোল", ["staff", "admin"])
-      add_agent_btn = st.form_submit_button("এজেন্ট যুক্ত করুন ও হোয়াটসঅ্যাপ লিংক তৈরি করুন")
+      add_agent_btn = st.form_submit_button("এজেন্ট যুক্ত করুন ও ডাইরেক্ট লিংক তৈরি করুন")
 
       if add_agent_btn:
-        if n_fullname and n_user and n_phone:
+        if n_fullname and n_user:
           try:
             c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                      (n_user, "direct_login", n_role, n_fullname, n_phone, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+                      (n_user, "direct_login", n_role, n_fullname, "", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
             conn.commit()
             st.session_state["last_created_agent_user"] = n_user
             st.session_state["last_created_agent_name"] = n_fullname
-            st.session_state["last_created_agent_phone"] = n_phone
             st.success(f"নতুন এজেন্ট '{n_fullname}' সফলভাবে যোগ করা হয়েছে!")
             st.rerun()
           except sqlite3.IntegrityError:
             st.error("❌ এই ইউজারনেমটি আগেই রয়েছে।")
         else:
-          st.error("সব ঘর (নাম, ইউজারনেম এবং ফোন নম্বর) পূরণ করুন।")
+          st.error("নাম এবং ইউজারনেম পূরণ করুন।")
 
     if st.session_state.get("last_created_agent_user"):
       created_u = st.session_state["last_created_agent_user"]
       created_n = st.session_state["last_created_agent_name"]
-      created_phone = st.session_state["last_created_agent_phone"]
       
       st.markdown("---")
-      st.write(f"#### 📤 '{created_n}'-এর হোয়াটসঅ্যাপ ডাইরেক্ট লগইন লিংক")
+      st.write(f"#### 🔗 '{created_n}'-এর ডাইরেক্ট লগইন লিংক ও কপি অপশন")
       
       direct_msg = f"হ্যালো {created_n}, P.S Mediseller ডেলিভারি অ্যাপে আপনার জন্য নির্দিষ্ট একাউন্ট তৈরি করা হয়েছে। নিচের লিংকে টাচ করলেই আপনি সরাসরি আপনার নামে অ্যাপে প্রবেশ করতে পারবেন:\n"
       
-      wa_share_html = f"""
+      copy_html = f"""
       <div style="background: #262730; padding: 15px; border-radius: 8px; border: 1px solid #444; margin-top: 10px;">
-        <p style="color: #fff; margin-bottom: 10px;">নিচের বাটনে ক্লিক করলেই সরাসরি এজেন্টের হোয়াটসঅ্যাপ নম্বরে (`{created_phone}`) চ্যাট ওপেন হয়ে যাবে:</p>
-        <a id="whatsapp_btn" href="#" target="_blank" style="background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">📱 হোয়াটসঅ্যাপে লিংক পাঠান</a>
+        <p style="color: #fff; margin-bottom: 8px; font-weight: 600;">জেনারেট হওয়া ডাইরেক্ট লিংক:</p>
+        <input type="text" id="generated_link" readonly style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #555; background: #1e1e1e; color: #fff; font-size: 14px; margin-bottom: 10px; box-sizing: border-box;">
+        <button onclick="copyLink()" id="copy_btn" style="background-color: #1a73e8; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">📋 লিংক কপি করুন</button>
+        <span id="copy_status" style="color: #25D366; margin-left: 10px; font-weight: bold; display: none;">✓ কপি হয়েছে!</span>
       </div>
       <script>
         const origin = window.location.origin + window.location.pathname;
         const link = origin + "?login={created_u}";
-        const msg = "{direct_msg}" + link;
-        const encodedMsg = encodeURIComponent(msg);
-        const targetPhone = "{created_phone}";
-        document.getElementById("whatsapp_btn").href = "https://wa.me/" + targetPhone + "?text=" + encodedMsg;
+        const fullText = "{direct_msg}" + link;
+        document.getElementById("generated_link").value = fullText;
+
+        function copyLink() {{
+          const copyText = document.getElementById("generated_link");
+          copyText.select();
+          copyText.setSelectionRange(0, 99999);
+          navigator.clipboard.writeText(copyText.value);
+          
+          const status = document.getElementById("copy_status");
+          status.style.display = "inline";
+          setTimeout(() => {{ status.style.display = "none"; }}, 2000);
+        }}
       </script>
       """
-      st.components.v1.html(wa_share_html, height=140)
+      st.components.v1.html(copy_html, height=160)
       if st.button("✖️ উইন্ডো বন্ধ করুন"):
         st.session_state.pop("last_created_agent_user", None)
         st.session_state.pop("last_created_agent_name", None)
-        st.session_state.pop("last_created_agent_phone", None)
         st.rerun()
