@@ -290,7 +290,7 @@ with col_ht1:
       <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
       <div>
           <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
-          <p style="margin: 0; color: #94a3b8; font-size: 11px; font-weight: 500;">Delivery & Attendance Partner Portal</p>
+          <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 11px; font-weight: 500;">Delivery & Attendance Partner Portal</p>
       </div>
   </div>
   """, unsafe_allow_html=True)
