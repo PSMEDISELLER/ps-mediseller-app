@@ -351,7 +351,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   import json
   parties_json = json.dumps(all_parties_db)
 
-  # মার্জিন এবং উইডথ একদম নিখুঁত করে কাস্টম সার্চ উইজেট ডিজাইন (বক্সের ভেতরে সীমাবদ্ধ)
   search_html = f"""
   <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
     <label style="font-weight: 600; font-size: 14px; color: #31333F; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
@@ -409,14 +408,21 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     st.info("দয়া করে সার্চ বক্স থেকে পার্টির নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে নিশ্চিত করুন।")
 
 # =========================================================
-# 2. SEARCH PARTY & ADMIN DELETE OPTION
+# 2. SEARCH PARTY & ADMIN DELETE OPTION (নাম, ফোন বা ঠিকানা দিয়ে সার্চ)
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   st.write("### 🔍 সেভ করা পার্টি তালিকা ও ডিরেকশন")
   df = pd.read_sql_query("SELECT * FROM locations", conn)
-  search_query = st.text_input("সার্চ করুন (পার্টির নাম)")
+  
+  search_query = st.text_input("সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা)", placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন...")
+  
   if search_query:
-    df = df[df["party_name"].str.contains(search_query, case=False, na=False)]
+    q = search_query.lower()
+    df = df[
+        df["party_name"].str.lower().str.contains(q, na=False) |
+        df["party_phone"].str.lower().str.contains(q, na=False) |
+        df["address"].str.lower().str.contains(q, na=False)
+    ]
   
   if not df.empty:
     for index, row in df.iterrows():
