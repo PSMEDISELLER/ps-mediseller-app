@@ -437,7 +437,8 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     }});
 
     document.addEventListener("click", function(e) {{
-      if (!searchBox.contains(e.target) && !suggestionsList.contains(e.target)) {{
+      path = e.composedPath();
+      if (!path.includes(searchBox) && !path.includes(suggestionsList)) {{
         suggestionsList.style.display = "none";
       }}
     }});
@@ -651,18 +652,74 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
-  task_search_key = st.text_input("সার্চ করুন (পার্টির নাম)", key="live_task_search_box")
-  if task_search_key:
-    filtered_task_parties = [p for p in all_parties if task_search_key.lower() in p.lower()]
-  else:
-    filtered_task_parties = all_parties
+  import json
+  parties_json = json.dumps(all_parties)
+
+  search_html_task = f"""
+  <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
+    <label style="font-weight: 600; font-size: 14px; color: #31333F; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম)</label>
+    <input type="text" id="task_party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 4px; font-size: 16px; background-color: #ffffff; color: #000000; box-sizing: border-box;" autocomplete="off">
+    <div id="task_suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);"></div>
+  </div>
+
+  <script>
+    const allPartiesTask = {parties_json};
+    const searchBoxTask = document.getElementById("task_party_search_box");
+    const suggestionsListTask = document.getElementById("task_suggestions_list");
+
+    searchBoxTask.addEventListener("input", function() {{
+      const query = this.value.toLowerCase().trim();
+      suggestionsListTask.innerHTML = "";
+      if (query === "") {{
+        suggestionsListTask.style.display = "none";
+        return;
+      }}
+      const filtered = allPartiesTask.filter(p => p.toLowerCase().includes(query));
+      if (filtered.length > 0) {{
+        suggestionsListTask.style.display = "block";
+        filtered.forEach(party => {{
+          const item = document.createElement("div");
+          item.innerText = party;
+          item.style.padding = "10px 12px";
+          item.style.cursor = "pointer";
+          item.style.borderBottom = "1px solid #f0f2f6";
+          item.style.color = "#000000";
+          item.onmouseover = function() {{ this.style.backgroundColor = "#f0f2f6"; }};
+          item.onmouseout = function() {{ this.style.backgroundColor = "#ffffff"; }};
+          item.onclick = function() {{
+            searchBoxTask.value = party;
+            suggestionsListTask.style.display = "none";
+            const url = new URL(window.location.href);
+            url.searchParams.set('selected_task_party', party);
+            window.history.replaceState({{}}, '', url);
+          }};
+          suggestionsListTask.appendChild(item);
+        }});
+      }} else {{
+        suggestionsListTask.style.display = "none";
+      }}
+    }});
+
+    document.addEventListener("click", function(e) {{
+      path = e.composedPath();
+      if (!path.includes(searchBoxTask) && !path.includes(suggestionsListTask)) {{
+        suggestionsListTask.style.display = "none";
+      }}
+    }});
+  </script>
+  """
+  st.components.v1.html(search_html_task, height=105)
+
+  q_params = st.query_params
+  js_selected_party = q_params.get("selected_task_party", "")
 
   with st.form("easy_assign_form", clear_on_submit=True):
     col_e1, col_e2 = st.columns(2)
     with col_e1:
       sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
     with col_e2:
-      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", filtered_task_parties if filtered_task_parties else ["-- পার্টি নেই --"])
+      default_idx = all_parties.index(js_selected_party) if js_selected_party in all_parties else 0
+      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", all_parties if all_parties else ["-- পার্টি নেই --"], index=default_idx if all_parties else 0)
 
     st.write("**কাজের ধরণ নির্বাচন করুন:**")
     col_chk1, col_chk2 = st.columns(2)
