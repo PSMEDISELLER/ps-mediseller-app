@@ -971,17 +971,29 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
       with st.expander(f"এজেন্ট: {u_name} ({u_role})"):
         with st.form(f"edit_form_{u_name}"):
           new_name = st.text_input("নাম এডিট করুন", value=u_name, key=f"name_{u_name}")
-          new_pass = st.text_input("নতুন পাসওয়ার্ড দিন", type="password", key=f"pass_{u_name}")
+          
+          # শুধু অ্যাডমিনের জন্য পাসওয়ার্ড পরিবর্তনের ফিল্ড থাকবে, স্টাফদের জন্য থাকবে না
+          if u_role == "admin":
+            new_pass = st.text_input("নতুন পাসওয়ার্ড দিন", type="password", key=f"pass_{u_name}")
+          else:
+            new_pass = None
+
           update_btn = st.form_submit_button("পরিবর্তন সেভ করুন")
           
           if update_btn:
-            if new_pass.strip():
-              c.execute("UPDATE users SET username=?, password=? WHERE username=?", (new_name, new_pass, u_name))
+            if u_role == "admin":
+              if new_pass.strip():
+                c.execute("UPDATE users SET username=?, password=? WHERE username=?", (new_name, new_pass, u_name))
+                conn.commit()
+                st.success("সফলভাবে আপডেট হয়েছে!")
+                st.rerun()
+              else:
+                st.warning("পাসওয়ার্ড খালি রাখা যাবে না।")
+            else:
+              c.execute("UPDATE users SET username=? WHERE username=?", (new_name, u_name))
               conn.commit()
               st.success("সফলভাবে আপডেট হয়েছে!")
               st.rerun()
-            else:
-              st.warning("পাসওয়ার্ড খালি রাখা যাবে না।")
 
     st.write("---")
     st.write("### ➕ নতুন এজেন্ট যোগ করুন")
