@@ -1075,13 +1075,17 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
       <script>
         let currentUrl = "";
         try {{
-          currentUrl = window.location.href.split('?')[0];
-        }} catch(e) {{
           currentUrl = window.parent.location.href.split('?')[0];
+        }} catch(e) {{
+          try {{
+            currentUrl = document.referrer.split('?')[0];
+          }} catch(e2) {{
+            currentUrl = window.location.origin + window.location.pathname;
+          }}
         }}
         
-        if (!currentUrl || currentUrl.includes('srcdoc')) {{
-          currentUrl = window.location.origin + window.location.pathname;
+        if (!currentUrl || currentUrl.includes('srcdoc') || currentUrl.startsWith('about:') || currentUrl.includes('null')) {{
+          currentUrl = document.referrer ? document.referrer.split('?')[0] : (window.location.origin + window.location.pathname);
         }}
 
         const link = currentUrl + "?login={created_u}";
