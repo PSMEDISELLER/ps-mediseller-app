@@ -276,6 +276,7 @@ if login_user:
 col_logo, col_title, col_auth = st.columns([1, 4, 1.8])
 
 with col_logo:
+  # আপনার আপলোড করা সঠিক ইমেজ ফাইলের নাম দিয়ে লোগো রেন্ডার করা হচ্ছে
   logo_loaded = False
   for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
     try:
