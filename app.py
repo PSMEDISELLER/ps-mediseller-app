@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import urllib.parse
 import folium
@@ -18,6 +18,13 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+# =========================================================
+# IST TIME HELPER (সঠিক ভারতীয় সময় ও তারিখ পাওয়ার জন্য)
+# =========================================================
+def get_ist_time():
+    ist_offset = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist_offset)
 
 # =========================================================
 # ADVANCED CUSTOM STYLING (MODERN & COLORFUL UI)
@@ -219,20 +226,20 @@ conn.commit()
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-            ("admin", "admin123", "admin", "Admin", "910000000000", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+            ("admin", "admin123", "admin", "Admin", "910000000000", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-            ("delivery", "user123", "staff", "Delivery Agent", "910000000000", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+            ("delivery", "user123", "staff", "Delivery Agent", "910000000000", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
   conn.commit()
 
 # =========================================================
 # AUTO DELETE SYSTEM (২৪ ঘণ্টা পর পেন্ডিং ও কমপ্লিট কাজ ও অর্ডার মুছা)
 # =========================================================
-current_dt_str = datetime.now()
+current_dt_str = get_ist_time()
 
 c.execute("SELECT id, order_date, status FROM orders")
 for row_ord in c.fetchall():
   try:
-    o_time = datetime.strptime(row_ord[1], "%Y-%m-%d %H:%M:%S")
+    o_time = datetime.strptime(row_ord[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
     if (current_dt_str - o_time) > timedelta(hours=24):
       c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
   except:
@@ -241,7 +248,7 @@ for row_ord in c.fetchall():
 c.execute("SELECT id, created_at, status FROM task_assignments")
 for row_task in c.fetchall():
   try:
-    t_time = datetime.strptime(row_task[1], "%Y-%m-%d %H:%M:%S")
+    t_time = datetime.strptime(row_task[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
     if (current_dt_str - t_time) > timedelta(hours=24):
       c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
   except:
@@ -337,12 +344,12 @@ if loc and "coords" in loc:
   gps_lon = loc["coords"]["longitude"]
   c.execute(
       "UPDATE agent_live_locations SET lat=?, lon=?, last_updated=? WHERE username=?",
-      (gps_lat, gps_lon, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), st.session_state["username"]),
+      (gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), st.session_state["username"]),
   )
   if c.rowcount == 0:
     c.execute(
         "INSERT INTO agent_live_locations (username, lat, lon, last_updated) VALUES (?, ?, ?, ?)",
-        (st.session_state["username"], gps_lat, gps_lon, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        (st.session_state["username"], gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S")),
     )
   conn.commit()
 
@@ -968,7 +975,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
           t_type_str = " ও ".join(selected_tasks)
           c.execute(
               "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-              (sel_ag, sel_pt, t_type_str, d_amount, "Pending", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+              (sel_ag, sel_pt, t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")),
           )
           conn.commit()
           st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
@@ -1071,12 +1078,12 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
   att_tab1, att_tab2 = st.tabs(["📝 আজকের উপস্থিতি দিন", "📊 মাসিক উপস্থিতি ও টোটাল সামারি"])
 
   with att_tab1:
-    # এখানে তারিখ DD-MM-YYYY ফরম্যাটে এবং প্রতিদিন অটোমেটিক আপডেট হবে
-    display_today_str = datetime.now().strftime('%d-%m-%Y')
+    # সঠিক ভারতীয় টাইম জোন অনুযায়ী আজকের তারিখ DD-MM-YYYY ফরম্যাটে
+    display_today_str = get_ist_time().strftime('%d-%m-%Y')
     st.write(f"#### আজকের তারিখ: `{display_today_str}`")
     
     current_user = st.session_state["username"]
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = get_ist_time().strftime("%Y-%m-%d")
     
     c.execute("SELECT check_time FROM attendance WHERE username=? AND date=?", (current_user, today_str))
     already_checked = c.fetchone()
@@ -1085,7 +1092,7 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
       st.success(f"✅ আপনার আজকের উপস্থিতি গ্রহণ করা হয়েছে। (সময়: `{already_checked[0]}`)")
     else:
       if st.button("🙋‍♂️ আমার আজকের উপস্থিতি দিন (Present)", type="primary"):
-        check_time_str = datetime.now().strftime("%H:%M:%S")
+        check_time_str = get_ist_time().strftime("%H:%M:%S")
         try:
           c.execute("INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
                     (current_user, today_str, check_time_str, "Present"))
@@ -1106,7 +1113,7 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
   with att_tab2:
     st.write("#### 📊 মাসিক উপস্থিতি রিপোর্ট ও টোটাল সামারি")
     
-    current_month_str = datetime.now().strftime("%Y-%m")
+    current_month_str = get_ist_time().strftime("%Y-%m")
     current_user = st.session_state["username"]
     user_role = st.session_state["user_role"]
 
@@ -1258,7 +1265,7 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
         if n_fullname and n_user:
           try:
             c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                      (n_user, "direct_login", n_role, n_fullname, "", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+                      (n_user, "direct_login", n_role, n_fullname, "", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
             conn.commit()
             st.session_state["last_created_agent_user"] = n_user
             st.session_state["last_created_agent_name"] = n_fullname
