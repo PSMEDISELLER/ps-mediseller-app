@@ -263,7 +263,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
     if submitted_loc:
       if p_name.strip() and p_phone.strip():
-        # চেক করা হচ্ছে একই নাম বা ফোন নম্বর ইতিমধ্যে আছে কি না
         c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (p_name.strip(), p_phone.strip()))
         existing_check = c.fetchone()
         
@@ -298,7 +297,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
     if submitted_doc:
       if doc_name.strip() and doc_phone.strip():
-        # চেক করা হচ্ছে একই নাম বা ফোন নম্বর ইতিমধ্যে আছে কি না
         c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (doc_name.strip(), doc_phone.strip()))
         existing_check_doc = c.fetchone()
 
@@ -561,12 +559,93 @@ elif selected_menu == "🔍 সার্চ":
     st.markdown("---")
     st.stop()
 
+  # ডাটাবেস থেকে সব পার্টি ফেচ করা
+  c.execute("SELECT party_name, address, party_phone FROM locations")
+  all_records = c.fetchall()
+  
+  # সার্চ সাজেশনের জন্য সমস্ত ফিল্ড (নাম, ফোন, ঠিকানা) একটি লিস্টে তৈরি করা
+  search_items = []
+  for r in all_records:
+    if r[0]: search_items.append(r[0])
+    if r[2]: search_items.append(r[2])
+    if r[1]: search_items.append(r[1])
+  
+  # ডুপ্লিকেট রিমুভ করে ইউনিক লিস্ট তৈরি
+  unique_search_items = sorted(list(set(search_items)))
+
+  import json
+  search_items_json = json.dumps(unique_search_items)
+
+  # ইউরোল অনুযায়ী কোয়েরি প্যারামিটার হ্যান্ডলিং
+  q_params = st.query_params
+  js_search_val = q_params.get("search_keyword", "")
+
+  search_bar_html = f"""
+  <div style="position: relative; width: 100%; margin-bottom: 20px; box-sizing: border-box;">
+    <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা দিয়ে)</label>
+    <input type="text" id="master_search_box" value="{js_search_val}" placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #1e1e1e; color: #ffffff; box-sizing: border-box;" autocomplete="off">
+    <div id="master_suggestions_list" style="position: absolute; width: 100%; max-height: 220px; overflow-y: auto; background: #262730; border: 1px solid #444444; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
+  </div>
+
+  <script>
+    const allSearchItems = {search_items_json};
+    const mSearchBox = document.getElementById("master_search_box");
+    const mSuggestionsList = document.getElementById("master_suggestions_list");
+
+    function triggerSearch(val) {{
+      const url = new URL(window.location.href);
+      url.searchParams.set('search_keyword', val);
+      window.history.replaceState({{}}, '', url);
+      window.location.reload();
+    }}
+
+    mSearchBox.addEventListener("input", function() {{
+      const query = this.value.toLowerCase().trim();
+      mSuggestionsList.innerHTML = "";
+      if (query === "") {{
+        mSuggestionsList.style.display = "none";
+        triggerSearch("");
+        return;
+      }}
+      const filtered = allSearchItems.filter(item => item.toLowerCase().includes(query));
+      if (filtered.length > 0) {{
+        mSuggestionsList.style.display = "block";
+        filtered.forEach(itemText => {{
+          const div = document.createElement("div");
+          div.innerText = itemText;
+          div.style.padding = "10px 12px";
+          div.style.cursor = "pointer";
+          div.style.borderBottom = "1px solid #333333";
+          div.style.color = "#ffffff";
+          div.onmouseover = function() {{ this.style.backgroundColor = "#333333"; }};
+          div.onmouseout = function() {{ this.style.backgroundColor = "#262730"; }};
+          div.onclick = function() {{
+            mSearchBox.value = itemText;
+            mSuggestionsList.style.display = "none";
+            triggerSearch(itemText);
+          }};
+          mSuggestionsList.appendChild(div);
+        }});
+      }} else {{
+        mSuggestionsList.style.display = "none";
+      }}
+      triggerSearch(this.value);
+    }});
+
+    document.addEventListener("click", function(e) {{
+      let path = e.composedPath();
+      if (!path.includes(mSearchBox) && !path.includes(mSuggestionsList)) {{
+        mSuggestionsList.style.display = "none";
+      }}
+    }});
+  </script>
+  """
+  st.components.v1.html(search_bar_html, height=115)
+
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   
-  search_query = st.text_input("সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা)", placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন...")
-  
-  if search_query:
-    q = search_query.lower()
+  if js_search_val:
+    q = js_search_val.lower()
     df = df[
         df["party_name"].str.lower().str.contains(q, na=False) |
         df["party_phone"].str.lower().str.contains(q, na=False) |
@@ -576,7 +655,7 @@ elif selected_menu == "🔍 সার্চ":
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
-  with st.expander(f"👨‍⚕️ ম্যাপবিহীন ডক্টর ও পার্টি তালিকা ({len(doc_df)} টি বাকি)", expanded=True):
+  with st.expander(f"👨‍⚕️ ম্যাপবিহীন ডক্টর ও পার্টি তালিকা ({len(doc_df)} টি)", expanded=True):
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
         cols = st.columns([3, 2, 2, 2, 1.5])
@@ -599,7 +678,7 @@ elif selected_menu == "🔍 সার্চ":
             st.rerun()
         st.write("---")
     else:
-      st.info("সব ডক্টর ও পার্টির ম্যাপ সফলভাবে যুক্ত করা হয়েছে!")
+      st.info("কোনো ম্যাপবিহীন ডক্টর বা পার্টি পাওয়া যায়নি।")
 
   st.write("---")
   st.write("#### 📍 ম্যাপে যুক্ত পার্টি ও ডক্টর তালিকা")
