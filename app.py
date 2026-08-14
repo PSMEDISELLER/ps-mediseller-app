@@ -83,6 +83,16 @@ CREATE TABLE IF NOT EXISTS task_assignments (
     created_at TEXT NOT NULL
 )
 """)
+c.execute("""
+CREATE TABLE IF NOT EXISTS attendance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    date TEXT NOT NULL,
+    check_time TEXT NOT NULL,
+    status TEXT DEFAULT 'Present',
+    UNIQUE(username, date)
+)
+""")
 
 # কলাম চেক ও আপডেট
 c.execute("PRAGMA table_info(locations)")
@@ -250,6 +260,7 @@ menu_options = [
     "📦 পেন্ডিং অর্ডার",
     "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান",
     "🗺️ হোম-টু-হোম রুট ও ম্যাপ",
+    "📅 উপস্থিতি (Attendance)",
 ]
 if st.session_state["user_role"] == "admin":
   menu_options.extend(["📊 লাইভ ট্র্যাকিং", "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট"])
@@ -957,7 +968,90 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
     st.info("রুট দেখানোর জন্য ম্যাপে কোনো লোকেশন সেভ করা নেই।")
 
 # =========================================================
-# 6. ADMIN LIVE TRACKING
+# 6. ATTENDANCE SYSTEM (ডেইলি ও মাসিক অ্যাটেনডেন্স)
+# =========================================================
+elif selected_menu == "📅 উপস্থিতি (Attendance)":
+  st.write("### 📅 স্টাফ ও এজেন্ট উপস্থিতি (Daily & Monthly Attendance)")
+
+  att_tab1, att_tab2 = st.tabs(["📝 আজকের উপস্থিতি দিন", "📊 মাসিক উপস্থিতি ও টোটাল সামারি"])
+
+  with att_tab1:
+    st.write(f"#### আজকের তারিখ: `{datetime.now().strftime('%Y-%m-%d')}`")
+    
+    current_user = st.session_state["username"]
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    c.execute("SELECT check_time FROM attendance WHERE username=? AND date=?", (current_user, today_str))
+    already_checked = c.fetchone()
+
+    if already_checked:
+      st.success(f"✅ আপনার আজকের উপস্থিতি গ্রহণ করা হয়েছে। (সময়: `{already_checked[0]}`)")
+    else:
+      if st.button("🙋‍♂️ আমার আজকের উপস্থিতি দিন (Present)", type="primary"):
+        check_time_str = datetime.now().strftime("%H:%M:%S")
+        try:
+          c.execute("INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
+                    (current_user, today_str, check_time_str, "Present"))
+          conn.commit()
+          st.success("উপস্থিতি সফলভাবে রেকর্ড করা হয়েছে!")
+          st.rerun()
+        except sqlite3.IntegrityError:
+          st.error("ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে।")
+
+    st.write("---")
+    st.write("#### আজকের উপস্থিতির তালিকা (সকলের জন্য)")
+    today_att_df = pd.read_sql_query("SELECT username, check_time, status FROM attendance WHERE date=?", conn, params=(today_str,))
+    if not today_att_df.empty:
+      st.dataframe(today_att_df, use_container_width=True)
+    else:
+      st.info("আজ এখনো কেউ উপস্থিতি দেয়নি।")
+
+  with att_tab2:
+    st.write("#### 📊 মাসিক উপস্থিতি রিপোর্ট ও টোটাল সামারি")
+    
+    current_month_str = datetime.now().strftime("%Y-%m")
+    st.write(f"বর্তমান মাস: **{current_month_str}** (মাস শেষের ৩০/৩১ তারিখে টোটাল স্বয়ংক্রিয়ভাবে হিসাব হচ্ছে)")
+
+    # Monthly Summary Query
+    summary_df = pd.read_sql_query("""
+        SELECT username, COUNT(*) as total_present 
+        FROM attendance 
+        WHERE strftime('%Y-%m', date) = ? 
+        GROUP BY username
+    """, conn, params=(current_month_str,))
+
+    if not summary_df.empty:
+      st.dataframe(summary_df, use_container_width=True)
+    else:
+      st.info("এই মাসের কোনো উপস্থিতি রেকর্ড পাওয়া যায়নি।")
+
+    # Detailed history and admin edit controls
+    st.write("---")
+    st.write("#### 📋 বিস্তারিত রেকর্ড ও অ্যাডমিন এডিট প্যানেল")
+    
+    all_att_df = pd.read_sql_query("SELECT * FROM attendance ORDER BY date DESC, check_time DESC", conn)
+    
+    if not all_att_df.empty:
+      for idx, row in all_att_df.iterrows():
+        cols = st.columns([2, 2, 2, 1.5, 1.5])
+        cols[0].write(f"ইউজার: **{row['username']}**")
+        cols[1].write(f"তারিখ: {row['date']}")
+        cols[2].write(f"সময়: {row['check_time']}")
+        cols[3].write(f"স্ট্যাটাস: {row['status']}")
+
+        if st.session_state["user_role"] == "admin":
+          if cols[4].button("🗑️ ডিলিট", key=f"del_att_{row['id']}"):
+            c.execute("DELETE FROM attendance WHERE id=?", (row['id'],))
+            conn.commit()
+            st.success("উপস্থিতি রেকর্ড মুছে ফেলা হয়েছে!")
+            st.rerun()
+        else:
+          cols[4].write("🔒 লকড")
+    else:
+      st.info("কোনো উপস্থিতির রেকর্ড নেই।")
+
+# =========================================================
+# 7. ADMIN LIVE TRACKING
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
@@ -989,7 +1083,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
       st.info("কোনো ইউজার পাওয়া যায়নি।")
 
 # =========================================================
-# 7. সেটিংস ও এজেন্ট ম্যানেজমেন্ট
+# 8. সেটিংস ও এজেন্ট ম্যানেজমেন্ট
 # =========================================================
 elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
   if st.session_state["user_role"] != "admin":
