@@ -176,7 +176,7 @@ if not st.session_state.get("logged_in", False):
   st.stop()
 
 # =========================================================
-# MAIN APP HEADER & FLOATING HOME BUTTON
+# MAIN APP HEADER & FLOATING SCROLL-TO-TOP BUTTON (TRANSPARENT & LEFT)
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
@@ -191,38 +191,41 @@ with col_u2:
     streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
     st.rerun()
 
-home_url_encoded = urllib.parse.quote("📍 নতুন লোকেশন এড")
-floating_home_badge = f"""
+floating_top_badge = """
 <style>
-  .floating-home-btn {{
+  .floating-top-btn {
     position: fixed;
-    right: 25px;
+    left: 20px;
     bottom: 90px;
     z-index: 999999;
-    background-color: #1a73e8;
+    background-color: rgba(26, 115, 232, 0.65);
     color: white;
-    width: 60px;
-    height: 60px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4);
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
     text-decoration: none;
-    font-size: 28px;
-    transition: transform 0.2s ease, background-color 0.2s ease;
-  }}
-  .floating-home-btn:hover {{
+    font-size: 26px;
+    cursor: pointer;
+    border: none;
+    opacity: 0.75;
+    transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
+  }
+  .floating-top-btn:hover {
     transform: scale(1.12);
-    background-color: #1557b0;
+    opacity: 1;
+    background-color: rgba(21, 87, 176, 0.95);
     color: white;
-  }}
+  }
 </style>
-<a href="?page={home_url_encoded}" target="_self" class="floating-home-btn" title="হোমে চলুন">
-  🏠
-</a>
+<button class="floating-top-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="উপরে চলুন">
+  ⬆️
+</button>
 """
-st.markdown(floating_home_badge, unsafe_allow_html=True)
+st.markdown(floating_top_badge, unsafe_allow_html=True)
 
 st.write("---")
 
@@ -503,7 +506,6 @@ elif selected_menu == "🔍 সার্চ":
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
-  # সার্চ বারের ভেতরেই আলাদা ও ডেডিকেটেড সেকশন: ম্যাপবিহীন ডক্টর ও পার্টি তালিকা (বড় লেখা বাদ দেওয়া হয়েছে)
   with st.expander(f"👨‍⚕️ ম্যাপবিহীন ডক্টর ও পার্টি তালিকা ({len(doc_df)} টি বাকি)", expanded=True):
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
