@@ -1073,9 +1073,19 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
         <span id="copy_status" style="color: #25D366; margin-left: 10px; font-weight: bold; display: none;">✓ কপি হয়েছে!</span>
       </div>
       <script>
-        const parentUrl = window.parent.location.href.split('?')[0];
-        const link = parentUrl + "?login={created_u}";
-        const fullText = "{direct_msg}" + link;
+        let currentUrl = "";
+        try {{
+          currentUrl = window.location.href.split('?')[0];
+        }} catch(e) {{
+          currentUrl = window.parent.location.href.split('?')[0];
+        }}
+        
+        if (!currentUrl || currentUrl.includes('srcdoc')) {{
+          currentUrl = window.location.origin + window.location.pathname;
+        }}
+
+        const link = currentUrl + "?login={created_u}";
+        const fullText = `{direct_msg}` + link;
         document.getElementById("generated_link").value = fullText;
 
         function copyLink() {{
