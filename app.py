@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import urllib.parse
 import folium
 from folium.plugins import MousePosition
 import pandas as pd
@@ -175,24 +176,54 @@ if not st.session_state.get("logged_in", False):
   st.stop()
 
 # =========================================================
-# MAIN APP HEADER & LOGOUT
+# MAIN APP HEADER & FLOATING HOME BUTTON
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
-col_u1, col_u2, col_u3 = st.columns([2, 1, 1])
+col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
   st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
 with col_u2:
-  if st.button("🏠 হোমে চলুন"):
-    st.query_params["page"] = "📍 নতুন লোকেশন এড"
-    st.rerun()
-with col_u3:
   if st.button("🚪 লগআউট"):
     st.session_state["logged_in"] = False
     st.session_state["username"] = None
     st.session_state["user_role"] = None
     streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
     st.rerun()
+
+home_url_encoded = urllib.parse.quote("📍 নতুন লোকেশন এড")
+floating_home_badge = f"""
+<style>
+  .floating-home-btn {{
+    position: fixed;
+    right: 25px;
+    bottom: 90px;
+    z-index: 999999;
+    background-color: #1a73e8;
+    color: white;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4);
+    text-decoration: none;
+    font-size: 28px;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+  }}
+  .floating-home-btn:hover {{
+    transform: scale(1.12);
+    background-color: #1557b0;
+    color: white;
+  }}
+</style>
+<a href="?page={home_url_encoded}" target="_self" class="floating-home-btn" title="হোমে চলুন">
+  🏠
+</a>
+"""
+st.markdown(floating_home_badge, unsafe_allow_html=True)
+
 st.write("---")
 
 # =========================================================
@@ -274,7 +305,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
           st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
           st.rerun()
         except sqlite3.IntegrityError:
-          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে! একই পার্টি দুবার এন্ট্রি করা যাবে না።")
+          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে! একই পার্টি দুবার এন্ট্রি করা যাবে না।")
       else:
         st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
@@ -472,10 +503,8 @@ elif selected_menu == "🔍 সার্চ":
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
-  # সার্চ বারের ভেতরেই আলাদা ও ডেডিকেটেড সেকশন: ম্যাপবিহীন ডক্টর ও পার্টি তালিকা
+  # সার্চ বারের ভেতরেই আলাদা ও ডেডিকেটেড সেকশন: ম্যাপবিহীন ডক্টর ও পার্টি তালিকা (বড় লেখা বাদ দেওয়া হয়েছে)
   with st.expander(f"👨‍⚕️ ম্যাপবিহীন ডক্টর ও পার্টি তালিকা ({len(doc_df)} টি বাকি)", expanded=True):
-    st.write("যেসকল ডক্টর বা পার্টির ম্যাপ সেট করা নেই, তাদের তালিকা নিচে দেওয়া হলো। নামের পাশের **'📍 ম্যাপ যুক্ত করুন'** বাটনে ক্লিক করলেই বর্তমান লোকেশন অনুযায়ী তারা ম্যাপে যুক্ত হয়ে এখান থেকে সরে যাবে।")
-    
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
         cols = st.columns([3, 2, 2, 2, 1.5])
