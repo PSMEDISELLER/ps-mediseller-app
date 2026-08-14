@@ -348,7 +348,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  # টেক্সট ইনপুট সার্চ বক্স (টাইপ করলেই ড্রপডাউনে ফিল্টার হবে)
+  # এখানে ফর্ম ছাড়া সরাসরি টেক্সট ইনপুট ও ড্রপডাউন দেওয়া হয়েছে যাতে টাইপ করলেই নিচের লিস্টে নাম ভেসে ওঠে
   ord_party_search = st.text_input("পার্টি সার্চ করুন (নামের অক্ষর লিখুন)", key="order_party_search_input")
   
   if ord_party_search:
@@ -356,21 +356,19 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   else:
     matched_parties = all_parties_db
 
-  with st.form("order_form", clear_on_submit=True):
-    ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + matched_parties)
-    ord_details = st.text_area("অর্ডারের বিবরণ")
-    submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
-    
-    if submitted_ord:
-      if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
-        c.execute(
-            "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
-            (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
-        )
-        conn.commit()
-        st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
-      else:
-        st.error("সঠিক পার্টি এবং বিবরণ দিন।")
+  ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + matched_parties, key="order_party_selectbox")
+  ord_details = st.text_area("অর্ডারের বিবরণ", key="order_details_textarea")
+  
+  if st.button("🛒 অর্ডার জমা দিন", type="primary", key="submit_order_btn"):
+    if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
+      c.execute(
+          "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
+          (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
+      )
+      conn.commit()
+      st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
+    else:
+      st.error("সঠিক পার্টি এবং বিবরণ দিন।")
 
 # =========================================================
 # 2. SEARCH PARTY & ADMIN DELETE OPTION
