@@ -1333,7 +1333,9 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
         st.rerun()
 
     st.write("---")
-    st.write("### 💾 ডাটাবেস ব্যাকআপ")
+    st.write("### 💾 ডাটাবেস ব্যাকআপ ও রিস্টোর")
+    
+    # ডাউনলোড অপশন
     if os.path.exists("mediseller_delivery.db"):
         with open("mediseller_delivery.db", "rb") as f:
             st.download_button(
@@ -1345,3 +1347,14 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
             )
     else:
         st.warning("কোনো ডাটাবেস ফাইল পাওয়া যায়নি।")
+
+    st.write("---")
+    st.write("### 📤 ডেটাবেস রিস্টোর / আপলোড করুন")
+    uploaded_db = st.file_uploader("আপনার ব্যাকআপ করা .db ফাইলটি এখানে আপলোড করুন", type=["db"])
+
+    if uploaded_db is not None:
+        if st.button("⚠️ নিশ্চিত করুন এবং ডেটাবেস রিস্টোর করুন", type="primary"):
+            with open("mediseller_delivery.db", "wb") as f:
+                f.write(uploaded_db.getbuffer())
+            st.success("ডেটাবেস সফলভাবে রিস্টোর করা হয়েছে! দয়া করে পেজটি রিফ্রেশ করুন।")
+            st.rerun()
