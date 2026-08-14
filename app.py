@@ -198,7 +198,7 @@ floating_top_badge = """
     left: 20px;
     bottom: 90px;
     z-index: 999999;
-    background-color: rgba(26, 115, 232, 0.65);
+    background-color: rgba(26, 115, 232, 0.25);
     color: white;
     width: 55px;
     height: 55px;
@@ -206,22 +206,29 @@ floating_top_badge = """
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
     text-decoration: none;
-    font-size: 26px;
+    font-size: 24px;
     cursor: pointer;
-    border: none;
-    opacity: 0.75;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    opacity: 0.45;
     transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
   }
   .floating-top-btn:hover {
-    transform: scale(1.12);
-    opacity: 1;
-    background-color: rgba(21, 87, 176, 0.95);
+    transform: scale(1.1);
+    opacity: 0.9;
+    background-color: rgba(26, 115, 232, 0.7);
     color: white;
   }
 </style>
-<button class="floating-top-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="উপরে চলুন">
+<button class="floating-top-btn" onclick="
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  try { window.parent.scrollTo({top: 0, behavior: 'smooth'}); } catch(e) {}
+  const appContainer = window.parent.document.querySelector('[data-testid=\\'stAppViewContainer\\']') || document.querySelector('[data-testid=\\'stAppViewContainer\\']');
+  if (appContainer) { appContainer.scrollTo({top: 0, behavior: 'smooth'}); }
+  const mainDiv = window.parent.document.querySelector('.main') || document.querySelector('.main');
+  if (mainDiv) { mainDiv.scrollTo({top: 0, behavior: 'smooth'}); }
+" title="উপরে চলুন">
   ⬆️
 </button>
 """
