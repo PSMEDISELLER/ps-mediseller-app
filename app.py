@@ -396,9 +396,9 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
   search_html = f"""
   <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
-    <label style="font-weight: 600; font-size: 14px; color: #31333F; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
-    <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 4px; font-size: 16px; background-color: #ffffff; color: #000000; box-sizing: border-box;" autocomplete="off">
-    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);"></div>
+    <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
+    <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #1e1e1e; color: #ffffff; box-sizing: border-box;" autocomplete="off">
+    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #262730; border: 1px solid #444444; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
   </div>
 
   <script>
@@ -421,10 +421,10 @@ if selected_menu == "📍 নতুন লোকেশন এড":
           item.innerText = party;
           item.style.padding = "10px 12px";
           item.style.cursor = "pointer";
-          item.style.borderBottom = "1px solid #f0f2f6";
-          item.style.color = "#000000";
-          item.onmouseover = function() {{ this.style.backgroundColor = "#f0f2f6"; }};
-          item.onmouseout = function() {{ this.style.backgroundColor = "#ffffff"; }};
+          item.style.borderBottom = "1px solid #333333";
+          item.style.color = "#ffffff";
+          item.onmouseover = function() {{ this.style.backgroundColor = "#333333"; }};
+          item.onmouseout = function() {{ this.style.backgroundColor = "#262730"; }};
           item.onclick = function() {{
             searchBox.value = party;
             suggestionsList.style.display = "none";
@@ -437,14 +437,14 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     }});
 
     document.addEventListener("click", function(e) {{
-      path = e.composedPath();
+      let path = e.composedPath();
       if (!path.includes(searchBox) && !path.includes(suggestionsList)) {{
         suggestionsList.style.display = "none";
       }}
     }});
   </script>
   """
-  st.components.v1.html(search_html, height=105)
+  st.components.v1.html(search_html, height=115)
 
   ord_details = st.text_area("অর্ডারের বিবরণ")
   
@@ -457,7 +457,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 elif selected_menu == "🔍 সার্চ":
   st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
 
-  # --- DEDICATED MAP PICKER MODAL/VIEW FOR UNMAPPED PARTIES ---
   if st.session_state.get("mapping_party_id"):
     st.markdown(f"### 📍 **{st.session_state['mapping_party_name']}** এর জন্য ম্যাপ সেট করুন")
     st.write("ম্যাপে সঠিক জায়গায় ক্লিক করে লোকেশন সিলেক্ট করুন এবং নিচের **'✅ লোকেশন সেভ করুন (OK)'** বাটনে ক্লিক করুন।")
@@ -640,7 +639,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN
+# 4. DUE CLEAR & DELIVERY PLAN (UPDATED WITH DIRECT SEARCH SELECTION)
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
@@ -655,11 +654,14 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   import json
   parties_json = json.dumps(all_parties)
 
+  q_params = st.query_params
+  js_selected_party = q_params.get("selected_task_party", "")
+
   search_html_task = f"""
   <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
-    <label style="font-weight: 600; font-size: 14px; color: #31333F; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম)</label>
-    <input type="text" id="task_party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 4px; font-size: 16px; background-color: #ffffff; color: #000000; box-sizing: border-box;" autocomplete="off">
-    <div id="task_suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);"></div>
+    <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম)</label>
+    <input type="text" id="task_party_search_box" value="{js_selected_party}" placeholder="পার্টির নাম লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #1e1e1e; color: #ffffff; box-sizing: border-box;" autocomplete="off">
+    <div id="task_suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #262730; border: 1px solid #444444; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
   </div>
 
   <script>
@@ -682,16 +684,17 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
           item.innerText = party;
           item.style.padding = "10px 12px";
           item.style.cursor = "pointer";
-          item.style.borderBottom = "1px solid #f0f2f6";
-          item.style.color = "#000000";
-          item.onmouseover = function() {{ this.style.backgroundColor = "#f0f2f6"; }};
-          item.onmouseout = function() {{ this.style.backgroundColor = "#ffffff"; }};
+          item.style.borderBottom = "1px solid #333333";
+          item.style.color = "#ffffff";
+          item.onmouseover = function() {{ this.style.backgroundColor = "#333333"; }};
+          item.onmouseout = function() {{ this.style.backgroundColor = "#262730"; }};
           item.onclick = function() {{
             searchBoxTask.value = party;
             suggestionsListTask.style.display = "none";
             const url = new URL(window.location.href);
             url.searchParams.set('selected_task_party', party);
             window.history.replaceState({{}}, '', url);
+            window.location.reload();
           }};
           suggestionsListTask.appendChild(item);
         }});
@@ -701,25 +704,24 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
     }});
 
     document.addEventListener("click", function(e) {{
-      path = e.composedPath();
+      let path = e.composedPath();
       if (!path.includes(searchBoxTask) && !path.includes(suggestionsListTask)) {{
         suggestionsListTask.style.display = "none";
       }}
     }});
   </script>
   """
-  st.components.v1.html(search_html_task, height=105)
+  st.components.v1.html(search_html_task, height=115)
 
-  q_params = st.query_params
-  js_selected_party = q_params.get("selected_task_party", "")
+  sel_pt = js_selected_party
+
+  if sel_pt:
+    st.success(f"✅ নির্বাচিত পার্টি: **{sel_pt}**")
+  else:
+    st.warning("⚠️ দয়া করে উপরের সার্চ বক্সে পার্টির নাম লিখে সিলেক্ট করুন।")
 
   with st.form("easy_assign_form", clear_on_submit=True):
-    col_e1, col_e2 = st.columns(2)
-    with col_e1:
-      sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
-    with col_e2:
-      default_idx = all_parties.index(js_selected_party) if js_selected_party in all_parties else 0
-      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", all_parties if all_parties else ["-- পার্টি নেই --"], index=default_idx if all_parties else 0)
+    sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
 
     st.write("**কাজের ধরণ নির্বাচন করুন:**")
     col_chk1, col_chk2 = st.columns(2)
@@ -732,24 +734,28 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 
     submit_easy_task = st.form_submit_button("🎯 কাজ যোগ করুন", type="primary")
 
-    if submit_easy_task and sel_pt != "-- পার্টি নেই --":
-      selected_tasks = []
-      if chk_delivery:
-        selected_tasks.append("ডেলিভারি")
-      if chk_due:
-        selected_tasks.append("ডিউ কালেকশন")
-
-      if selected_tasks:
-        t_type_str = " ও ".join(selected_tasks)
-        c.execute(
-            "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (sel_ag, sel_pt, t_type_str, d_amount, "Pending", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-        )
-        conn.commit()
-        st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
-        st.rerun()
+    if submit_easy_task:
+      if not sel_pt or sel_pt not in all_parties:
+        st.error("দয়া করে প্রথমে ওপরের সার্চ বক্স থেকে সঠিক একটি পার্টি সিলেক্ট করুন।")
       else:
-        st.warning("অন্তত একটি কাজের ধরণ (ডেলিভারি বা ডিউ কালেকশন) সিলেক্ট করুন।")
+        selected_tasks = []
+        if chk_delivery:
+          selected_tasks.append("ডেলিভারি")
+        if chk_due:
+          selected_tasks.append("ডিউ কালেকশন")
+
+        if selected_tasks:
+          t_type_str = " ও ".join(selected_tasks)
+          c.execute(
+              "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+              (sel_ag, sel_pt, t_type_str, d_amount, "Pending", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+          )
+          conn.commit()
+          st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
+          st.query_params.pop("selected_task_party", None)
+          st.rerun()
+        else:
+          st.warning("অন্তত একটি কাজের ধরণ (ডেলিভারি বা ডিউ কালেকশন) সিলেক্ট করুন।")
 
   st.write("---")
   st.write("### 📋 বর্তমান কাজের তালিকা")
