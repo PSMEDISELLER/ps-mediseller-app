@@ -266,7 +266,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   with col_m2:
     st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
 
-  # ম্যাপ কনফিগারেশন (ডিফল্ট স্ট্রিট ভিউ আগে রাখা হয়েছে যাতে এটিই সিলেক্টেড থাকে)
+  # ম্যাপ কনফিগারেশন
   advanced_map = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
       zoom_start=17,
@@ -332,7 +332,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.session_state["selected_lon"] = clicked_lon
       st.rerun()
 
-  # লোকেশন সেভ করার প্রসেস ফর্ম সাবমিটের পর হ্যান্ডেল করা
   if submitted_loc:
     p_n = st.session_state.get("input_p_name", "")
     p_a = st.session_state.get("input_p_addr", "")
