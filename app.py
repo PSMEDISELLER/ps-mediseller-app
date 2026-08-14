@@ -176,7 +176,7 @@ if not st.session_state.get("logged_in", False):
   st.stop()
 
 # =========================================================
-# MAIN APP HEADER & ROBUST FLOATING SCROLL-TO-TOP BUTTON
+# MAIN APP HEADER & ULTRA-STRONG PARENT-FRAME SCROLL BUTTON
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
@@ -197,28 +197,28 @@ floating_top_badge = """
     position: fixed;
     left: 20px;
     bottom: 90px;
-    z-index: 999999;
-    background-color: rgba(26, 115, 232, 0.2);
+    z-index: 9999999;
+    background-color: rgba(26, 115, 232, 0.4);
     color: white;
-    width: 50px;
-    height: 50px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4);
     text-decoration: none;
-    font-size: 22px;
+    font-size: 24px;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    opacity: 0.35;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    opacity: 0.6;
+    pointer-events: auto !important;
     transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
   }
   #floatingTopBtn:hover, #floatingTopBtn:active {
-    transform: scale(1.1);
-    opacity: 0.9;
-    background-color: rgba(26, 115, 232, 0.6);
-    color: white;
+    transform: scale(1.2);
+    opacity: 1;
+    background-color: rgba(26, 115, 232, 1);
   }
 </style>
 <div id="floatingTopBtn" title="উপরে চলুন">⬆️</div>
@@ -226,38 +226,44 @@ floating_top_badge = """
   (function() {
     const btn = document.getElementById('floatingTopBtn');
     if (btn) {
-      const handleScrollTop = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
+      const goTop = function(e) {
+        if(e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         
+        // Target main parent window and document (escapes component iframe)
+        const targetWindow = window.parent || window;
+        const targetDoc = targetWindow.document;
+
         // 1. Window scroll
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        targetWindow.scrollTo({ top: 0, behavior: 'smooth' });
+        targetDoc.documentElement.scrollTop = 0;
+        targetDoc.body.scrollTop = 0;
         
-        // 2. Streamlit container scroll targets
-        const containers = document.querySelectorAll('[data-testid="stAppViewContainer"], .main, section.main, div[tabindex="0"]');
+        // 2. Streamlit container explicit scroll
+        const containers = targetDoc.querySelectorAll('[data-testid="stAppViewContainer"], section.main, .main, div[tabindex="0"], [data-testid="stMain"]');
         containers.forEach(function(el) {
           el.scrollTo({ top: 0, behavior: 'smooth' });
+          el.scrollTop = 0;
         });
 
-        // 3. Parent frame scroll if inside iframe
-        try {
-          if (window.parent && window.parent !== window) {
-            window.parent.scrollTo({ top: 0, behavior: 'smooth' });
-            const parentContainers = window.parent.document.querySelectorAll('[data-testid="stAppViewContainer"], .main, section.main');
-            parentContainers.forEach(function(el) {
-              el.scrollTo({ top: 0, behavior: 'smooth' });
-            });
+        // 3. Force scroll on any element in parent document
+        targetDoc.querySelectorAll('*').forEach(function(el) {
+          if (el.scrollTop > 0) {
+            el.scrollTop = 0;
           }
-        } catch(err) {}
+        });
       };
 
-      btn.addEventListener('click', handleScrollTop);
-      btn.addEventListener('touchend', handleScrollTop);
+      btn.addEventListener('click', goTop, { passive: false });
+      btn.addEventListener('touchend', goTop, { passive: false });
+      btn.addEventListener('pointerdown', goTop, { passive: false });
     }
   })();
 </script>
 """
-st.markdown(floating_top_badge, unsafe_allow_html=True)
+st.components.v1.html(floating_top_badge, height=65)
 
 st.write("---")
 
@@ -519,7 +525,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     st.info("দয়া করে সার্চ বক্স থেকে পার্টির নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে নিশ্চিত করুন।")
 
 # =========================================================
-# 2. SEARCH PARTY & ADMIN DELETE OPTION (নাম, ফোন বা ঠিকানা দিয়ে সার্চ)
+# 2. SEARCH PARTY & ADMIN DELETE OPTION
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
