@@ -176,7 +176,7 @@ if not st.session_state.get("logged_in", False):
   st.stop()
 
 # =========================================================
-# MAIN APP HEADER & FLOATING HOME BUTTON
+# MAIN APP HEADER
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
@@ -190,39 +190,6 @@ with col_u2:
     st.session_state["user_role"] = None
     streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
     st.rerun()
-
-home_url_encoded = urllib.parse.quote("📍 নতুন লোকেশন এড")
-floating_home_badge = f"""
-<style>
-  .floating-home-btn {{
-    position: fixed;
-    right: 25px;
-    bottom: 90px;
-    z-index: 999999;
-    background-color: #1a73e8;
-    color: white;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4);
-    text-decoration: none;
-    font-size: 28px;
-    transition: transform 0.2s ease, background-color 0.2s ease;
-  }}
-  .floating-home-btn:hover {{
-    transform: scale(1.12);
-    background-color: #1557b0;
-    color: white;
-  }}
-</style>
-<a href="?page={home_url_encoded}" target="_self" class="floating-home-btn" title="হোমে চলুন">
-  🏠
-</a>
-"""
-st.markdown(floating_home_badge, unsafe_allow_html=True)
 
 st.write("---")
 
@@ -431,7 +398,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
     <label style="font-weight: 600; font-size: 14px; color: #31333F; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
     <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 4px; font-size: 16px; background-color: #ffffff; color: #000000; box-sizing: border-box;" autocomplete="off">
-    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); box-sizing: border-box;"></div>
+    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);"></div>
   </div>
 
   <script>
@@ -503,7 +470,6 @@ elif selected_menu == "🔍 সার্চ":
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
-  # সার্চ বারের ভেতরেই আলাদা ও ডেডিকেটেড সেকশন: ম্যাপবিহীন ডক্টর ও পার্টি তালিকা (বড় লেখা বাদ দেওয়া হয়েছে)
   with st.expander(f"👨‍⚕️ ম্যাপবিহীন ডক্টর ও পার্টি তালিকা ({len(doc_df)} টি বাকি)", expanded=True):
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
