@@ -348,18 +348,70 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  # এখানে ফর্ম ছাড়া সরাসরি টেক্সট ইনপুট ও ড্রপডাউন দেওয়া হয়েছে যাতে টাইপ করলেই নিচের লিস্টে নাম ভেসে ওঠে
-  ord_party_search = st.text_input("পার্টি সার্চ করুন (নামের অক্ষর লিখুন)", key="order_party_search_input")
-  
-  if ord_party_search:
-    matched_parties = [p for p in all_parties_db if ord_party_search.lower() in p.lower()]
-  else:
-    matched_parties = all_parties_db
+  # অ্যাডভান্সড রিয়েল-টাইম সার্চ উইজেট ও ড্রপডাউন ডিজাইন
+  import json
+  parties_json = json.dumps(all_parties_db)
 
-  ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + matched_parties, key="order_party_selectbox")
-  ord_details = st.text_area("অর্ডারের বিবরণ", key="order_details_textarea")
+  search_html = f"""
+  <div style="position: relative; margin-bottom: 15px;">
+    <label style="font-weight: 600; font-size: 14px; color: #31333F;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
+    <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; padding: 10px; border: 1px solid #cccccc; border-radius: 4px; font-size: 16px; margin-top: 5px; background-color: #ffffff; color: #000000;" autocomplete="off">
+    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);"></div>
+  </div>
+
+  <script>
+    const allParties = {parties_json};
+    const searchBox = document.getElementById("party_search_box");
+    const suggestionsList = document.getElementById("suggestions_list");
+
+    searchBox.addEventListener("input", function() {{
+      const query = this.value.toLowerCase().trim();
+      suggestionsList.innerHTML = "";
+      if (query === "") {{
+        suggestionsList.style.display = "none";
+        return;
+      }}
+      const filtered = allParties.filter(p => p.toLowerCase().includes(query));
+      if (filtered.length > 0) {{
+        suggestionsList.style.display = "block";
+        filtered.forEach(party => {{
+          const item = document.createElement("div");
+          item.innerText = party;
+          item.style.padding = "10px";
+          item.style.cursor = "pointer";
+          item.style.borderBottom = "1px solid #f0f2f6";
+          item.style.color = "#000000";
+          item.onmouseover = function() {{ this.style.backgroundColor = "#f0f2f6"; }};
+          item.onmouseout = function() {{ this.style.backgroundColor = "#ffffff"; }};
+          item.onclick = function() {{
+            searchBox.value = party;
+            suggestionsList.style.display = "none";
+            // Streamlit এ ভ্যালু পাস করার জন্য ইভেন্ট ট্রিগার করা
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+            nativeInputValueSetter.call(searchBox, party);
+            searchBox.dispatchEvent(new Event('input', {{ bubbles: true }}));
+          }};
+          suggestionsList.appendChild(item);
+        }});
+      }} else {{
+        suggestionsList.style.display = "none";
+      }}
+    }});
+
+    document.addEventListener("click", function(e) {{
+      if (!searchBox.contains(e.target) && !suggestionsList.contains(e.target)) {{
+        suggestionsList.style.display = "none";
+      }}
+    }});
+  </script>
+  """
+  st.components.v1.html(search_html, height=110)
+
+  # পাইথন সাইডে ইউজার সিলেক্ট করা বা টাইপ করা নাম রিসিভ করা
+  ord_party = st.selectbox("বাছাইকৃত পার্টি কনফার্ম করুন", ["-- সিলেক্ট করুন --"] + all_parties_db)
+  ord_details = st.text_area("অর্ডারের বিবরণ")
   
-  if st.button("🛒 অর্ডার জমা দিন", type="primary", key="submit_order_btn"):
+  if st.button("🛒 অর্ডার জমা দিন", type="primary"):
     if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
       c.execute(
           "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
