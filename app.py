@@ -238,7 +238,7 @@ st.write("---")
 if selected_menu == "📍 নতুন লোকেশন এড":
   st.write("### 📍 নতুন লোকেশন ও অর্ডার ফর্ম")
   
-  with st.form("location_details_form"):
+  with st.form("location_details_form", clear_on_submit=True):
     st.write("#### ১. পার্টির বিবরণ দিন")
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
@@ -249,6 +249,17 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       p_phone = st.text_input("ফোন নম্বর", key="input_p_phone")
     
     submitted_loc = st.form_submit_button("💾 সবকিছু ঠিক আছে, এখন লোকেশন সেভ করুন", type="primary")
+
+  if submitted_loc:
+    if p_name.strip() and p_phone.strip():
+      c.execute(
+          "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+          (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
+      )
+      conn.commit()
+      st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+    else:
+      st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
   st.write("---")
   st.write("#### ২. ম্যাপ থেকে লোকেশন সিলেক্ট করুন (ম্যাপে যেকোনো জায়গায় ক্লিক করুন)")
@@ -332,33 +343,16 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.session_state["selected_lon"] = clicked_lon
       st.rerun()
 
-  if submitted_loc:
-    p_n = st.session_state.get("input_p_name", "")
-    p_a = st.session_state.get("input_p_addr", "")
-    p_ph = st.session_state.get("input_p_phone", "")
-    if p_n.strip() and p_ph.strip():
-      c.execute(
-          "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-          (p_n, p_a, p_ph, st.session_state["selected_lat"], st.session_state["selected_lon"]),
-      )
-      conn.commit()
-      st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-    else:
-      st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
-
   st.write("---")
   st.write("### 📦 নতুন অর্ডার এন্ট্রি")
   
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  ord_search_query = st.text_input("পার্টি সার্চ করুন (নাম লিখে খুঁজুন)", "", key="order_party_search")
-  filtered_ord_parties = [p for p in all_parties_db if ord_search_query.lower() in p.lower()] if ord_search_query else all_parties_db
-
   with st.form("order_form", clear_on_submit=True):
     col_o1, col_o2 = st.columns(2)
     with col_o1:
-      ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + filtered_ord_parties)
+      ord_party = st.selectbox("পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)", ["-- সিলেক্ট করুন --"] + all_parties_db)
     with col_o2:
       st.write("")
       
@@ -448,17 +442,12 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
-  st.write("#### 🔍 পার্টি সার্চ করুন বা নতুন কাজ যুক্ত করুন")
-  party_search_filter = st.text_input("পার্টির নাম লিখে সার্চ করুন (খুঁজতে সুবিধা হবে)", "")
-  
-  filtered_parties_list = [p for p in all_parties if party_search_filter.lower() in p.lower()] if party_search_filter else all_parties
-
   with st.form("easy_assign_form", clear_on_submit=True):
     col_e1, col_e2 = st.columns(2)
     with col_e1:
       sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
     with col_e2:
-      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", filtered_parties_list if filtered_parties_list else ["-- পার্টি নেই --"])
+      sel_pt = st.selectbox("পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)", all_parties if all_parties else ["-- পার্টি নেই --"])
 
     st.write("**কাজের ধরণ নির্বাচন করুন (স্বাধীনভাবে টিক দিন):**")
     col_chk1, col_chk2 = st.columns(2)
