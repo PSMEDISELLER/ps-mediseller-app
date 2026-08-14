@@ -241,7 +241,7 @@ if selected_menu != current_page_param:
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY
+# 1. ADD NEW LOCATION & ORDER ENTRY (WITH STRICT DUPLICATE VALIDATION)
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
   st.write("### 📍 নতুন লোকেশন ও ডক্টর/পার্টি এন্ট্রি ফর্ম")
@@ -263,16 +263,23 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
     if submitted_loc:
       if p_name.strip() and p_phone.strip():
-        try:
-          c.execute(
-              "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-              (p_name.strip(), p_addr, p_phone.strip(), st.session_state["selected_lat"], st.session_state["selected_lon"]),
-          )
-          conn.commit()
-          st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-          st.rerun()
-        except sqlite3.IntegrityError:
-          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে! একই পার্টি দুবার এন্ট্রি করা যাবে না।")
+        # চেক করা হচ্ছে একই নাম বা ফোন নম্বর ইতিমধ্যে আছে কি না
+        c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (p_name.strip(), p_phone.strip()))
+        existing_check = c.fetchone()
+        
+        if existing_check:
+          st.error(f"❌ এলার্ট: '{p_name.strip()}' নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে ডাটাবেসে সেভ করা আছে! পুনরায় সেভ করা যাবে না।")
+        else:
+          try:
+            c.execute(
+                "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+                (p_name.strip(), p_addr, p_phone.strip(), st.session_state["selected_lat"], st.session_state["selected_lon"]),
+            )
+            conn.commit()
+            st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+            st.rerun()
+          except sqlite3.IntegrityError:
+            st.error("❌ এলার্ট: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
       else:
         st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
@@ -291,16 +298,23 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
     if submitted_doc:
       if doc_name.strip() and doc_phone.strip():
-        try:
-          c.execute(
-              "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, NULL, NULL)",
-              (doc_name.strip(), doc_addr, doc_phone.strip()),
-          )
-          conn.commit()
-          st.success("✅ ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপশন ব্যবহার করুন)")
-          st.rerun()
-        except sqlite3.IntegrityError:
-          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
+        # চেক করা হচ্ছে একই নাম বা ফোন নম্বর ইতিমধ্যে আছে কি না
+        c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (doc_name.strip(), doc_phone.strip()))
+        existing_check_doc = c.fetchone()
+
+        if existing_check_doc:
+          st.error(f"❌ এলার্ট: '{doc_name.strip()}' নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে ডাটাবেসে সেভ করা আছে! পুনরায় সেভ করা যাবে না।")
+        else:
+          try:
+            c.execute(
+                "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, NULL, NULL)",
+                (doc_name.strip(), doc_addr, doc_phone.strip()),
+            )
+            conn.commit()
+            st.success("✅ ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপশন ব্যবহার করুন)")
+            st.rerun()
+          except sqlite3.IntegrityError:
+            st.error("❌ এলার্ট: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
       else:
         st.error("ডাক্তার/পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
@@ -639,7 +653,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN (UPDATED WITH DIRECT SEARCH SELECTION)
+# 4. DUE CLEAR & DELIVERY PLAN
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
