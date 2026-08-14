@@ -38,9 +38,9 @@ CREATE TABLE IF NOT EXISTS users (
 c.execute("""
 CREATE TABLE IF NOT EXISTS locations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    party_name TEXT NOT NULL,
+    party_name TEXT NOT NULL UNIQUE,
     address TEXT,
-    party_phone TEXT,
+    party_phone TEXT UNIQUE,
     lat REAL,
     lon REAL,
     route_order INTEGER DEFAULT 0
@@ -91,13 +91,6 @@ if "payment_collected" not in existing_cols_ord:
 if "status" not in existing_cols_ord:
   c.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'Pending'")
 
-c.execute("PRAGMA table_info(agent_live_locations)")
-existing_cols_agent = [row[1] for row in c.fetchall()]
-if "completed_deliveries" not in existing_cols_agent:
-  c.execute("ALTER TABLE agent_live_locations ADD COLUMN completed_deliveries INTEGER DEFAULT 0")
-if "completed_dues" not in existing_cols_agent:
-  c.execute("ALTER TABLE agent_live_locations ADD COLUMN completed_dues INTEGER DEFAULT 0")
-
 conn.commit()
 
 # ডিফল্ট ইউজার তৈরি
@@ -108,10 +101,11 @@ if c.fetchone()[0] == 0:
   conn.commit()
 
 # =========================================================
-# AUTO DELETE SYSTEM (২৪ ঘণ্টা পর পেন্ডিং বা অসমাপ্ত কাজ মুছা)
+# AUTO DELETE SYSTEM (২৪ ঘণ্টা পর পেন্ডিং ও কমপ্লিট কাজ ও অর্ডার মুছা)
 # =========================================================
 current_dt_str = datetime.now()
-c.execute("SELECT id, order_date FROM orders WHERE status='Pending'")
+
+c.execute("SELECT id, order_date, status FROM orders")
 for row_ord in c.fetchall():
   try:
     o_time = datetime.strptime(row_ord[1], "%Y-%m-%d %H:%M:%S")
@@ -120,7 +114,7 @@ for row_ord in c.fetchall():
   except:
     pass
 
-c.execute("SELECT id, created_at FROM task_assignments WHERE status='Pending'")
+c.execute("SELECT id, created_at, status FROM task_assignments")
 for row_task in c.fetchall():
   try:
     t_time = datetime.strptime(row_task[1], "%Y-%m-%d %H:%M:%S")
@@ -230,39 +224,89 @@ if st.session_state["user_role"] == "admin":
   menu_options.extend(["📊 লাইভ ট্র্যাকিং", "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট"])
 
 selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed")
+
+# মোবাইলের ব্যাক বোতাম টিপলে হোম স্ক্রিনে (নতুন লোকেশন এড) ফিরে যাওয়ার স্ক্রিপ্ট
+if selected_menu != menu_options[0]:
+  back_to_home_js = """
+  <script>
+      if (!window.history.state || window.history.state.page !== 'subpage') {
+          window.history.pushState({page: 'subpage'}, '', window.location.href);
+      }
+      window.addEventListener('popstate', function(event) {
+          window.location.href = window.location.pathname;
+      });
+  </script>
+  """
+  st.components.v1.html(back_to_home_js, height=0)
+
 st.write("---")
 
 # =========================================================
 # 1. ADD NEW LOCATION & ORDER ENTRY
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
-  st.write("### 📍 নতুন লোকেশন ও অর্ডার ফর্ম")
+  st.write("### 📍 নতুন লোকেশন ও ডক্টর/পার্টি এন্ট্রি ফর্ম")
   
-  with st.form("location_details_form", clear_on_submit=True):
-    st.write("#### ১. পার্টির বিবরণ দিন")
-    col_f1, col_f2, col_f3 = st.columns(3)
-    with col_f1:
-      p_name = st.text_input("পার্টির নাম", key="input_p_name")
-    with col_f2:
-      p_addr = st.text_input("ঠিকানা", key="input_p_addr")
-    with col_f3:
-      p_phone = st.text_input("ফোন নম্বর", key="input_p_phone")
-    
-    submitted_loc = st.form_submit_button("💾 সবকিছু ঠিক আছে, এখন লোকেশন সেভ করুন", type="primary")
+  col_tab1, col_tab2 = st.tabs(["🏠 সাধারণ লোকেশন (ম্যাপসহ)", "👨‍⚕️ ডক্টর / ম্যাপ ছাড়া পার্টি এন্ট্রি"])
+  
+  with col_tab1:
+    with st.form("location_details_form", clear_on_submit=True):
+      st.write("#### ১. পার্টির বিবরণ দিন (ম্যাপে সেভ হবে)")
+      col_f1, col_f2, col_f3 = st.columns(3)
+      with col_f1:
+        p_name = st.text_input("পার্টির নাম", key="input_p_name")
+      with col_f2:
+        p_addr = st.text_input("ঠিকানা", key="input_p_addr")
+      with col_f3:
+        p_phone = st.text_input("ফোন নম্বর", key="input_p_phone")
+      
+      submitted_loc = st.form_submit_button("💾 সবকিছু ঠিক আছে, এখন লোকেশন সেভ করুন", type="primary")
 
-  if submitted_loc:
-    if p_name.strip() and p_phone.strip():
-      c.execute(
-          "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-          (p_name, p_addr, p_phone, st.session_state["selected_lat"], st.session_state["selected_lon"]),
-      )
-      conn.commit()
-      st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
-    else:
-      st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
+    if submitted_loc:
+      if p_name.strip() and p_phone.strip():
+        try:
+          c.execute(
+              "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+              (p_name.strip(), p_addr, p_phone.strip(), st.session_state["selected_lat"], st.session_state["selected_lon"]),
+          )
+          conn.commit()
+          st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+          st.rerun()
+        except sqlite3.IntegrityError:
+          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে! একই পার্টি দুবার এন্ট্রি করা যাবে না।")
+      else:
+        st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
+
+  with col_tab2:
+    with st.form("doctor_details_form", clear_on_submit=True):
+      st.write("#### ২. ডক্টর বা স্পেশাল পার্টির বিবরণ (ম্যাপ ছাড়াই)")
+      col_d1, col_d2, col_d3 = st.columns(3)
+      with col_d1:
+        doc_name = st.text_input("ডাক্তার/পার্টির নাম", key="input_doc_name")
+      with col_d2:
+        doc_addr = st.text_input("ঠিকানা/চেম্বার", key="input_doc_addr")
+      with col_d3:
+        doc_phone = st.text_input("ফোন নম্বর", key="input_doc_phone")
+      
+      submitted_doc = st.form_submit_button("💾 ডক্টর/পার্টি সেভ করুন (ম্যাপ ছাড়া)", type="primary")
+
+    if submitted_doc:
+      if doc_name.strip() and doc_phone.strip():
+        try:
+          c.execute(
+              "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, NULL, NULL)",
+              (doc_name.strip(), doc_addr, doc_phone.strip()),
+          )
+          conn.commit()
+          st.success("✅ ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপشن ব্যবহার করুন)")
+          st.rerun()
+        except sqlite3.IntegrityError:
+          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
+      else:
+        st.error("ডাক্তার/পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
   st.write("---")
-  st.write("#### ২. ম্যাপ থেকে লোকেশন সিলেক্ট করুন (ম্যাপে যেকোনো জায়গায় ক্লিক করুন)")
+  st.write("#### ম্যাপ থেকে লোকেশন সিলেক্ট করুন (ম্যাপে যেকোনো জায়গায় ক্লিক করুন)")
   
   col_m1, col_m2 = st.columns([1, 4])
   with col_m1:
@@ -345,7 +389,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   st.write("---")
   st.write("### 📦 নতুন অর্ডার এন্ট্রি")
   
-  c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
+  c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
   import json
@@ -411,7 +455,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 # 2. SEARCH PARTY & ADMIN DELETE OPTION (নাম, ফোন বা ঠিকানা দিয়ে সার্চ)
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
-  st.write("### 🔍 সেভ করা পার্টি তালিকা ও ডিরেকশন")
+  st.write("### 🔍 সেভ করা পার্টি ও ডক্টর তালিকা")
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   
   search_query = st.text_input("সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা)", placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন...")
@@ -424,8 +468,34 @@ elif selected_menu == "🔍 সার্চ":
         df["address"].str.lower().str.contains(q, na=False)
     ]
   
-  if not df.empty:
-    for index, row in df.iterrows():
+  doc_df = df[df["lat"].isna() | df["lon"].isna()]
+  mapped_df = df[df["lat"].notna() & df["lon"].notna()]
+
+  if not doc_df.empty:
+    st.write("#### 👨‍⚕️ ডক্টর / ম্যাপ ছাড়া সেভ করা পার্টি তালিকা")
+    for index, row in doc_df.iterrows():
+      cols = st.columns([3, 2, 2, 2, 1.5])
+      cols[0].write(f"**{row['party_name']}**")
+      cols[1].write(row['party_phone'] if row['party_phone'] else "নম্বার নেই")
+      cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
+      
+      if cols[3].button("🗺️ ম্যাপে যুক্ত করুন", key=f"map_add_{row['id']}"):
+        c.execute("UPDATE locations SET lat=?, lon=? WHERE id=?", (st.session_state["selected_lat"], st.session_state["selected_lon"], row['id']))
+        conn.commit()
+        st.success(f"✅ '{row['party_name']}' সফলভাবে ম্যাপে যুক্ত করা হয়েছে!")
+        st.rerun()
+
+      if st.session_state["user_role"] == "admin":
+        if cols[4].button("🗑️ ডিলিট", key=f"del_doc_{row['id']}"):
+          c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+          conn.commit()
+          st.success(f"✅ সফলভাবে ডিলিট করা হয়েছে!")
+          st.rerun()
+      st.write("---")
+
+  if not mapped_df.empty:
+    st.write("#### 📍 ম্যাপে যুক্ত পার্টি তালিকা")
+    for index, row in mapped_df.iterrows():
       if st.session_state["user_role"] == "admin":
         cols = st.columns([3, 2, 2, 2, 1.5])
       else:
@@ -446,8 +516,9 @@ elif selected_menu == "🔍 সার্চ":
           st.rerun()
 
       st.write("---")
-  else:
-    st.info("কোনো পার্টি পাওয়া যায়নি।")
+  
+  if df.empty:
+    st.info("কোনো পার্টি বা ডক্টর পাওয়া যায়নি।")
 
 # =========================================================
 # 3. PENDING ORDERS
@@ -467,7 +538,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
         conn.commit()
         c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
         conn.commit()
-        st.success("অর্ডার কমপ্লিট করা হয়েছে!")
+        st.success("অর্ডার কমপ্লিট করা হয়েছে! এটি ২৪ ঘণ্টা পর স্বয়ংক্রিয়ভাবে মুছে যাবে।")
         st.rerun()
       st.write("---")
   else:
@@ -481,7 +552,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   
   c.execute("SELECT username FROM users")
   all_agents = [r[0] for r in c.fetchall()]
-  c.execute("SELECT DISTINCT party_name, lat, lon FROM locations")
+  c.execute("SELECT party_name, lat, lon FROM locations")
   loc_data = c.fetchall()
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
@@ -546,8 +617,9 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 
       auto_completed = False
       if gps_lat and gps_lon and p_name in party_coords:
-        p_lat, p_lon = party_coords[p_name]
-        if p_lat and p_lon:
+        p_coords = party_coords[p_name]
+        if p_coords[0] is not None and p_coords[1] is not None:
+          p_lat, p_lon = p_coords
           import math
           dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
           if dist <= 30:
@@ -560,7 +632,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
         if "ডিউ" in row['task_type']:
           c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
         conn.commit()
-        st.success(f"{p_name}-এর কাজ সম্পন্ন ও লিস্ট থেকে রিমুভ হলো!")
+        st.success(f"{p_name}-এর কাজ সম্পন্ন! এটি ২৪ ঘণ্টা পর তালিকা থেকে সম্পূর্ণ মুছে যাবে।")
         st.rerun()
 
       cols[3].write("পেন্ডিং (২৪ ঘণ্টা মেয়াদ)")
@@ -574,11 +646,11 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্যাপ":
   st.write("### 🗺️ অটোমেটিক হোম-টু-হোম রুট প্ল্যানিং")
 
-  locs_df = pd.read_sql_query("SELECT * FROM locations ORDER BY id ASC", conn)
+  locs_df = pd.read_sql_query("SELECT * FROM locations WHERE lat IS NOT NULL AND lon IS NOT NULL ORDER BY id ASC", conn)
   
   if not locs_df.empty:
-    m_center_lat = locs_df.iloc[0]["lat"] if locs_df.iloc[0]["lat"] else 22.8620
-    m_center_lon = locs_df.iloc[0]["lon"] if locs_df.iloc[0]["lon"] else 87.3320
+    m_center_lat = locs_df.iloc[0]["lat"]
+    m_center_lon = locs_df.iloc[0]["lon"]
 
     route_map = folium.Map(
         location=[m_center_lat, m_center_lon],
@@ -595,24 +667,23 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
     coordinates_list = []
     seq_num = 1
     for idx, row in locs_df.iterrows():
-      if row["lat"] and row["lon"]:
-        lat, lon = row["lat"], row["lon"]
-        coordinates_list.append([lat, lon])
-        
-        folium.Marker(
-            [lat, lon],
-            popup=f"<b>রুট নং {seq_num}: {row['party_name']}</b><br>{row['address']}",
-            tooltip=f"{seq_num}. {row['party_name']}",
-            icon=folium.Icon(color="blue", icon="info-sign")
-        ).add_to(route_map)
-        seq_num += 1
+      lat, lon = row["lat"], row["lon"]
+      coordinates_list.append([lat, lon])
+      
+      folium.Marker(
+          [lat, lon],
+          popup=f"<b>রুট নং {seq_num}: {row['party_name']}</b><br>{row['address']}",
+          tooltip=f"{seq_num}. {row['party_name']}",
+          icon=folium.Icon(color="blue", icon="info-sign")
+      ).add_to(route_map)
+      seq_num += 1
 
     if len(coordinates_list) > 1:
       folium.PolyLine(coordinates_list, color="#ff4b4b", weight=5, opacity=0.85, tooltip="অটো প্ল্যানড ডেলিভারি রুট").add_to(route_map)
 
     st_folium(route_map, width=900, height=500, key="auto_route_map")
   else:
-    st.info("রুট দেখানোর জন্য কোনো লোকেশন সেভ করা নেই।")
+    st.info("রুট দেখানোর জন্য ম্যাপে কোনো লোকেশন সেভ করা নেই।")
 
 # =========================================================
 # 6. ADMIN LIVE TRACKING
