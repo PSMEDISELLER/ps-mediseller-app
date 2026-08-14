@@ -276,9 +276,15 @@ if login_user:
 col_logo, col_title, col_auth = st.columns([1, 4, 1.8])
 
 with col_logo:
-  try:
-    st.image("1000135057.jpg", width=75)
-  except:
+  logo_loaded = False
+  for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
+    try:
+      st.image(logo_name, width=75)
+      logo_loaded = True
+      break
+    except:
+      pass
+  if not logo_loaded:
     st.markdown("🔵")
 
 with col_title:
