@@ -176,7 +176,7 @@ if not st.session_state.get("logged_in", False):
   st.stop()
 
 # =========================================================
-# MAIN APP HEADER & FLOATING SCROLL-TO-TOP BUTTON (TRANSPARENT & LEFT)
+# MAIN APP HEADER & ROBUST FLOATING SCROLL-TO-TOP BUTTON
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
@@ -193,44 +193,69 @@ with col_u2:
 
 floating_top_badge = """
 <style>
-  .floating-top-btn {
+  #floatingTopBtn {
     position: fixed;
     left: 20px;
     bottom: 90px;
     z-index: 999999;
-    background-color: rgba(26, 115, 232, 0.25);
+    background-color: rgba(26, 115, 232, 0.2);
     color: white;
-    width: 55px;
-    height: 55px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
     text-decoration: none;
-    font-size: 24px;
+    font-size: 22px;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    opacity: 0.45;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    opacity: 0.35;
     transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
   }
-  .floating-top-btn:hover {
+  #floatingTopBtn:hover, #floatingTopBtn:active {
     transform: scale(1.1);
     opacity: 0.9;
-    background-color: rgba(26, 115, 232, 0.7);
+    background-color: rgba(26, 115, 232, 0.6);
     color: white;
   }
 </style>
-<button class="floating-top-btn" onclick="
-  window.scrollTo({top: 0, behavior: 'smooth'});
-  try { window.parent.scrollTo({top: 0, behavior: 'smooth'}); } catch(e) {}
-  const appContainer = window.parent.document.querySelector('[data-testid=\\'stAppViewContainer\\']') || document.querySelector('[data-testid=\\'stAppViewContainer\\']');
-  if (appContainer) { appContainer.scrollTo({top: 0, behavior: 'smooth'}); }
-  const mainDiv = window.parent.document.querySelector('.main') || document.querySelector('.main');
-  if (mainDiv) { mainDiv.scrollTo({top: 0, behavior: 'smooth'}); }
-" title="উপরে চলুন">
-  ⬆️
-</button>
+<div id="floatingTopBtn" title="উপরে চলুন">⬆️</div>
+<script>
+  (function() {
+    const btn = document.getElementById('floatingTopBtn');
+    if (btn) {
+      const handleScrollTop = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // 1. Window scroll
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        // 2. Streamlit container scroll targets
+        const containers = document.querySelectorAll('[data-testid="stAppViewContainer"], .main, section.main, div[tabindex="0"]');
+        containers.forEach(function(el) {
+          el.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // 3. Parent frame scroll if inside iframe
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.scrollTo({ top: 0, behavior: 'smooth' });
+            const parentContainers = window.parent.document.querySelectorAll('[data-testid="stAppViewContainer"], .main, section.main');
+            parentContainers.forEach(function(el) {
+              el.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+          }
+        } catch(err) {}
+      };
+
+      btn.addEventListener('click', handleScrollTop);
+      btn.addEventListener('touchend', handleScrollTop);
+    }
+  })();
+</script>
 """
 st.markdown(floating_top_badge, unsafe_allow_html=True)
 
