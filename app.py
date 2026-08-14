@@ -349,10 +349,17 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
+  # অক্ষর লিখে ফিল্টার করার ছোট সার্চ ইনপুট বক্স
+  order_search_filter = st.text_input("পার্টি খুঁজতে এখানে অক্ষর টাইপ করুন (যেমন: a, b...)", "", key="order_alpha_search")
+  if order_search_filter:
+    filtered_ord_parties = [p for p in all_parties_db if order_search_filter.lower() in p.lower()]
+  else:
+    filtered_ord_parties = all_parties_db
+
   with st.form("order_form", clear_on_submit=True):
     col_o1, col_o2 = st.columns(2)
     with col_o1:
-      ord_party = st.selectbox("পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)", ["-- সিলেক্ট করুন --"] + all_parties_db)
+      ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + filtered_ord_parties)
     with col_o2:
       st.write("")
       
@@ -442,12 +449,19 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
+  # ডিউ/ডেলিভারি প্ল্যানের জন্যও অক্ষর দিয়ে ফিল্টার করার অপশন
+  task_search_filter = st.text_input("পার্টি খুঁজতে এখানে অক্ষর টাইপ করুন (যেমন: a, b...)", "", key="task_alpha_search")
+  if task_search_filter:
+    filtered_task_parties = [p for p in all_parties if task_search_filter.lower() in p.lower()]
+  else:
+    filtered_task_parties = all_parties
+
   with st.form("easy_assign_form", clear_on_submit=True):
     col_e1, col_e2 = st.columns(2)
     with col_e1:
       sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
     with col_e2:
-      sel_pt = st.selectbox("পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)", all_parties if all_parties else ["-- পার্টি নেই --"])
+      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", filtered_task_parties if filtered_task_parties else ["-- পার্টি নেই --"])
 
     st.write("**কাজের ধরণ নির্বাচন করুন (স্বাধীনভাবে টিক দিন):**")
     col_chk1, col_chk2 = st.columns(2)
