@@ -31,34 +31,16 @@ def get_ist_time():
 # =========================================================
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 /* Global Font & Rich Gradient Background */
 html, body, [class*="css"] {
-    font-family: 'Hind Siliguri', 'Poppins', sans-serif;
+    font-family: 'Poppins', sans-serif;
 }
 
 .stApp {
     background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
     color: #f8fafc;
-}
-
-/* Main Title Styling with Vibrant Gradient Effect */
-h1 {
-    font-family: 'Hind Siliguri', sans-serif;
-    font-weight: 700;
-    background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 0px 3px 6px rgba(0,0,0,0.4);
-    padding-bottom: 12px;
-    border-bottom: 2px solid rgba(129, 140, 248, 0.3);
-}
-
-h2, h3 {
-    font-family: 'Hind Siliguri', sans-serif;
-    color: #e2e8f0;
-    font-weight: 600;
 }
 
 /* Glassmorphism Containers & Expanders */
@@ -232,7 +214,7 @@ if c.fetchone()[0] == 0:
   conn.commit()
 
 # =========================================================
-# AUTO DELETE SYSTEM (২৪ ঘণ্টা পর পেন্ডিং ও কমপ্লিট কাজ ও অর্ডার মুছা)
+# AUTO DELETE SYSTEM
 # =========================================================
 current_dt_str = get_ist_time()
 
@@ -281,41 +263,56 @@ if login_user:
     f_name, r_role = user_row
     st.session_state["username"] = login_user
     st.session_state["user_role"] = r_role
-    st.success(f"✅ স্বাগতম, {f_name}! আপনাকে সফলভাবে সরাসরি অ্যাপে লগইন করানো হয়েছে।")
+    st.success(f"✅ Welcome, {f_name}! You have been successfully logged in.")
     st.query_params.pop("login", None)
     st.rerun()
   else:
-    st.error("❌ ভুল বা অসংগত লিংক!")
+    st.error("❌ Invalid or mismatched link!")
     st.stop()
 
 # =========================================================
-# MAIN APP HEADER & ADMIN LOGIN OPTION
+# STYLISH ENGLISH HEADER & LOGO + ADMIN LOGIN OPTION
 # =========================================================
-st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার এন্ড এটেনন্ডেন্স পাটনার")
+col_logo, col_title, col_auth = st.columns([1, 4, 1.8])
 
-col_u1, col_u2 = st.columns([3, 1])
-with col_u1:
-  st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
-with col_u2:
+with col_logo:
+  try:
+    st.image("1000135057.jpg", width=75)
+  except:
+    st.markdown("🔵")
+
+with col_title:
+  st.markdown("""
+  <div style="padding-top: 2px;">
+      <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 22px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
+      <p style="margin: 0; color: #94a3b8; font-size: 12px; font-weight: 500;">Delivery & Attendance Partner Portal</p>
+  </div>
+  """, unsafe_allow_html=True)
+
+with col_auth:
   if st.session_state["user_role"] == "admin":
-    if st.button("🚪 অ্যাডমিন লগআউট"):
+    if st.button("🚪 Admin Logout"):
       st.session_state["username"] = "delivery"
       st.session_state["user_role"] = "staff"
       st.rerun()
   else:
-    if st.button("🔐 অ্যাডমিন লগইন"):
+    if st.button("🔐 Admin Login"):
       st.session_state["show_admin_login"] = True
       st.rerun()
 
+col_u1, _ = st.columns([3, 1])
+with col_u1:
+  st.write(f"👤 User: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
+
 if st.session_state.get("show_admin_login", False):
   with st.form("admin_login_popup_form"):
-    st.write("#### 🔑 অ্যাডমিন লগইন")
-    admin_pass_input = st.text_input("অ্যাডমিন পাসওয়ার্ড দিন", type="password")
+    st.write("#### 🔑 Admin Login")
+    admin_pass_input = st.text_input("Enter Admin Password", type="password")
     col_al1, col_al2 = st.columns(2)
     with col_al1:
-      submit_admin = st.form_submit_button("লগইন করুন", type="primary")
+      submit_admin = st.form_submit_button("Login", type="primary")
     with col_al2:
-      cancel_admin = st.form_submit_button("বাতিল")
+      cancel_admin = st.form_submit_button("Cancel")
 
     if submit_admin:
       c.execute("SELECT password, role FROM users WHERE username='admin'")
@@ -324,10 +321,10 @@ if st.session_state.get("show_admin_login", False):
         st.session_state["username"] = "admin"
         st.session_state["user_role"] = "admin"
         st.session_state["show_admin_login"] = False
-        st.success("অ্যাডমিন লগইন সফল হয়েছে!")
+        st.success("Admin login successful!")
         st.rerun()
       else:
-        st.error("❌ ভুল পাসওয়ার্ড!")
+        st.error("❌ Incorrect Password!")
     if cancel_admin:
       st.session_state["show_admin_login"] = False
       st.rerun()
@@ -373,7 +370,7 @@ if current_page_param not in menu_options:
 
 default_index = menu_options.index(current_page_param)
 
-selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, index=default_index, horizontal=True, label_visibility="collapsed")
+selected_menu = st.radio("Select Menu:", menu_options, index=default_index, horizontal=True, label_visibility="collapsed")
 
 if selected_menu != current_page_param:
   st.query_params["page"] = selected_menu
@@ -1070,7 +1067,7 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
     st.info("রুট দেখানোর জন্য ম্যাপে কোনো লোকেশন সেভ করা নেই।")
 
 # =========================================================
-# 6. ATTENDANCE SYSTEM (ডেইলি ও মাসিক অ্যাটেনডেন্স)
+# 6. ATTENDANCE SYSTEM
 # =========================================================
 elif selected_menu == "📅 উপস্থিতি (Attendance)":
   st.write("### 📅 স্টাফ ও এজেন্ট উপস্থিতি (Daily & Monthly Attendance)")
@@ -1078,7 +1075,6 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
   att_tab1, att_tab2 = st.tabs(["📝 আজকের উপস্থিতি দিন", "📊 মাসিক উপস্থিতি ও টোটাল সামারি"])
 
   with att_tab1:
-    # সঠিক ভারতীয় টাইম জোন অনুযায়ী আজকের তারিখ DD-MM-YYYY ফরম্যাটে
     display_today_str = get_ist_time().strftime('%d-%m-%Y')
     st.write(f"#### আজকের তারিখ: `{display_today_str}`")
     
@@ -1204,7 +1200,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
       st.info("কোনো ইউজার পাওয়া যায়নি।")
 
 # =========================================================
-# 8. সেটিংস ও এজেন্ট ম্যানেজমেন্ট
+# 8. SETTINGS & AGENT MANAGEMENT
 # =========================================================
 elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
   if st.session_state["user_role"] != "admin":
