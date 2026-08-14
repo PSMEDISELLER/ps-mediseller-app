@@ -277,7 +277,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   with col_m2:
     st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
 
-  # ম্যাপ কনফিগারেশন
   advanced_map = folium.Map(
       location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
       zoom_start=17,
@@ -349,17 +348,16 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
+  # ফর্মের বাইরে ইনপুট বক্স দিয়ে সহজে ফিল্টার করা হয়েছে যাতে মোবাইলে কোনো সমস্যা না হয়
+  search_key_input = st.text_input("🔍 পার্টি খুঁজতে এখানে নাম লিখুন", key="live_party_search_box")
+  
+  if search_key_input:
+    filtered_parties = [p for p in all_parties_db if search_key_input.lower() in p.lower()]
+  else:
+    filtered_parties = all_parties_db
+
   with st.form("order_form", clear_on_submit=True):
-    col_o1, col_o2 = st.columns(2)
-    with col_o1:
-      # সরাসরি সিলেক্ট বক্সের ভেতরেই যেকোনো অক্ষর বা নাম লিখে ফিল্টার করা যাবে
-      ord_party = st.selectbox(
-          "পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)",
-          ["-- সিলেক্ট করুন --"] + all_parties_db
-      )
-    with col_o2:
-      st.write("")
-      
+    ord_party = st.selectbox("তালিকা থেকে পার্টি সিলেক্ট করুন", ["-- সিলেক্ট করুন --"] + filtered_parties)
     ord_details = st.text_area("অর্ডারের বিবরণ")
     submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
     
@@ -446,18 +444,20 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
+  task_search_key = st.text_input("🔍 পার্টি খুঁজতে এখানে নাম লিখুন", key="live_task_search_box")
+  if task_search_key:
+    filtered_task_parties = [p for p in all_parties if task_search_key.lower() in p.lower()]
+  else:
+    filtered_task_parties = all_parties
+
   with st.form("easy_assign_form", clear_on_submit=True):
     col_e1, col_e2 = st.columns(2)
     with col_e1:
       sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
     with col_e2:
-      # এখানেও সিলেক্ট বক্সের ভেতরে সরাসরি টাইপ করে ফিল্টার করা যাবে
-      sel_pt = st.selectbox(
-          "পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)",
-          all_parties if all_parties else ["-- পার্টি নেই --"]
-      )
+      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", filtered_task_parties if filtered_task_parties else ["-- পার্টি নেই --"])
 
-    st.write("**কাজের ধরণ নির্বাচন করুন (স্বাধীনভাবে টিক দিন):**")
+    st.write("**কাজের ধরণ নির্বাচন করুন:**")
     col_chk1, col_chk2 = st.columns(2)
     with col_chk1:
       chk_delivery = st.checkbox("🚚 ডেলিভারি")
@@ -488,7 +488,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
         st.warning("অন্তত একটি কাজের ধরণ (ডেলিভারি বা ডিউ কালেকশন) সিলেক্ট করুন।")
 
   st.write("---")
-  st.write("### 📋 বর্তমান কাজের তালিকা (অটো-ডিলিট সিস্টেম)")
+  st.write("### 📋 বর্তমান কাজের তালিকা")
 
   if st.session_state["user_role"] == "admin":
     tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
@@ -531,7 +531,6 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 # =========================================================
 elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্যাপ":
   st.write("### 🗺️ অটোমেটিক হোম-টু-হোম রুট প্ল্যানিং")
-  st.write("লোকেশনগুলোর দূরত্ব ও সিকোয়েন্স অনুযায়ী অটোমেটিক রুট তৈরি করা হয়েছে।")
 
   locs_df = pd.read_sql_query("SELECT * FROM locations ORDER BY id ASC", conn)
   
@@ -580,7 +579,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
-    st.write("### 📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং (হিডেন)")
+    st.write("### 📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং")
     c.execute("SELECT username, role FROM users")
     all_system_users = c.fetchall()
 
