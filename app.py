@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS users (
     password TEXT,
     role TEXT NOT NULL,
     fullname TEXT,
+    phone TEXT,
     created_at TIMESTAMP,
     is_active INTEGER DEFAULT 1
 )
@@ -100,6 +101,8 @@ c.execute("PRAGMA table_info(users)")
 existing_user_cols = [row[1] for row in c.fetchall()]
 if "fullname" not in existing_user_cols:
   c.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
+if "phone" not in existing_user_cols:
+  c.execute("ALTER TABLE users ADD COLUMN phone TEXT")
 if "created_at" not in existing_user_cols:
   c.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP")
 if "is_active" not in existing_user_cols:
@@ -110,10 +113,10 @@ conn.commit()
 # ডিফল্ট ইউজার তৈরি
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
-  c.execute("INSERT INTO users (username, password, role, fullname, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?)", 
-            ("admin", "admin123", "admin", "Admin", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
-  c.execute("INSERT INTO users (username, password, role, fullname, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?)", 
-            ("delivery", "user123", "staff", "Delivery Agent", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+  c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+            ("admin", "admin123", "admin", "Admin", "910000000000", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+  c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+            ("delivery", "user123", "staff", "Delivery Agent", "910000000000", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
   conn.commit()
 
 # =========================================================
@@ -994,26 +997,29 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
   else:
     st.write("### 👥 ডেলিভারি এজেন্ট তালিকা ও ম্যানেজমেন্ট")
     
-    c.execute("SELECT username, role, fullname, created_at, is_active FROM users")
+    c.execute("SELECT username, role, fullname, phone, created_at, is_active FROM users")
     agents = c.fetchall()
     st.write(f"মোট রেজিস্টার্ড ইউজার/এজেন্ট সংখ্যা: **{len(agents)}**")
 
     for ag in agents:
-      u_name, u_role, f_name, c_date, is_act = ag
+      u_name, u_role, f_name, u_phone, c_date, is_act = ag
       display_name = f_name if f_name else "নাম নেই"
       join_date = c_date if c_date else "অজানা"
+      phone_disp = u_phone if u_phone else "নম্বর নেই"
       
       with st.expander(f"👤 {display_name} (ইউজারনেম: {u_name})"):
+        st.write(f"📞 ফোন নম্বর: `{phone_disp}`")
         st.write(f"📅 যোগদানের তারিখ: `{join_date}`")
         
         col_ed1, col_ed2 = st.columns(2)
         with col_ed1:
           with st.form(f"edit_form_{u_name}"):
             new_name = st.text_input("প্রকৃত নাম এডিট করুন", value=display_name, key=f"fname_{u_name}")
+            new_phone = st.text_input("ফোন নম্বর এডিট করুন", value=phone_disp if phone_disp != "নম্বর নেই" else "", key=f"fphone_{u_name}")
             update_btn = st.form_submit_button("পরিবর্তন সেভ করুন")
             
             if update_btn:
-              c.execute("UPDATE users SET fullname=? WHERE username=?", (new_name, u_name))
+              c.execute("UPDATE users SET fullname=?, phone=? WHERE username=?", (new_name, new_phone, u_name))
               conn.commit()
               st.success("সফলভাবে আপডেট হয়েছে!")
               st.rerun()
@@ -1032,27 +1038,30 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
     with st.form("new_agent_form"):
       n_fullname = st.text_input("এজেন্টের প্রকৃত নাম (পুরো নাম)")
       n_user = st.text_input("ইউজারনেম (লগইন আইডি বা শর্ট নাম)")
+      n_phone = st.text_input("এজেন্টের হোয়াটসঅ্যাপ ফোন নম্বর (যেমন: 919876543210 country code সহ)")
       n_role = st.selectbox("রোল", ["staff", "admin"])
       add_agent_btn = st.form_submit_button("এজেন্ট যুক্ত করুন ও হোয়াটসঅ্যাপ লিংক তৈরি করুন")
 
       if add_agent_btn:
-        if n_fullname and n_user:
+        if n_fullname and n_user and n_phone:
           try:
-            c.execute("INSERT INTO users (username, password, role, fullname, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?)", 
-                      (n_user, "direct_login", n_role, n_fullname, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+            c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                      (n_user, "direct_login", n_role, n_fullname, n_phone, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
             conn.commit()
             st.session_state["last_created_agent_user"] = n_user
             st.session_state["last_created_agent_name"] = n_fullname
+            st.session_state["last_created_agent_phone"] = n_phone
             st.success(f"নতুন এজেন্ট '{n_fullname}' সফলভাবে যোগ করা হয়েছে!")
             st.rerun()
           except sqlite3.IntegrityError:
             st.error("❌ এই ইউজারনেমটি আগেই রয়েছে।")
         else:
-          st.error("সব ঘর পূরণ করুন।")
+          st.error("সব ঘর (নাম, ইউজারনেম এবং ফোন নম্বর) পূরণ করুন।")
 
     if st.session_state.get("last_created_agent_user"):
       created_u = st.session_state["last_created_agent_user"]
       created_n = st.session_state["last_created_agent_name"]
+      created_phone = st.session_state["last_created_agent_phone"]
       
       st.markdown("---")
       st.write(f"#### 📤 '{created_n}'-এর হোয়াটসঅ্যাপ ডাইরেক্ট লগইন লিংক")
@@ -1061,7 +1070,7 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
       
       wa_share_html = f"""
       <div style="background: #262730; padding: 15px; border-radius: 8px; border: 1px solid #444; margin-top: 10px;">
-        <p style="color: #fff; margin-bottom: 10px;">নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে লিংকটি এজেন্টের কাছে পাঠান:</p>
+        <p style="color: #fff; margin-bottom: 10px;">নিচের বাটনে ক্লিক করলেই সরাসরি এজেন্টের হোয়াটসঅ্যাপ নম্বরে (`{created_phone}`) চ্যাট ওপেন হয়ে যাবে:</p>
         <a id="whatsapp_btn" href="#" target="_blank" style="background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">📱 হোয়াটসঅ্যাপে লিংক পাঠান</a>
       </div>
       <script>
@@ -1069,11 +1078,13 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
         const link = origin + "?login={created_u}";
         const msg = "{direct_msg}" + link;
         const encodedMsg = encodeURIComponent(msg);
-        document.getElementById("whatsapp_btn").href = "https://wa.me/?text=" + encodedMsg;
+        const targetPhone = "{created_phone}";
+        document.getElementById("whatsapp_btn").href = "https://wa.me/" + targetPhone + "?text=" + encodedMsg;
       </script>
       """
-      st.components.v1.html(wa_share_html, height=130)
+      st.components.v1.html(wa_share_html, height=140)
       if st.button("✖️ উইন্ডো বন্ধ করুন"):
         st.session_state.pop("last_created_agent_user", None)
         st.session_state.pop("last_created_agent_name", None)
+        st.session_state.pop("last_created_agent_phone", None)
         st.rerun()
