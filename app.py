@@ -20,6 +20,101 @@ st.set_page_config(
 )
 
 # =========================================================
+# ADVANCED CUSTOM STYLING (MODERN & COLORFUL UI)
+# =========================================================
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+/* Global Font & Rich Gradient Background */
+html, body, [class*="css"] {
+    font-family: 'Hind Siliguri', 'Poppins', sans-serif;
+}
+
+.stApp {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    color: #f8fafc;
+}
+
+/* Main Title Styling with Vibrant Gradient Effect */
+h1 {
+    font-family: 'Hind Siliguri', sans-serif;
+    font-weight: 700;
+    background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0px 3px 6px rgba(0,0,0,0.4);
+    padding-bottom: 12px;
+    border-bottom: 2px solid rgba(129, 140, 248, 0.3);
+}
+
+h2, h3 {
+    font-family: 'Hind Siliguri', sans-serif;
+    color: #e2e8f0;
+    font-weight: 600;
+}
+
+/* Glassmorphism Containers & Expanders */
+div.stExpander, div[data-testid="stForm"] {
+    background: rgba(30, 41, 59, 0.75) !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    border-radius: 14px !important;
+    padding: 20px !important;
+    box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+}
+
+/* Modern Gradient Buttons */
+.stButton>button {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 0.6rem 1.2rem;
+    font-weight: 600;
+    border: none;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    transition: all 0.3s ease;
+}
+.stButton>button:hover {
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+    transform: translateY(-2px);
+}
+
+/* Input Fields Styling */
+input, textarea, select {
+    background-color: rgba(15, 23, 42, 0.8) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    border-radius: 8px !important;
+}
+
+/* Navigation Radio Menu Styling */
+.stRadio > div {
+    background: rgba(30, 41, 59, 0.85);
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(129, 140, 248, 0.2);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+/* Success & Info Alerts Styling */
+.stSuccess {
+    background: rgba(16, 185, 129, 0.2) !important;
+    border: 1px solid #10b981 !important;
+    color: #34d399 !important;
+    border-radius: 10px !important;
+}
+.stWarning {
+    background: rgba(245, 158, 11, 0.2) !important;
+    border: 1px solid #f59e0b !important;
+    color: #fbbf24 !important;
+    border-radius: 10px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
 # DATABASE SETUP
 # =========================================================
 DB_FILE = "mediseller_delivery.db"
@@ -447,8 +542,8 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   search_html = f"""
   <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
     <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
-    <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #1e1e1e; color: #ffffff; box-sizing: border-box;" autocomplete="off">
-    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #262730; border: 1px solid #444444; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
+    <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
+    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #1e293b; border: 1px solid #475569; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
   </div>
 
   <script>
@@ -471,10 +566,10 @@ if selected_menu == "📍 নতুন লোকেশন এড":
           item.innerText = party;
           item.style.padding = "10px 12px";
           item.style.cursor = "pointer";
-          item.style.borderBottom = "1px solid #333333";
+          item.style.borderBottom = "1px solid #334155";
           item.style.color = "#ffffff";
-          item.onmouseover = function() {{ this.style.backgroundColor = "#333333"; }};
-          item.onmouseout = function() {{ this.style.backgroundColor = "#262730"; }};
+          item.onmouseover = function() {{ this.style.backgroundColor = "#334155"; }};
+          item.onmouseout = function() {{ this.style.backgroundColor = "#1e293b"; }};
           item.onclick = function() {{
             searchBox.value = party;
             suggestionsList.style.display = "none";
@@ -616,8 +711,8 @@ elif selected_menu == "🔍 সার্চ":
   search_bar_html = f"""
   <div style="position: relative; width: 100%; margin-bottom: 20px; box-sizing: border-box;">
     <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা দিয়ে)</label>
-    <input type="text" id="master_search_box" value="{js_search_val}" placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #1e1e1e; color: #ffffff; box-sizing: border-box;" autocomplete="off">
-    <div id="master_suggestions_list" style="position: absolute; width: 100%; max-height: 220px; overflow-y: auto; background: #262730; border: 1px solid #444444; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
+    <input type="text" id="master_search_box" value="{js_search_val}" placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
+    <div id="master_suggestions_list" style="position: absolute; width: 100%; max-height: 220px; overflow-y: auto; background: #1e293b; border: 1px solid #475569; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
   </div>
 
   <script>
@@ -648,10 +743,10 @@ elif selected_menu == "🔍 সার্চ":
           div.innerText = itemText;
           div.style.padding = "10px 12px";
           div.style.cursor = "pointer";
-          div.style.borderBottom = "1px solid #333333";
+          div.style.borderBottom = "1px solid #334155";
           div.style.color = "#ffffff";
-          div.onmouseover = function() {{ this.style.backgroundColor = "#333333"; }};
-          div.onmouseout = function() {{ this.style.backgroundColor = "#262730"; }};
+          div.onmouseover = function() {{ this.style.backgroundColor = "#334155"; }};
+          div.onmouseout = function() {{ this.style.backgroundColor = "#1e293b"; }};
           div.onclick = function() {{
             mSearchBox.value = itemText;
             mSuggestionsList.style.display = "none";
@@ -727,7 +822,7 @@ elif selected_menu == "🔍 সার্চ":
       cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
       
       maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
-      cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ডিরেকশন</button></a>', unsafe_allow_html=True)
+      cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:600;">🧭 ডিরেকশন</button></a>', unsafe_allow_html=True)
 
       if st.session_state["user_role"] == "admin":
         if cols[4].button("🗑️ ডিলিট", key=f"del_loc_search_{row['id']}"):
@@ -785,8 +880,8 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   search_html_task = f"""
   <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
     <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম)</label>
-    <input type="text" id="task_party_search_box" value="{js_selected_party}" placeholder="পার্টির নাম লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #1e1e1e; color: #ffffff; box-sizing: border-box;" autocomplete="off">
-    <div id="task_suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #262730; border: 1px solid #444444; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
+    <input type="text" id="task_party_search_box" value="{js_selected_party}" placeholder="পার্টির নাম লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
+    <div id="task_suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #1e293b; border: 1px solid #475569; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
   </div>
 
   <script>
@@ -809,10 +904,10 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
           item.innerText = party;
           item.style.padding = "10px 12px";
           item.style.cursor = "pointer";
-          item.style.borderBottom = "1px solid #333333";
+          item.style.borderBottom = "1px solid #334155";
           item.style.color = "#ffffff";
-          item.onmouseover = function() {{ this.style.backgroundColor = "#333333"; }};
-          item.onmouseout = function() {{ this.style.backgroundColor = "#262730"; }};
+          item.onmouseover = function() {{ this.style.backgroundColor = "#334155"; }};
+          item.onmouseout = function() {{ this.style.backgroundColor = "#1e293b"; }};
           item.onclick = function() {{
             searchBoxTask.value = party;
             suggestionsListTask.style.display = "none";
@@ -1035,7 +1130,6 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
     else:
       st.info("এই মাসের কোনো উপস্থিতি রেকর্ড পাওয়া যায়নি।")
 
-    # Detailed history and admin edit controls
     st.write("---")
     if user_role == "admin":
       st.write("#### 📋 বিস্তারিত রেকর্ড ও অ্যাডমিন এডিট প্যানেল (সকলের)")
@@ -1089,7 +1183,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
             st.write(f"💰 ডিউ ক্লিয়ারেন্স: **{comp_due} টি**")
             
             agent_map_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-            st.markdown(f'<a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ম্যাপে দেখুন</button></a>', unsafe_allow_html=True)
+            st.markdown(f'<a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:600;">🧭 ম্যাপে দেখুন</button></a>', unsafe_allow_html=True)
           else:
             st.warning("🔴 এজেন্ট বর্তমানে অফলাইন বা লোকেশন পাওয়া যায়নি।")
     else:
@@ -1173,11 +1267,11 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
       direct_msg = f"হ্যালো {created_n}, P.S Mediseller ডেলিভারি অ্যাপে আপনার জন্য নির্দিষ্ট একাউন্ট তৈরি করা হয়েছে। নিচের লিংকে টাচ করলেই আপনি সরাসরি আপনার নামে অ্যাপে প্রবেশ করতে পারবেন:\n"
       
       copy_html = f"""
-      <div style="background: #262730; padding: 15px; border-radius: 8px; border: 1px solid #444; margin-top: 10px;">
+      <div style="background: #1e293b; padding: 15px; border-radius: 10px; border: 1px solid #475569; margin-top: 10px;">
         <p style="color: #fff; margin-bottom: 8px; font-weight: 600;">জেনারেট হওয়া ডাইরেক্ট লিংক:</p>
-        <input type="text" id="generated_link" readonly style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #555; background: #1e1e1e; color: #fff; font-size: 14px; margin-bottom: 10px; box-sizing: border-box;">
-        <button onclick="copyLink()" id="copy_btn" style="background-color: #1a73e8; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">📋 লিংক কপি করুন</button>
-        <span id="copy_status" style="color: #25D366; margin-left: 10px; font-weight: bold; display: none;">✓ কপি হয়েছে!</span>
+        <input type="text" id="generated_link" readonly style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #64748b; background: #0f172a; color: #fff; font-size: 14px; margin-bottom: 10px; box-sizing: border-box;">
+        <button onclick="copyLink()" id="copy_btn" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📋 লিংক কপি করুন</button>
+        <span id="copy_status" style="color: #34d399; margin-left: 10px; font-weight: bold; display: none;">✓ কপি হয়েছে!</span>
       </div>
       <script>
         let currentUrl = "";
