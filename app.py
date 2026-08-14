@@ -455,6 +455,98 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
+
+  # --- DEDICATED MAP PICKER MODAL/VIEW FOR UNMAPPED PARTIES ---
+  if st.session_state.get("mapping_party_id"):
+    st.markdown(f"### 📍 **{st.session_state['mapping_party_name']}** এর জন্য ম্যাপ সেট করুন")
+    st.write("ম্যাপে সঠিক জায়গায় ক্লিক করে লোকেশন সিলেক্ট করুন এবং নিচের **'✅ লোকেশন সেভ করুন (OK)'** বাটনে ক্লিক করুন।")
+    
+    if "temp_map_lat" not in st.session_state:
+      st.session_state["temp_map_lat"] = 22.8620
+    if "temp_map_lon" not in st.session_state:
+      st.session_state["temp_map_lon"] = 87.3320
+
+    col_tm1, col_tm2 = st.columns([1, 4])
+    with col_tm1:
+      if st.button("📍 কারেন্ট জিপিএস নিন", key="btn_curr_gps_temp"):
+        if gps_lat and gps_lon:
+          st.session_state["temp_map_lat"] = gps_lat
+          st.session_state["temp_map_lon"] = gps_lon
+          st.success("কারেন্ট জিপিএস নেওয়া হয়েছে!")
+          st.rerun()
+        else:
+          st.warning("জিপিএস পাওয়া যায়নি!")
+    with col_tm2:
+      st.write(f"নির্বাচিত স্থানাঙ্ক: `{st.session_state['temp_map_lat']:.5f}, {st.session_state['temp_map_lon']:.5f}`")
+
+    pick_map = folium.Map(
+        location=[st.session_state["temp_map_lat"], st.session_state["temp_map_lon"]],
+        zoom_start=17,
+        tiles=None
+    )
+    folium.TileLayer(
+        tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        attr="Google Maps Street",
+        name="স্ট্রিট ভিউ",
+        show=True
+    ).add_to(pick_map)
+    folium.TileLayer(
+        tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        attr="Google Maps Satellite",
+        name="স্যাটেলাইট ভিউ",
+        show=False
+    ).add_to(pick_map)
+
+    folium.Marker(
+        [st.session_state["temp_map_lat"], st.session_state["temp_map_lon"]],
+        popup="<b>এখানে সেট হবে</b>",
+        icon=folium.Icon(color="red", icon="map-marker", prefix="fa")
+    ).add_to(pick_map)
+
+    if gps_lat and gps_lon:
+      folium.CircleMarker(
+          location=[gps_lat, gps_lon],
+          radius=8,
+          color="#0056b3",
+          fill=True,
+          fill_color="#1a73e8",
+          fill_opacity=0.9,
+          popup="আপনার বর্তমান লোকেশন"
+      ).add_to(pick_map)
+
+    folium.LayerControl().add_to(pick_map)
+    p_map_data = st_folium(pick_map, width="100%", height=400, key="party_location_picker_map")
+
+    if p_map_data and p_map_data.get("last_clicked"):
+      clat = p_map_data["last_clicked"]["lat"]
+      clon = p_map_data["last_clicked"]["lng"]
+      if clat != st.session_state["temp_map_lat"] or clon != st.session_state["temp_map_lon"]:
+        st.session_state["temp_map_lat"] = clat
+        st.session_state["temp_map_lon"] = clon
+        st.rerun()
+
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+      if st.button("✅ লোকেশন সেভ করুন (OK)", type="primary", key="save_party_map_ok"):
+        target_id = st.session_state["mapping_party_id"]
+        t_lat = st.session_state["temp_map_lat"]
+        t_lon = st.session_state["temp_map_lon"]
+        c.execute("UPDATE locations SET lat=?, lon=? WHERE id=?", (t_lat, t_lon, target_id))
+        conn.commit()
+        p_name_saved = st.session_state["mapping_party_name"]
+        st.session_state.pop("mapping_party_id", None)
+        st.session_state.pop("mapping_party_name", None)
+        st.success(f"✅ '{p_name_saved}'-এর ম্যাপ সফলভাবে সেভ করা হয়েছে!")
+        st.rerun()
+    with col_b2:
+      if st.button("❌ বাতিল (Cancel)", key="cancel_party_map"):
+        st.session_state.pop("mapping_party_id", None)
+        st.session_state.pop("mapping_party_name", None)
+        st.rerun()
+
+    st.markdown("---")
+    st.stop()
+
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   
   search_query = st.text_input("সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা)", placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন...")
@@ -479,9 +571,10 @@ elif selected_menu == "🔍 সার্চ":
         cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
         
         if cols[3].button("📍 ম্যাপ যুক্ত করুন", key=f"map_add_search_{row['id']}"):
-          c.execute("UPDATE locations SET lat=?, lon=? WHERE id=?", (st.session_state["selected_lat"], st.session_state["selected_lon"], row['id']))
-          conn.commit()
-          st.success(f"✅ '{row['party_name']}' সফলভাবে ম্যাপে যুক্ত হয়েছে এবং তালিকা থেকে সরিয়ে নেওয়া হয়েছে!")
+          st.session_state["mapping_party_id"] = row['id']
+          st.session_state["mapping_party_name"] = row['party_name']
+          st.session_state["temp_map_lat"] = st.session_state.get("selected_lat", 22.8620)
+          st.session_state["temp_map_lon"] = st.session_state.get("selected_lon", 87.3320)
           st.rerun()
 
         if st.session_state["user_role"] == "admin":
