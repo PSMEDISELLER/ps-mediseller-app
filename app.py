@@ -265,11 +265,11 @@ if login_user:
     f_name, r_role = user_row
     st.session_state["username"] = login_user
     st.session_state["user_role"] = r_role
-    st.success(f"✅ Welcome, {f_name}! You have been successfully logged in.")
+    st.success(f"Welcome, {f_name}! You have been successfully logged in.")
     st.query_params.pop("login", None)
     st.rerun()
   else:
-    st.error("❌ Invalid or mismatched link!")
+    st.error("Invalid or mismatched link!")
     st.stop()
 
 # =========================================================
@@ -330,7 +330,7 @@ if st.session_state.get("show_admin_login", False):
         st.success("Admin login successful!")
         st.rerun()
       else:
-        st.error("❌ Incorrect Password!")
+        st.error("Incorrect Password!")
     if cancel_admin:
       st.session_state["show_admin_login"] = False
       st.rerun()
@@ -411,7 +411,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         existing_check = c.fetchone()
         
         if existing_check:
-          st.error(f"❌ এলার্ট: '{p_name.strip()}' নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে ডাটাবেসে সেভ করা আছে! পুনরায় সেভ করা যাবে না।")
+          st.error(f"'{p_name.strip()}' নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে ডাটাবেসে সেভ করা আছে! পুনরায় সেভ করা যাবে না।")
         else:
           try:
             c.execute(
@@ -419,10 +419,10 @@ if selected_menu == "📍 নতুন লোকেশন এড":
                 (p_name.strip(), p_addr, p_phone.strip(), st.session_state["selected_lat"], st.session_state["selected_lon"]),
             )
             conn.commit()
-            st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
+            st.success("লোকেশন সফলভাবে সেভ হয়েছে!")
             st.rerun()
           except sqlite3.IntegrityError:
-            st.error("❌ এলার্ট: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
+            st.error("এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
       else:
         st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
@@ -445,7 +445,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         existing_check_doc = c.fetchone()
 
         if existing_check_doc:
-          st.error(f"❌ এলার্ট: '{doc_name.strip()}' নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে ডাটাবেসে সেভ করা আছে! পুনরায় সেভ করা যাবে না।")
+          st.error(f"'{doc_name.strip()}' নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে ডাটাবেসে সেভ করা আছে! পুনরায় সেভ করা যাবে না।")
         else:
           try:
             c.execute(
@@ -453,10 +453,10 @@ if selected_menu == "📍 নতুন লোকেশন এড":
                 (doc_name.strip(), doc_addr, doc_phone.strip()),
             )
             conn.commit()
-            st.success("✅ ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপশন ব্যবহার করুন)")
+            st.success("ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপশন ব্যবহার করুন)")
             st.rerun()
           except sqlite3.IntegrityError:
-            st.error("❌ এলার্ট: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
+            st.error("এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
       else:
         st.error("ডাক্তার/পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
@@ -691,7 +691,7 @@ elif selected_menu == "🔍 সার্চ":
         p_name_saved = st.session_state["mapping_party_name"]
         st.session_state.pop("mapping_party_id", None)
         st.session_state.pop("mapping_party_name", None)
-        st.success(f"✅ '{p_name_saved}'-এর ম্যাপ সফলভাবে সেভ করা হয়েছে!")
+        st.success(f"'{p_name_saved}'-এর ম্যাপ সফলভাবে সেভ করা হয়েছে!")
         st.rerun()
     with col_b2:
       if st.button("❌ বাতিল (Cancel)", key="cancel_party_map"):
@@ -812,7 +812,7 @@ elif selected_menu == "🔍 সার্চ":
           if cols[4].button("🗑️ ডিলিট", key=f"del_doc_search_{row['id']}"):
             c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
             conn.commit()
-            st.success(f"✅ সফলভাবে ডিলিট করা হয়েছে!")
+            st.success("সফলভাবে ডিলিট করা হয়েছে!")
             st.rerun()
         st.write("---")
     else:
@@ -838,7 +838,7 @@ elif selected_menu == "🔍 সার্চ":
         if cols[4].button("🗑️ ডিলিট", key=f"del_loc_search_{row['id']}"):
           c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
           conn.commit()
-          st.success(f"✅ '{row['party_name']}' সফলভাবে ডিলিট করা হয়েছে!")
+          st.success(f"'{row['party_name']}' সফলভাবে ডিলিট করা হয়েছে!")
           st.rerun()
 
       st.write("---")
@@ -946,9 +946,9 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   sel_pt = js_selected_party
 
   if sel_pt:
-    st.success(f"✅ নির্বাচিত পার্টি: **{sel_pt}**")
+    st.success(f"নির্বাচিত পার্টি: **{sel_pt}**")
   else:
-    st.warning("⚠️ দয়া করে উপরের সার্চ বক্সে পার্টির নাম লিখে সিলেক্ট করুন।")
+    st.warning("দয়া করে উপরের সার্চ বক্সে পার্টির নাম লিখে সিলেক্ট করুন।")
 
   with st.form("easy_assign_form", clear_on_submit=True):
     sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
@@ -1091,7 +1091,7 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
     already_checked = c.fetchone()
 
     if already_checked:
-      st.success(f"✅ আপনার আজকের উপস্থিতি গ্রহণ করা হয়েছে। (সময়: `{already_checked[0]}`)")
+      st.success(f"আপনার আজকের উপস্থিতি গ্রহণ করা হয়েছে। (সময়: `{already_checked[0]}`)")
     else:
       if st.button("🙋‍♂️ আমার আজকের উপস্থিতি দিন (Present)", type="primary"):
         check_time_str = get_ist_time().strftime("%H:%M:%S")
@@ -1252,7 +1252,7 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
               c.execute("DELETE FROM users WHERE username=?", (u_name,))
               c.execute("DELETE FROM agent_live_locations WHERE username=?", (u_name,))
               conn.commit()
-              st.success(f"✅ এজেন্ট '{u_name}' সফলভাবে ডিলিট করা হয়েছে!")
+              st.success(f"এজেন্ট '{u_name}' সফলভাবে ডিলিট করা হয়েছে!")
               st.rerun()
 
     st.write("---")
@@ -1274,7 +1274,7 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
             st.success(f"নতুন এজেন্ট '{n_fullname}' সফলভাবে যোগ করা হয়েছে!")
             st.rerun()
           except sqlite3.IntegrityError:
-            st.error("❌ এই ইউজারনেমটি আগেই রয়েছে।")
+            st.error("এই ইউজারনেমটি আগেই রয়েছে।")
         else:
           st.error("নাম এবং ইউজারনেম পূরণ করুন।")
 
@@ -1331,3 +1331,17 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
         st.session_state.pop("last_created_agent_user", None)
         st.session_state.pop("last_created_agent_name", None)
         st.rerun()
+
+    st.write("---")
+    st.write("### 💾 ডাটাবেস ব্যাকআপ")
+    if os.path.exists("mediseller_delivery.db"):
+        with open("mediseller_delivery.db", "rb") as f:
+            st.download_button(
+                label="📥 ডাটাবেস (.db) ফাইল ডাউনলোড করুন",
+                data=f,
+                file_name="mediseller_delivery.db",
+                mime="application/octet-stream",
+                type="primary"
+            )
+    else:
+        st.warning("কোনো ডাটাবেস ফাইল পাওয়া যায়নি।")
