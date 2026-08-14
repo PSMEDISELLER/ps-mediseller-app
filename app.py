@@ -179,9 +179,13 @@ if not st.session_state.get("logged_in", False):
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
-col_u1, col_u3 = st.columns([3, 1])
+col_u1, col_u2, col_u3 = st.columns([2, 1, 1])
 with col_u1:
   st.write(f"👤 ইউজার: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
+with col_u2:
+  if st.button("🏠 হোমে চলুন"):
+    st.query_params["page"] = "📍 নতুন লোকেশন এড"
+    st.rerun()
 with col_u3:
   if st.button("🚪 লগআউট"):
     st.session_state["logged_in"] = False
@@ -270,7 +274,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
           st.success("✅ লোকেশন সফলভাবে সেভ হয়েছে!")
           st.rerun()
         except sqlite3.IntegrityError:
-          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে! একই পার্টি দুবার এন্ট্রি করা যাবে না।")
+          st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে! একই পার্টি দুবার এন্ট্রি করা যাবে না።")
       else:
         st.error("পার্টির নাম এবং ফোন নম্বর আবশ্যক।")
 
@@ -452,7 +456,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 # 2. SEARCH PARTY & ADMIN DELETE OPTION (নাম, ফোন বা ঠিকানা দিয়ে সার্চ)
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
-  st.write("### 🔍 সেভ করা পার্টি ও ডক্টর তালিকা")
+  st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   
   search_query = st.text_input("সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা)", placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন...")
@@ -468,32 +472,36 @@ elif selected_menu == "🔍 সার্চ":
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
-  # ম্যাপ ছাড়া পার্টি ও ডক্টরদের জন্য আলাদা ও হাইলাইট করা সেকশন
-  if not doc_df.empty:
-    st.info("💡 নিচের ডক্টর বা পার্টিগুলোর কোনো লোকেশন বা ম্যাপ সেট করা নেই:")
-    st.write("#### 👨‍⚕️ ডক্টর / ম্যাপ ছাড়া সেভ করা পার্টি তালিকা")
-    for index, row in doc_df.iterrows():
-      cols = st.columns([3, 2, 2, 2, 1.5])
-      cols[0].write(f"**{row['party_name']}**")
-      cols[1].write(row['party_phone'] if row['party_phone'] else "নম্বার নেই")
-      cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
-      
-      if cols[3].button("🗺️ ম্যাপে যুক্ত করুন", key=f"map_add_{row['id']}"):
-        c.execute("UPDATE locations SET lat=?, lon=? WHERE id=?", (st.session_state["selected_lat"], st.session_state["selected_lon"], row['id']))
-        conn.commit()
-        st.success(f"✅ '{row['party_name']}' সফলভাবে ম্যাপে যুক্ত করা হয়েছে!")
-        st.rerun()
-
-      if st.session_state["user_role"] == "admin":
-        if cols[4].button("🗑️ ডিলিট", key=f"del_doc_{row['id']}"):
-          c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+  # সার্চ বারের ভেতরেই আলাদা ও ডেডিকেটেড সেকশন: ম্যাপবিহীন ডক্টর ও পার্টি তালিকা
+  with st.expander(f"👨‍⚕️ ম্যাপবিহীন ডক্টর ও পার্টি তালিকা ({len(doc_df)} টি বাকি)", expanded=True):
+    st.write("যেসকল ডক্টর বা পার্টির ম্যাপ সেট করা নেই, তাদের তালিকা নিচে দেওয়া হলো। নামের পাশের **'📍 ম্যাপ যুক্ত করুন'** বাটনে ক্লিক করলেই বর্তমান লোকেশন অনুযায়ী তারা ম্যাপে যুক্ত হয়ে এখান থেকে সরে যাবে।")
+    
+    if not doc_df.empty:
+      for index, row in doc_df.iterrows():
+        cols = st.columns([3, 2, 2, 2, 1.5])
+        cols[0].write(f"**{row['party_name']}**")
+        cols[1].write(row['party_phone'] if row['party_phone'] else "নম্বার নেই")
+        cols[2].write(row['address'] if row['address'] else "ঠিকানা নেই")
+        
+        if cols[3].button("📍 ম্যাপ যুক্ত করুন", key=f"map_add_search_{row['id']}"):
+          c.execute("UPDATE locations SET lat=?, lon=? WHERE id=?", (st.session_state["selected_lat"], st.session_state["selected_lon"], row['id']))
           conn.commit()
-          st.success(f"✅ সফলভাবে ডিলিট করা হয়েছে!")
+          st.success(f"✅ '{row['party_name']}' সফলভাবে ম্যাপে যুক্ত হয়েছে এবং তালিকা থেকে সরিয়ে নেওয়া হয়েছে!")
           st.rerun()
-      st.write("---")
 
+        if st.session_state["user_role"] == "admin":
+          if cols[4].button("🗑️ ডিলিট", key=f"del_doc_search_{row['id']}"):
+            c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+            conn.commit()
+            st.success(f"✅ সফলভাবে ডিলিট করা হয়েছে!")
+            st.rerun()
+        st.write("---")
+    else:
+      st.info("সব ডক্টর ও পার্টির ম্যাপ সফলভাবে যুক্ত করা হয়েছে!")
+
+  st.write("---")
+  st.write("#### 📍 ম্যাপে যুক্ত পার্টি ও ডক্টর তালিকা")
   if not mapped_df.empty:
-    st.write("#### 📍 ম্যাপে যুক্ত পার্টি তালিকা")
     for index, row in mapped_df.iterrows():
       if st.session_state["user_role"] == "admin":
         cols = st.columns([3, 2, 2, 2, 1.5])
@@ -508,16 +516,15 @@ elif selected_menu == "🔍 সার্চ":
       cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background-color:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🧭 ডিরেকশন</button></a>', unsafe_allow_html=True)
 
       if st.session_state["user_role"] == "admin":
-        if cols[4].button("🗑️ ডিলিট", key=f"del_loc_{row['id']}"):
+        if cols[4].button("🗑️ ডিলিট", key=f"del_loc_search_{row['id']}"):
           c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
           conn.commit()
           st.success(f"✅ '{row['party_name']}' সফলভাবে ডিলিট করা হয়েছে!")
           st.rerun()
 
       st.write("---")
-  
-  if df.empty:
-    st.info("কোনো পার্টি বা ডক্টর পাওয়া যায়নি।")
+  else:
+    st.info("ম্যাপে যুক্ত কোনো পার্টি পাওয়া যায়নি।")
 
 # =========================================================
 # 3. PENDING ORDERS
