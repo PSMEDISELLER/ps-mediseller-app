@@ -348,9 +348,16 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
+  # টেক্সট ইনপুট সার্চ বক্স (টাইপ করলেই ড্রপডাউনে ফিল্টার হবে)
+  ord_party_search = st.text_input("পার্টি সার্চ করুন (নামের অক্ষর লিখুন)", key="order_party_search_input")
+  
+  if ord_party_search:
+    matched_parties = [p for p in all_parties_db if ord_party_search.lower() in p.lower()]
+  else:
+    matched_parties = all_parties_db
+
   with st.form("order_form", clear_on_submit=True):
-    ord_party = st.selectbox("পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)", ["-- সিলেক্ট করুন --"] + all_parties_db, 
-                             index=0, help="টাইপ করে আপনার কাঙ্ক্ষিত পার্টি খুঁজে নিন")
+    ord_party = st.selectbox("পার্টি নির্বাচন করুন", ["-- সিলেক্ট করুন --"] + matched_parties)
     ord_details = st.text_area("অর্ডারের বিবরণ")
     submitted_ord = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
     
@@ -437,12 +444,18 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
+  task_search_key = st.text_input("সার্চ করুন (পার্টির নাম)", key="live_task_search_box")
+  if task_search_key:
+    filtered_task_parties = [p for p in all_parties if task_search_key.lower() in p.lower()]
+  else:
+    filtered_task_parties = all_parties
+
   with st.form("easy_assign_form", clear_on_submit=True):
     col_e1, col_e2 = st.columns(2)
     with col_e1:
       sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
     with col_e2:
-      sel_pt = st.selectbox("পার্টি নির্বাচন করুন (টাইপ করে খুঁজুন)", ["-- সিলেক্ট করুন --"] + all_parties)
+      sel_pt = st.selectbox("পার্টি নির্বাচন করুন", filtered_task_parties if filtered_task_parties else ["-- পার্টি নেই --"])
 
     st.write("**কাজের ধরণ নির্বাচন করুন:**")
     col_chk1, col_chk2 = st.columns(2)
@@ -455,7 +468,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 
     submit_easy_task = st.form_submit_button("🎯 কাজ যোগ করুন", type="primary")
 
-    if submit_easy_task and sel_pt != "-- সিলেক্ট করুন --":
+    if submit_easy_task and sel_pt != "-- পার্টি নেই --":
       selected_tasks = []
       if chk_delivery:
         selected_tasks.append("ডেলিভারি")
