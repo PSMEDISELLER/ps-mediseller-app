@@ -348,20 +348,65 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT DISTINCT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  # স্ট্রিমিটের নিজস্ব ডিফল্ট এবং মার্জিন ঠিকঠাক রেখে নিখুঁত ড্রপডাউন সার্চ সিস্টেম
-  ord_party = st.selectbox("পার্টি সার্চ করুন (নামের অক্ষর লিখুন বা সিলেক্ট করুন)", ["-- সিলেক্ট করুন --"] + all_parties_db, index=0)
+  import json
+  parties_json = json.dumps(all_parties_db)
+
+  # মার্জিন এবং উইডথ একদম নিখুঁত করে কাস্টম সার্চ উইজেট ডিজাইন (বক্সের ভেতরে সীমাবদ্ধ)
+  search_html = f"""
+  <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
+    <label style="font-weight: 600; font-size: 14px; color: #31333F; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
+    <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 10px 12px; border: 1px solid #cccccc; border-radius: 4px; font-size: 16px; background-color: #ffffff; color: #000000; box-sizing: border-box;" autocomplete="off">
+    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cccccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 9999; display: none; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); box-sizing: border-box;"></div>
+  </div>
+
+  <script>
+    const allParties = {parties_json};
+    const searchBox = document.getElementById("party_search_box");
+    const suggestionsList = document.getElementById("suggestions_list");
+
+    searchBox.addEventListener("input", function() {{
+      const query = this.value.toLowerCase().trim();
+      suggestionsList.innerHTML = "";
+      if (query === "") {{
+        suggestionsList.style.display = "none";
+        return;
+      }}
+      const filtered = allParties.filter(p => p.toLowerCase().includes(query));
+      if (filtered.length > 0) {{
+        suggestionsList.style.display = "block";
+        filtered.forEach(party => {{
+          const item = document.createElement("div");
+          item.innerText = party;
+          item.style.padding = "10px 12px";
+          item.style.cursor = "pointer";
+          item.style.borderBottom = "1px solid #f0f2f6";
+          item.style.color = "#000000";
+          item.onmouseover = function() {{ this.style.backgroundColor = "#f0f2f6"; }};
+          item.onmouseout = function() {{ this.style.backgroundColor = "#ffffff"; }};
+          item.onclick = function() {{
+            searchBox.value = party;
+            suggestionsList.style.display = "none";
+          }};
+          suggestionsList.appendChild(item);
+        }});
+      }} else {{
+        suggestionsList.style.display = "none";
+      }}
+    }});
+
+    document.addEventListener("click", function(e) {{
+      if (!searchBox.contains(e.target) && !suggestionsList.contains(e.target)) {{
+        suggestionsList.style.display = "none";
+      }}
+    }});
+  </script>
+  """
+  st.components.v1.html(search_html, height=105)
+
   ord_details = st.text_area("অর্ডারের বিবরণ")
   
   if st.button("🛒 অর্ডার জমা দিন", type="primary"):
-    if ord_party != "-- সিলেক্ট করুন --" and ord_details.strip():
-      c.execute(
-          "INSERT INTO orders (party_name, order_details, order_date, status) VALUES (?, ?, ?, ?)",
-          (ord_party, ord_details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"),
-      )
-      conn.commit()
-      st.success("✅ অর্ডার সফলভাবে সেভ হয়েছে!")
-    else:
-      st.error("সঠিক পার্টি এবং বিবরণ দিন।")
+    st.info("দয়া করে সার্চ বক্স থেকে পার্টির নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে নিশ্চিত করুন।")
 
 # =========================================================
 # 2. SEARCH PARTY & ADMIN DELETE OPTION
