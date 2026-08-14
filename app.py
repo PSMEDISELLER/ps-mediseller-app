@@ -176,7 +176,7 @@ if not st.session_state.get("logged_in", False):
   st.stop()
 
 # =========================================================
-# MAIN APP HEADER & ROBUST FLOATING SCROLL-TO-TOP BUTTON
+# MAIN APP HEADER & FLOATING HOME BUTTON
 # =========================================================
 st.title("পি এস মেডিসেলার ডেলিভারি পার্টনার")
 
@@ -191,79 +191,38 @@ with col_u2:
     streamlit_js_eval(js_expressions="localStorage.removeItem('ps_perma_user')", key="clear_local_user")
     st.rerun()
 
-floating_top_badge = """
+home_url_encoded = urllib.parse.quote("📍 নতুন লোকেশন এড")
+floating_home_badge = f"""
 <style>
-  #floatingTopBtn {
-    position: fixed !important;
-    left: 20px !important;
-    bottom: 90px !important;
-    z-index: 9999999 !important;
-    background-color: rgba(26, 115, 232, 0.85) !important;
-    color: white !important;
-    width: 52px !important;
-    height: 52px !important;
-    border-radius: 50% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4) !important;
-    text-decoration: none !important;
-    font-size: 24px !important;
-    cursor: pointer !important;
-    border: 2px solid white !important;
-    opacity: 0.9 !important;
-    pointer-events: auto !important;
+  .floating-home-btn {{
+    position: fixed;
+    right: 25px;
+    bottom: 90px;
+    z-index: 999999;
+    background-color: #1a73e8;
+    color: white;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.4);
+    text-decoration: none;
+    font-size: 28px;
     transition: transform 0.2s ease, background-color 0.2s ease;
-  }
-  #floatingTopBtn:hover, #floatingTopBtn:active {
-    transform: scale(1.15) !important;
-    background-color: rgb(26, 115, 232) !important;
-    opacity: 1 !important;
-  }
+  }}
+  .floating-home-btn:hover {{
+    transform: scale(1.12);
+    background-color: #1557b0;
+    color: white;
+  }}
 </style>
-<div id="floatingTopBtn" title="উপরে চলুন">⬆️</div>
-<script>
-  (function() {
-    const initScrollBtn = function() {
-      const btn = document.getElementById('floatingTopBtn');
-      if (btn && !btn.dataset.initialized) {
-        btn.dataset.initialized = "true";
-        
-        const goTop = function(e) {
-          if(e) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-          
-          // Window scroll
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          document.documentElement.scrollTop = 0;
-          document.body.scrollTop = 0;
-          
-          // Streamlit container scroll
-          const containers = document.querySelectorAll('[data-testid="stAppViewContainer"], section.main, .main, div[tabindex="0"]');
-          containers.forEach(function(el) {
-            el.scrollTo({ top: 0, behavior: 'smooth' });
-            el.scrollTop = 0;
-          });
-        };
-
-        btn.addEventListener('click', goTop, { passive: false });
-        btn.addEventListener('touchend', goTop, { passive: false });
-        btn.addEventListener('pointerdown', goTop, { passive: false });
-      }
-    };
-
-    if (document.readyState === 'complete') {
-      initScrollBtn();
-    } else {
-      window.addEventListener('load', initScrollBtn);
-    }
-    setTimeout(initScrollBtn, 500);
-  })();
-</script>
+<a href="?page={home_url_encoded}" target="_self" class="floating-home-btn" title="হোমে চলুন">
+  🏠
+</a>
 """
-st.markdown(floating_top_badge, unsafe_allow_html=True)
+st.markdown(floating_home_badge, unsafe_allow_html=True)
 
 st.write("---")
 
@@ -525,7 +484,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     st.info("দয়া করে সার্চ বক্স থেকে পার্টির নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে নিশ্চিত করুন।")
 
 # =========================================================
-# 2. SEARCH PARTY & ADMIN DELETE OPTION
+# 2. SEARCH PARTY & ADMIN DELETE OPTION (নাম, ফোন বা ঠিকানা দিয়ে সার্চ)
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
   st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
@@ -544,6 +503,7 @@ elif selected_menu == "🔍 সার্চ":
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
+  # সার্চ বারের ভেতরেই আলাদা ও ডেডিকেটেড সেকশন: ম্যাপবিহীন ডক্টর ও পার্টি তালিকা (বড় লেখা বাদ দেওয়া হয়েছে)
   with st.expander(f"👨‍⚕️ ম্যাপবিহীন ডক্টর ও পার্টি তালিকা ({len(doc_df)} টি বাকি)", expanded=True):
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
