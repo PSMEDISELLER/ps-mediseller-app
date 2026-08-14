@@ -1071,7 +1071,9 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
   att_tab1, att_tab2 = st.tabs(["📝 আজকের উপস্থিতি দিন", "📊 মাসিক উপস্থিতি ও টোটাল সামারি"])
 
   with att_tab1:
-    st.write(f"#### আজকের তারিখ: `{datetime.now().strftime('%Y-%m-%d')}`")
+    # এখানে তারিখ DD-MM-YYYY ফরম্যাটে এবং প্রতিদিন অটোমেটিক আপডেট হবে
+    display_today_str = datetime.now().strftime('%d-%m-%Y')
+    st.write(f"#### আজকের তারিখ: `{display_today_str}`")
     
     current_user = st.session_state["username"]
     today_str = datetime.now().strftime("%Y-%m-%d")
@@ -1140,9 +1142,14 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
     
     if not all_att_df.empty:
       for idx, row in all_att_df.iterrows():
+        try:
+          formatted_row_date = datetime.strptime(row['date'], "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+          formatted_row_date = row['date']
+
         cols = st.columns([2, 2, 2, 1.5, 1.5])
         cols[0].write(f"ইউজার: **{row['username']}**")
-        cols[1].write(f"তারিখ: {row['date']}")
+        cols[1].write(f"তারিখ: {formatted_row_date}")
         cols[2].write(f"সময়: {row['check_time']}")
         cols[3].write(f"স্ট্যাটাস: {row['status']}")
 
@@ -1205,7 +1212,12 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
     for ag in agents:
       u_name, u_role, f_name, u_phone, c_date, is_act = ag
       display_name = f_name if f_name else "নাম নেই"
-      join_date = c_date if c_date else "অজানা"
+      
+      try:
+        join_date = datetime.strptime(c_date, "%Y-%m-%d %H:%M:%S").strftime("%d-%m-%Y %H:%M:%S") if c_date else "অজানা"
+      except:
+        join_date = c_date if c_date else "অজানা"
+
       phone_disp = u_phone if u_phone else "নম্বর নেই"
       
       with st.expander(f"👤 {display_name} (ইউজারনেম: {u_name})"):
