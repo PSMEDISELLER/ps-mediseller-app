@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import json
 import urllib.parse
+import base64
+import os
 import folium
 from folium.plugins import MousePosition
 import pandas as pd
@@ -271,39 +273,36 @@ if login_user:
     st.stop()
 
 # =========================================================
-# STYLISH ENGLISH HEADER & LOGO + ADMIN LOGIN OPTION
+# STYLISH SIDE-BY-SIDE LOGO & HEADER + ADMIN LOGIN OPTION
 # =========================================================
-col_logo, col_title, col_auth = st.columns([1, 4, 1.8])
+logo_b64 = ""
+for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
+  if os.path.exists(logo_name):
+    with open(logo_name, "rb") as f:
+      logo_b64 = base64.b64encode(f.read()).decode()
+    break
 
-with col_logo:
-  # আপনার আপলোড করা সঠিক ইমেজ ফাইলের নাম দিয়ে লোগো রেন্ডার করা হচ্ছে
-  logo_loaded = False
-  for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
-    try:
-      st.image(logo_name, width=75)
-      logo_loaded = True
-      break
-    except:
-      pass
-  if not logo_loaded:
-    st.markdown("🔵")
+col_ht1, col_ht2 = st.columns([3, 1])
 
-with col_title:
-  st.markdown("""
-  <div style="padding-top: 2px;">
-      <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 22px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
-      <p style="margin: 0; color: #94a3b8; font-size: 12px; font-weight: 500;">Delivery & Attendance Partner Portal</p>
+with col_ht1:
+  st.markdown(f"""
+  <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+      <div>
+          <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
+          <p style="margin: 0; color: #94a3b8; font-size: 11px; font-weight: 500;">Delivery & Attendance Partner Portal</p>
+      </div>
   </div>
   """, unsafe_allow_html=True)
 
-with col_auth:
+with col_ht2:
   if st.session_state["user_role"] == "admin":
-    if st.button("🚪 Admin Logout"):
+    if st.button("🚪 Logout", key="logout_btn_top"):
       st.session_state["username"] = "delivery"
       st.session_state["user_role"] = "staff"
       st.rerun()
   else:
-    if st.button("🔐 Admin Login"):
+    if st.button("🔐 Admin Login", key="login_btn_top"):
       st.session_state["show_admin_login"] = True
       st.rerun()
 
