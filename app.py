@@ -211,7 +211,7 @@ if loc and "coords" in loc:
   conn.commit()
 
 # =========================================================
-# NAVIGATION MENU
+# NAVIGATION MENU (WITH NATIVE BROWSER BACK BUTTON SUPPORT)
 # =========================================================
 menu_options = [
     "📍 নতুন লোকেশন এড",
@@ -223,21 +223,18 @@ menu_options = [
 if st.session_state["user_role"] == "admin":
   menu_options.extend(["📊 লাইভ ট্র্যাকিং", "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট"])
 
-selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, horizontal=True, label_visibility="collapsed")
+query_params = st.query_params
+current_page_param = query_params.get("page", menu_options[0])
+if current_page_param not in menu_options:
+  current_page_param = menu_options[0]
 
-# মোবাইলের ব্যাক বোতাম টিপলে হোম স্ক্রিনে (নতুন লোকেশন এড) ফিরে যাওয়ার স্ক্রিপ্ট
-if selected_menu != menu_options[0]:
-  back_to_home_js = """
-  <script>
-      if (!window.history.state || window.history.state.page !== 'subpage') {
-          window.history.pushState({page: 'subpage'}, '', window.location.href);
-      }
-      window.addEventListener('popstate', function(event) {
-          window.location.href = window.location.pathname;
-      });
-  </script>
-  """
-  st.components.v1.html(back_to_home_js, height=0)
+default_index = menu_options.index(current_page_param)
+
+selected_menu = st.radio("মেনু সিলেক্ট করুন:", menu_options, index=default_index, horizontal=True, label_visibility="collapsed")
+
+if selected_menu != current_page_param:
+  st.query_params["page"] = selected_menu
+  st.rerun()
 
 st.write("---")
 
@@ -298,7 +295,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
               (doc_name.strip(), doc_addr, doc_phone.strip()),
           )
           conn.commit()
-          st.success("✅ ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপشن ব্যবহার করুন)")
+          st.success("✅ ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপশন ব্যবহার করুন)")
           st.rerun()
         except sqlite3.IntegrityError:
           st.error("❌ এরর: এই নামের অথবা এই ফোন নম্বরের পার্টি ইতিমধ্যে সেভ করা আছে!")
@@ -471,7 +468,9 @@ elif selected_menu == "🔍 সার্চ":
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
+  # ম্যাপ ছাড়া পার্টি ও ডক্টরদের জন্য আলাদা ও হাইলাইট করা সেকশন
   if not doc_df.empty:
+    st.info("💡 নিচের ডক্টর বা পার্টিগুলোর কোনো লোকেশন বা ম্যাপ সেট করা নেই:")
     st.write("#### 👨‍⚕️ ডক্টর / ম্যাপ ছাড়া সেভ করা পার্টি তালিকা")
     for index, row in doc_df.iterrows():
       cols = st.columns([3, 2, 2, 2, 1.5])
