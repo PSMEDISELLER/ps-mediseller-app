@@ -30,7 +30,7 @@ def get_ist_time():
   return datetime.now(ist_offset)
 
 # =========================================================
-# ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION
+# ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION (FIXED FOR PARENT HEAD)
 # =========================================================
 logo_b64 = ""
 for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
@@ -39,42 +39,48 @@ for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
       logo_b64 = base64.b64encode(f.read()).decode()
     break
 
-# Injecting PWA Manifest so that installed app opens in standalone mode without browser UI
+# Injecting PWA Manifest directly into the main browser window's head via window.parent
 pwa_manifest_html = f"""
 <script>
-const manifest = {{
-  "name": "P.S MEDISELLER",
-  "short_name": "Mediseller",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "icons": [
-    {{
-      "src": "data:image/jpeg;base64,{logo_b64}",
-      "sizes": "192x192",
-      "type": "image/jpeg"
-    }}
-  ]
-}};
-const stringManifest = JSON.stringify(manifest);
-const blob = new Blob([stringManifest], {{type: 'application/json'}});
-const manifestURL = URL.createObjectURL(blob);
+try {{
+  const manifest = {{
+    "name": "P.S MEDISELLER",
+    "short_name": "Mediseller",
+    "start_url": "./",
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "icons": [
+      {{
+        "src": "data:image/jpeg;base64,{logo_b64}",
+        "sizes": "192x192",
+        "type": "image/jpeg"
+      }}
+    ]
+  }};
+  const stringManifest = JSON.stringify(manifest);
+  const blob = new Blob([stringManifest], {{type: 'application/json'}});
+  const manifestURL = URL.createObjectURL(blob);
 
-let link = document.createElement('link');
-link.rel = 'manifest';
-link.href = manifestURL;
-document.head.appendChild(link);
+  const targetHead = window.parent.document.head || document.head;
 
-let meta1 = document.createElement('meta');
-meta1.name = 'apple-mobile-web-app-capable';
-meta1.content = 'yes';
-document.head.appendChild(meta1);
+  let link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = manifestURL;
+  targetHead.appendChild(link);
 
-let meta2 = document.createElement('meta');
-meta2.name = 'mobile-web-app-capable';
-meta2.content = 'yes';
-document.head.appendChild(meta2);
+  let meta1 = document.createElement('meta');
+  meta1.name = 'apple-mobile-web-app-capable';
+  meta1.content = 'yes';
+  targetHead.appendChild(meta1);
+
+  let meta2 = document.createElement('meta');
+  meta2.name = 'mobile-web-app-capable';
+  meta2.content = 'yes';
+  targetHead.appendChild(meta2);
+}} catch(e) {{
+  console.log("PWA injection error:", e);
+}}
 </script>
 """
 st.components.v1.html(pwa_manifest_html, height=0)
