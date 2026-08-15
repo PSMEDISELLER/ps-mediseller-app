@@ -476,19 +476,19 @@ if loc and "coords" in loc:
   conn.commit()
 
 # =========================================================
-# NAVIGATION MENU (STYLED ENGLISH + BENGALIS IN BRACKET)
+# NAVIGATION MENU (STYLED ENGLISH + SHORT PROPER BENGALI MEANING)
 # =========================================================
 menu_options = [
-    "📍 Add New Location (নতুন লোকেশন এড)",
-    "🔍 Search & Manage (সার্চ)",
-    "📦 Pending Orders (পেন্ডিং অর্ডার)",
-    "📋 Daily Work (ডেইলি ওয়ার্ক)",
-    "📋 Due & Delivery Plan (ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান)",
-    "🗺️ Route Map (হোম-টু-হোম রুট ও ম্যাপ)",
+    "📍 Add New Location (স্থান যোগ)",
+    "🔍 Search & Manage (অনুসন্ধান)",
+    "📦 Pending Orders (বাকি অর্ডার)",
+    "📋 Daily Work (দৈনিক কাজ)",
+    "📋 Due & Delivery Plan (বকেয়া ও বিতরণ)",
+    "🗺️ Route Map (পথের মানচিত্র)",
     "📅 Attendance (উপস্থিতি)",
 ]
 if st.session_state["user_role"] == "admin":
-  menu_options.extend(["📊 Live Tracking (লাইভ ট্র্যাকিং)", "⚙️ Settings & Agents (সেটিংস ও এজেন্ট ম্যানেজমেন্ট)"])
+  menu_options.extend(["📊 Live Tracking (সরাসরি নজরদারি)", "⚙️ Settings & Agents (সেটিংস ও প্রতিনিধি)"])
 
 current_page_param = query_params.get("page", menu_options[0])
 if current_page_param not in menu_options:
@@ -507,7 +507,7 @@ st.write("---")
 # =========================================================
 # 1. ADD NEW LOCATION & ORDER / VISIT ENTRY
 # =========================================================
-if selected_menu == "📍 Add New Location (নতুন লোকেশন এড)":
+if selected_menu == "📍 Add New Location (স্থান যোগ)":
   st.write("### 📍 নতুন লোকেশন ও ডক্টর/পার্টি এন্ট্রি ফর্ম")
   
   col_tab1, col_tab2 = st.tabs(["🏠 সাধারণ লোকেশন (ম্যাপসহ)", "👨‍⚕️ ডক্টর / ম্যাপ ছাড়া পার্টি এন্ট্রি"])
@@ -745,7 +745,7 @@ if selected_menu == "📍 Add New Location (নতুন লোকেশন এ�
 # =========================================================
 # 2. SEARCH PARTY & ADMIN DELETE OPTION
 # =========================================================
-elif selected_menu == "🔍 Search & Manage (সার্চ)":
+elif selected_menu == "🔍 Search & Manage (অনুসন্ধান)":
   st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
 
   if st.session_state.get("mapping_party_id"):
@@ -904,7 +904,7 @@ elif selected_menu == "🔍 Search & Manage (সার্চ)":
 # =========================================================
 # 3. PENDING ORDERS
 # =========================================================
-elif selected_menu == "📦 Pending Orders (পেন্ডিং অর্ডার)":
+elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
   st.write("### 📦 পেন্ডিং অর্ডার তালিকা")
   orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
   if not orders_df.empty:
@@ -928,7 +928,7 @@ elif selected_menu == "📦 Pending Orders (পেন্ডিং অর্ড�
 # =========================================================
 # 4. DAILY WORK (ডেইলি ওয়ার্ক)
 # =========================================================
-elif selected_menu == "📋 Daily Work (ডেইলি ওয়ার্ক)":
+elif selected_menu == "📋 Daily Work (দৈনিক কাজ)":
   st.write("### 📋 ডেইলি ওয়ার্ক (ভিজিট ও অর্ডার তালিকা)")
 
   st.write("#### 📅 তারিখ অনুযায়ী ভিজিট ও অর্ডার তালিকা")
@@ -974,7 +974,7 @@ elif selected_menu == "📋 Daily Work (ডেইলি ওয়ার্ক)":
 # =========================================================
 # 5. DUE CLEAR & DELIVERY PLAN
 # =========================================================
-elif selected_menu == "📋 Due & Delivery Plan (ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান)":
+elif selected_menu == "📋 Due & Delivery Plan (বকেয়া ও বিতরণ)":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
   
   c.execute("SELECT username FROM users")
@@ -1083,7 +1083,7 @@ elif selected_menu == "📋 Due & Delivery Plan (ডিউ ক্লিয়ার
 # =========================================================
 # 6. HOME-TO-HOME AUTO ROUTE & MAP
 # =========================================================
-elif selected_menu == "🗺️ Route Map (হোম-টু-হোম রুট ও ম্যাপ)":
+elif selected_menu == "🗺️ Route Map (পথের মানচিত্র)":
   st.write("### 🗺️ অটোমেটিক হোম-টু-হোম রুট প্ল্যানিং")
 
   locs_df = pd.read_sql_query("SELECT * FROM locations WHERE lat IS NOT NULL AND lon IS NOT NULL ORDER BY id ASC", conn)
@@ -1229,7 +1229,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
 # =========================================================
 # 8. ADVANCED ADMIN LIVE TRACKING
 # =========================================================
-elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)":
+elif selected_menu == "📊 Live Tracking (সরাসরি নজরদারি)":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
@@ -1307,7 +1307,7 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
 # =========================================================
 # 9. SETTINGS, ADMIN PASSWORD & AGENT MANAGEMENT
 # =========================================================
-elif selected_menu == "⚙️ Settings & Agents (সেটিংস ও এজেন্ট ম্যানেজমেন্ট)":
+elif selected_menu == "⚙️ Settings & Agents (সেটিংস ও প্রতিনিধি)":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
