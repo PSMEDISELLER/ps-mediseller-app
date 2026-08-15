@@ -30,8 +30,55 @@ def get_ist_time():
   return datetime.now(ist_offset)
 
 # =========================================================
-# ADVANCED CUSTOM STYLING (LIGHT & DARK MODE READABILITY FIX)
+# ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION
 # =========================================================
+logo_b64 = ""
+for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
+  if os.path.exists(logo_name):
+    with open(logo_name, "rb") as f:
+      logo_b64 = base64.b64encode(f.read()).decode()
+    break
+
+# Injecting PWA Manifest so that installed app opens in standalone mode without browser UI
+pwa_manifest_html = f"""
+<script>
+const manifest = {{
+  "name": "P.S MEDISELLER",
+  "short_name": "Mediseller",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {{
+      "src": "data:image/jpeg;base64,{logo_b64}",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    }}
+  ]
+}};
+const stringManifest = JSON.stringify(manifest);
+const blob = new Blob([stringManifest], {{type: 'application/json'}});
+const manifestURL = URL.createObjectURL(blob);
+
+let link = document.createElement('link');
+link.rel = 'manifest';
+link.href = manifestURL;
+document.head.appendChild(link);
+
+let meta1 = document.createElement('meta');
+meta1.name = 'apple-mobile-web-app-capable';
+meta1.content = 'yes';
+document.head.appendChild(meta1);
+
+let meta2 = document.createElement('meta');
+meta2.name = 'mobile-web-app-capable';
+meta2.content = 'yes';
+document.head.appendChild(meta2);
+</script>
+"""
+st.components.v1.html(pwa_manifest_html, height=0)
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -370,13 +417,6 @@ if target_login:
 # =========================================================
 # STYLISH SIDE-BY-SIDE LOGO & HEADER + ADMIN LOGIN OPTION
 # =========================================================
-logo_b64 = ""
-for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
-  if os.path.exists(logo_name):
-    with open(logo_name, "rb") as f:
-      logo_b64 = base64.b64encode(f.read()).decode()
-    break
-
 col_ht1, col_ht2 = st.columns([3, 1])
 
 with col_ht1:
@@ -1233,7 +1273,6 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
 
         disp_agent_name = f_name if f_name else u_name
         
-        # সঠিক IST টাইম জেনারেট করা
         IST = ZoneInfo("Asia/Kolkata")
         current_time_str = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
