@@ -29,36 +29,38 @@ def get_ist_time():
     return datetime.now(ist_offset)
 
 # =========================================================
-# ADVANCED CUSTOM STYLING (MODERN & COLORFUL UI)
+# ADVANCED CUSTOM STYLING (MODERN & COLORFUL UI - HIGH CONTRAST TEXT)
 # =========================================================
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 /* Global Font & Rich Gradient Background */
-html, body, [class*="css"] {
+html, body, [class*="css"], p, span, label, div {
     font-family: 'Poppins', sans-serif;
+    color: #ffffff !important;
 }
 
 .stApp {
     background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-    color: #f8fafc;
+    color: #ffffff !important;
 }
 
 /* Glassmorphism Containers & Expanders */
 div.stExpander, div[data-testid="stForm"] {
-    background: rgba(30, 41, 59, 0.75) !important;
-    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    background: rgba(30, 41, 59, 0.85) !important;
+    border: 1px solid rgba(148, 163, 184, 0.35) !important;
     border-radius: 14px !important;
     padding: 20px !important;
     box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
+    color: #ffffff !important;
 }
 
 /* Modern Gradient Buttons */
 .stButton>button {
     background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    color: white;
+    color: white !important;
     border-radius: 10px;
     padding: 0.6rem 1.2rem;
     font-weight: 600;
@@ -74,30 +76,36 @@ div.stExpander, div[data-testid="stForm"] {
 
 /* Input Fields Styling */
 input, textarea, select {
-    background-color: rgba(15, 23, 42, 0.8) !important;
+    background-color: rgba(15, 23, 42, 0.9) !important;
     color: #ffffff !important;
-    border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    border: 1px solid rgba(148, 163, 184, 0.4) !important;
     border-radius: 8px !important;
 }
 
-/* Navigation Radio Menu Styling */
+/* Navigation Radio Menu Styling - Crystal Clear Text */
 .stRadio > div {
-    background: rgba(30, 41, 59, 0.85);
+    background: rgba(30, 41, 59, 0.9);
     padding: 12px;
     border-radius: 14px;
-    border: 1px solid rgba(129, 140, 248, 0.2);
+    border: 1px solid rgba(129, 140, 248, 0.3);
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.stRadio div[role="radiogroup"] label p {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 15px !important;
 }
 
 /* Success & Info Alerts Styling */
 .stSuccess {
-    background: rgba(16, 185, 129, 0.2) !important;
+    background: rgba(16, 185, 129, 0.25) !important;
     border: 1px solid #10b981 !important;
     color: #34d399 !important;
     border-radius: 10px !important;
 }
 .stWarning {
-    background: rgba(245, 158, 11, 0.2) !important;
+    background: rgba(245, 158, 11, 0.25) !important;
     border: 1px solid #f59e0b !important;
     color: #fbbf24 !important;
     border-radius: 10px !important;
@@ -240,7 +248,7 @@ for row_task in c.fetchall():
 conn.commit()
 
 # =========================================================
-# SESSION STATE INITIALIZATION
+# SESSION STATE INITIALIZATION & PERSISTENT LOGIN
 # =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
@@ -290,7 +298,7 @@ with col_ht1:
       <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
       <div>
           <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
-          <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 11px; font-weight: 500;">Delivery & Attendance Partner Portal</p>
+          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Delivery & Attendance Partner Portal</p>
       </div>
   </div>
   """, unsafe_allow_html=True)
@@ -338,7 +346,7 @@ if st.session_state.get("show_admin_login", False):
 st.write("---")
 
 # =========================================================
-# BACKGROUND HIDDEN GPS TRACKING
+# BACKGROUND HIDDEN GPS TRACKING (ALWAYS-ON PERSISTENT)
 # =========================================================
 loc = get_geolocation(component_key="hidden_background_gps_tracker")
 gps_lat, gps_lon = None, None
@@ -1174,44 +1182,87 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
       st.info("কোনো উপস্থিতির রেকর্ড নেই।")
 
 # =========================================================
-# 7. ADMIN LIVE TRACKING
+# 7. ADVANCED ADMIN LIVE TRACKING
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
-    st.write("### 📊 ডেলিভারি এজেন্ট লাইভ ট্র্যাকিং")
-    c.execute("SELECT username, role FROM users")
+    st.write("### 📊 ডেলিভারি এজেন্ট অ্যাডভান্সড লাইভ ট্র্যাকিং")
+    
+    # Auto refresh script for live tracking
+    st.markdown("""
+    <script>
+        setTimeout(function(){
+            window.location.reload();
+        }, 30000); // Auto refresh every 30 seconds
+    </script>
+    <p style="color: #38bdf8 !important; font-size: 13px;">ℹ️ লাইভ পেজটি প্রতি ৩০ সেকেন্ডে স্বয়ংক্রিয়ভাবে আপডেট হচ্ছে।</p>
+    """, unsafe_allow_html=True)
+
+    c.execute("SELECT username, role, fullname, phone FROM users")
     all_system_users = c.fetchall()
 
     if all_system_users:
-      for u_name, u_role in all_system_users:
+      for u_name, u_role, f_name, u_phone in all_system_users:
         c.execute("SELECT lat, lon, last_updated, completed_deliveries, completed_dues FROM agent_live_locations WHERE username=?", (u_name,))
         agent_data = c.fetchone()
 
-        with st.expander(f"👤 এজেন্ট: {u_name} (রোল: {u_role})"):
+        disp_agent_name = f_name if f_name else u_name
+        with st.expander(f"👤 এজেন্ট: {disp_agent_name} ({u_name}) - রোল: {u_role}"):
           if agent_data and agent_data[0] is not None:
             lat, lon, last_updated, comp_del, comp_due = agent_data
-            st.success("🟢 রিয়েল-টাইম লোকেশন সক্রিয়")
-            st.write(f"📍 স্থানাঙ্ক: `{lat}, {lon}`")
-            st.write(f"🕒 শেষ আপডেট: `{last_updated}`")
-            st.write(f"✅ সম্পন্ন ডেলিভারি: **{comp_del} টি**")
-            st.write(f"💰 ডিউ ক্লিয়ারেন্স: **{comp_due} টি**")
+            st.success("🟢 রিয়েল-টাইম লোকেশন সক্রিয় (অলটাইম কানেক্টেড)")
+            
+            col_lt1, col_lt2 = st.columns(2)
+            with col_lt1:
+              st.write(f"📍 জিও-কোঅর্ডিনেট: `{lat:.5f}, {lon:.5f}`")
+              st.write(f"🕒 শেষ আপডেট সময়: `{last_updated}`")
+              st.write(f"📞 ফোন নম্বর: `{u_phone if u_phone else 'নেই'}`")
+            with col_lt2:
+              st.markdown(f"""
+              <div style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; border: 1px solid #475569;">
+                <p style="margin:0; font-weight:600; color:#38bdf8 !important;">📊 কাজের পরিসংখ্যান:</p>
+                <p style="margin:4px 0 0 0;">✅ সম্পন্ন ডেলিভারি: <b>{comp_del} টি</b></p>
+                <p style="margin:2px 0 0 0;">💰 ডিউ ক্লিয়ারেন্স: <b>{comp_due} টি</b></p>
+              </div>
+              """, unsafe_allow_html=True)
             
             agent_map_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-            st.markdown(f'<a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:600;">🧭 ম্যাপে দেখুন</button></a>', unsafe_allow_html=True)
+            st.markdown(f'<br><a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:600;">🧭 গুগল ম্যাপে লোকেশন দেখুন</button></a>', unsafe_allow_html=True)
           else:
-            st.warning("🔴 এজেন্ট বর্তমানে অফলাইন বা লোকেশন পাওয়া যায়নি।")
+            st.warning("🔴 এজেন্ট বর্তমানে অফলাইন বা জিপিএস সিগন্যাল পাওয়া যায়নি।")
     else:
       st.info("কোনো ইউজার পাওয়া যায়নি।")
 
 # =========================================================
-# 8. SETTINGS & AGENT MANAGEMENT
+# 8. SETTINGS, ADMIN PASSWORD & AGENT MANAGEMENT
 # =========================================================
 elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
+    st.write("### 🔑 অ্যাডমিন পাসওয়ার্ড পরিবর্তন")
+    with st.form("admin_password_change_form"):
+      old_pass = st.text_input("পুরাতন পাসওয়ার্ড দিন", type="password")
+      new_pass = st.text_input("নতুন পাসওয়ার্ড দিন", type="password")
+      confirm_pass = st.text_input("নতুন পাসওয়ার্ড পুনরায় লিখুন", type="password")
+      change_pass_btn = st.form_submit_button("🔒 অ্যাডমিন পাসওয়ার্ড আপডেট করুন", type="primary")
+
+      if change_pass_btn:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        adm_db_row = c.fetchone()
+        if adm_db_row and adm_db_row[0] == old_pass:
+          if new_pass == confirm_pass and new_pass.strip() != "":
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass,))
+            conn.commit()
+            st.success("অ্যাডমিন পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!")
+          else:
+            st.error("নতুন পাসওয়ার্ড মিলছে না বা খালি রাখা যাবে না।")
+        else:
+          st.error("পুরাতন পাসওয়ার্ড সঠিক নয়!")
+
+    st.write("---")
     st.write("### 👥 ডেলিভারি এজেন্ট তালিকা ও ম্যানেজমেন্ট")
     
     c.execute("SELECT username, role, fullname, phone, created_at, is_active FROM users")
@@ -1335,7 +1386,6 @@ elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্�
     st.write("---")
     st.write("### 💾 ডাটাবেস ব্যাকআপ ও রিস্টোর")
     
-    # ডাউনলোড অপশন
     if os.path.exists("mediseller_delivery.db"):
         with open("mediseller_delivery.db", "rb") as f:
             st.download_button(
