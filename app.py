@@ -80,20 +80,21 @@ div.stExpander details {
     border-radius: 14px !important;
 }
 
-/* Modern Gradient Buttons */
-.stButton>button {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    color: white !important;
-    border-radius: 10px;
-    padding: 0.6rem 1.2rem;
-    font-weight: 600;
-    border: none;
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-    transition: all 0.3s ease;
+/* Universal Button Styling Fix (Primary, Secondary & Form Buttons) */
+.stButton>button, div.stButton > button, button[kind="secondary"], button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+    color: #ffffff !important;
+    border-radius: 10px !important;
+    padding: 0.6rem 1.2rem !important;
+    font-weight: 600 !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4) !important;
+    transition: all 0.3s ease !important;
 }
-.stButton>button:hover {
-    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+
+.stButton>button:hover, div.stButton > button:hover, button[kind="secondary"]:hover, button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6) !important;
     transform: translateY(-2px);
 }
 
