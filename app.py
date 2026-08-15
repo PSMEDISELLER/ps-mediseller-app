@@ -179,6 +179,14 @@ CREATE TABLE IF NOT EXISTS orders (
 )
 """)
 c.execute("""
+CREATE TABLE IF NOT EXISTS daily_work (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    party_name TEXT NOT NULL,
+    activity_type TEXT NOT NULL,
+    work_date TEXT NOT NULL
+)
+""")
+c.execute("""
 CREATE TABLE IF NOT EXISTS agent_live_locations (
     username TEXT PRIMARY KEY,
     lat REAL,
@@ -416,6 +424,7 @@ menu_options = [
     "📍 নতুন লোকেশন এড",
     "🔍 সার্চ",
     "📦 পেন্ডিং অর্ডার",
+    "📋 ডেইলি ওয়ার্ক",
     "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান",
     "🗺️ হোম-টু-হোম রুট ও ম্যাপ",
     "📅 উপস্থিতি (Attendance)",
@@ -504,6 +513,11 @@ if selected_menu == "📍 নতুন লোকেশন এড":
             c.execute(
                 "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, NULL, NULL)",
                 (doc_name.strip(), doc_addr, doc_phone.strip()),
+            )
+            # Log visit in daily work
+            c.execute(
+                "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                (doc_name.strip(), "ভিজিট", get_ist_time().strftime("%Y-%m-%d"))
             )
             conn.commit()
             st.success("ডক্টর/পার্টি সফলভাবে সেভ হয়েছে! (ম্যাপে যুক্ত করতে সার্চ অপশন ব্যবহার করুন)")
@@ -625,9 +639,14 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       if not ord_details.strip():
         st.error("দয়া করে অর্ডারের বিবরণ লিখুন।")
       else:
+        current_date_str = get_ist_time().strftime("%Y-%m-%d")
         c.execute(
             "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
             (selected_order_party_native, ord_details.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Pending", "0")
+        )
+        c.execute(
+            "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+            (selected_order_party_native, "অর্ডার", current_date_str)
         )
         conn.commit()
         st.success("অর্ডার সফলভাবে জমা দেওয়া হয়েছে!")
@@ -817,7 +836,70 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
     st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN
+# 4. DAILY WORK (ডেইলি ওয়ার্ক)
+# =========================================================
+elif selected_menu == "📋 ডেইলি ওয়ার্ক":
+  st.write("### 📋 ডেইলি ওয়ার্ক (ভিজিট ও অর্ডার তালিকা)")
+
+  with st.form("add_daily_work_form", clear_on_submit=True):
+    st.write("#### ➕ নতুন ভিজিট বা এন্ট্রি যোগ করুন")
+    c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
+    all_loc_parties = [r[0] for r in c.fetchall()]
+    dw_party = st.selectbox("পার্টি নির্বাচন করুন", all_loc_parties if all_loc_parties else ["কোনো পার্টি নেই"])
+    dw_type = st.selectbox("কাজের ধরণ", ["ভিজিট", "অর্ডার"])
+    submit_dw = st.form_submit_button("সেভ করুন", type="primary")
+
+    if submit_dw and dw_party != "কোনো পার্টি নেই":
+      current_date_str = get_ist_time().strftime("%Y-%m-%d")
+      c.execute("INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                (dw_party, dw_type, current_date_str))
+      conn.commit()
+      st.success("সফলভাবে ডেইলি ওয়ার্ক এন্ট্রি করা হয়েছে!")
+      st.rerun()
+
+  st.write("---")
+  st.write("#### 📅 তারিখ অনুযায়ী ভিজিট ও অর্ডার তালিকা")
+
+  work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
+  if not work_df.empty:
+    unique_dates = work_df['work_date'].unique()
+    for d_str in unique_dates:
+      date_records = work_df[work_df['work_date'] == d_str]
+      count_parties = len(date_records)
+      
+      try:
+        formatted_d = datetime.strptime(d_str, "%Y-%m-%d").strftime("%d-%m-%Y")
+      except:
+        formatted_d = d_str
+
+      with st.expander(f"📅 তারিখ: {formatted_d} (মোট পার্টি: {count_parties} জন)", expanded=True):
+        if st.session_state["user_role"] == "admin":
+          if st.button(f"🗑️ পুরো তারিখের ({formatted_d}) সমস্ত ডেটা ডিলিট করুন", key=f"del_date_{d_str}", type="secondary"):
+            c.execute("DELETE FROM daily_work WHERE work_date=?", (d_str,))
+            conn.commit()
+            st.success(f"{formatted_d} তারিখের সমস্ত ডেটা সফলভাবে মুছে ফেলা হয়েছে!")
+            st.rerun()
+          st.write("---")
+
+        for idx, w_row in date_records.iterrows():
+          cols = st.columns([3, 2, 1.5])
+          cols[0].write(f"পার্টি: **{w_row['party_name']}**")
+          cols[1].write(f"স্ট্যাটাস: `{w_row['activity_type']}`")
+          
+          if st.session_state["user_role"] == "admin":
+            if cols[2].button("🗑️ ডিলিট", key=f"del_dw_{w_row['id']}"):
+              c.execute("DELETE FROM daily_work WHERE id=?", (w_row['id'],))
+              conn.commit()
+              st.success("সফলভাবে ডিলিট করা হয়েছে!")
+              st.rerun()
+          else:
+            cols[2].write("🔒 লকড")
+          st.write("---")
+  else:
+    st.info("কোনো ডেইলি ওয়ার্ক বা ভিজিটের রেকর্ড নেই।")
+
+# =========================================================
+# 5. DUE CLEAR & DELIVERY PLAN
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
@@ -870,9 +952,14 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 
         if selected_tasks:
           t_type_str = " ও ".join(selected_tasks)
+          current_date_str = get_ist_time().strftime("%Y-%m-%d")
           c.execute(
               "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
               (sel_ag, sel_pt, t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")),
+          )
+          c.execute(
+              "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+              (sel_pt, "ভিজিট", current_date_str)
           )
           conn.commit()
           st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
@@ -921,7 +1008,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
     st.info("কোনো কাজ অ্যাসাইন করা নেই।")
 
 # =========================================================
-# 5. HOME-TO-HOME AUTO ROUTE & MAP
+# 6. HOME-TO-HOME AUTO ROUTE & MAP
 # =========================================================
 elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্যাপ":
   st.write("### 🗺️ অটোমেটিক হোম-টু-হোম রুট প্ল্যানিং")
@@ -966,7 +1053,7 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
     st.info("রুট দেখানোর জন্য ম্যাপে কোনো লোকেশন সেভ করা নেই।")
 
 # =========================================================
-# 6. ATTENDANCE SYSTEM
+# 7. ATTENDANCE SYSTEM
 # =========================================================
 elif selected_menu == "📅 উপস্থিতি (Attendance)":
   st.write("### 📅 স্টাফ ও এজেন্ট উপস্থিতি (Daily & Monthly Attendance)")
@@ -1067,7 +1154,7 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
       st.info("কোনো উপস্থিতির রেকর্ড নেই।")
 
 # =========================================================
-# 7. ADVANCED ADMIN LIVE TRACKING
+# 8. ADVANCED ADMIN LIVE TRACKING
 # =========================================================
 elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
@@ -1120,7 +1207,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
       st.info("কোনো ইউজার পাওয়া যায়নি।")
 
 # =========================================================
-# 8. SETTINGS, ADMIN PASSWORD & AGENT MANAGEMENT
+# 9. SETTINGS, ADMIN PASSWORD & AGENT MANAGEMENT
 # =========================================================
 elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
   if st.session_state["user_role"] != "admin":
