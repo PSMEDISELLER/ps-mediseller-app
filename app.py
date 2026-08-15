@@ -25,8 +25,8 @@ st.set_page_config(
 # IST TIME HELPER (সঠিক ভারতীয় সময় ও তারিখ পাওয়ার জন্য)
 # =========================================================
 def get_ist_time():
-    ist_offset = timezone(timedelta(hours=5, minutes=30))
-    return datetime.now(ist_offset)
+  ist_offset = timezone(timedelta(hours=5, minutes=30))
+  return datetime.now(ist_offset)
 
 # =========================================================
 # ADVANCED CUSTOM STYLING (MODERN & COLORFUL UI - HIGH CONTRAST TEXT)
@@ -261,24 +261,42 @@ if "user_role" not in st.session_state:
   st.session_state["user_role"] = "staff"
 
 # =========================================================
-# DIRECT WHATSAPP LOGIN HANDLER (URL QUERY PARAM)
+# DIRECT WHATSAPP LOGIN HANDLER & LOCAL STORAGE PERSISTENCE
 # =========================================================
 query_params = st.query_params
 login_user = query_params.get("login", None)
 
+saved_user_js = streamlit_js_eval(js_expressions="localStorage.getItem('ps_mediseller_user')", key="get_saved_user_storage")
+
+target_login = None
+
 if login_user:
-  c.execute("SELECT fullname, role FROM users WHERE username=?", (login_user,))
-  user_row = c.fetchone()
-  if user_row:
-    f_name, r_role = user_row
-    st.session_state["username"] = login_user
-    st.session_state["user_role"] = r_role
-    st.success(f"Welcome, {f_name}! You have been successfully logged in.")
-    st.query_params.pop("login", None)
-    st.rerun()
-  else:
-    st.error("Invalid or mismatched link!")
-    st.stop()
+    target_login = login_user
+    st.markdown(f"""
+    <script>
+        localStorage.setItem('ps_mediseller_user', '{login_user}');
+    </script>
+    """, unsafe_allow_html=True)
+elif saved_user_js and st.session_state.get("username") == "delivery":
+    target_login = saved_user_js
+
+if target_login:
+    c.execute("SELECT fullname, role FROM users WHERE username=?", (target_login,))
+    user_row = c.fetchone()
+    if user_row:
+        f_name, r_role = user_row
+        st.session_state["username"] = target_login
+        st.session_state["user_role"] = r_role
+        if login_user:
+            st.success(f"স্বাগতম, {f_name}! আপনার একাউন্ট সফলভাবে সেটআপ ও লগইন হয়েছে।")
+            st.query_params.pop("login", None)
+            st.rerun()
+    else:
+        st.markdown("""
+        <script>
+            localStorage.removeItem('ps_mediseller_user');
+        </script>
+        """, unsafe_allow_html=True)
 
 # =========================================================
 # STYLISH SIDE-BY-SIDE LOGO & HEADER + ADMIN LOGIN OPTION
@@ -308,6 +326,11 @@ with col_ht2:
     if st.button("🚪 Logout", key="logout_btn_top"):
       st.session_state["username"] = "delivery"
       st.session_state["user_role"] = "staff"
+      st.markdown("""
+      <script>
+          localStorage.removeItem('ps_mediseller_user');
+      </script>
+      """, unsafe_allow_html=True)
       st.rerun()
   else:
     if st.button("🔐 Admin Login", key="login_btn_top"):
@@ -557,10 +580,13 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 
   parties_json = json.dumps(all_parties_db)
 
+  q_params = st.query_params
+  js_selected_order_party = q_params.get("selected_order_party", "")
+
   search_html = f"""
   <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
     <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
-    <input type="text" id="party_search_box" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
+    <input type="text" id="party_search_box" value="{js_selected_order_party}" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
     <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #1e293b; border: 1px solid #475569; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
   </div>
 
@@ -568,6 +594,17 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     const allParties = {parties_json};
     const searchBox = document.getElementById("party_search_box");
     const suggestionsList = document.getElementById("suggestions_list");
+
+    function updateOrderPartyParam(val) {{
+      const url = new URL(window.location.href);
+      if (val.trim() !== "") {{
+        url.searchParams.set('selected_order_party', val.trim());
+      }} else {{
+        url.searchParams.delete('selected_order_party');
+      }}
+      window.history.replaceState({{}}, '', url);
+      window.location.reload();
+    }}
 
     searchBox.addEventListener("input", function() {{
       const query = this.value.toLowerCase().trim();
@@ -591,12 +628,17 @@ if selected_menu == "📍 নতুন লোকেশন এড":
           item.onclick = function() {{
             searchBox.value = party;
             suggestionsList.style.display = "none";
+            updateOrderPartyParam(party);
           }};
           suggestionsList.appendChild(item);
         }});
       }} else {{
         suggestionsList.style.display = "none";
       }}
+    }});
+
+    searchBox.addEventListener("change", function() {{
+      updateOrderPartyParam(this.value);
     }});
 
     document.addEventListener("click", function(e) {{
@@ -609,10 +651,28 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   """
   st.components.v1.html(search_html, height=115)
 
+  if js_selected_order_party:
+    st.success(f"নির্বাচিত পার্টি: **{js_selected_order_party}**")
+  else:
+    st.warning("দয়া করে ওপরের সার্চ বক্স থেকে পার্টির নাম লিখে বা ড্রপডাউন থেকে সিলেক্ট করুন।")
+
   ord_details = st.text_area("অর্ডারের বিবরণ")
   
   if st.button("🛒 অর্ডার জমা দিন", type="primary"):
-    st.info("দয়া করে সার্চ বক্স থেকে পার্টির নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে নিশ্চিত করুন।")
+    if not js_selected_order_party or js_selected_order_party not in all_parties_db:
+      st.error("দয়া করে সার্চ বক্স থেকে পার্টির নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে নিশ্চিত করুন।")
+    else:
+      if not ord_details.strip():
+        st.error("দয়া করে অর্ডারের বিবরণ লিখুন।")
+      else:
+        c.execute(
+            "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
+            (js_selected_order_party, ord_details.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Pending", "0")
+        )
+        conn.commit()
+        st.success("অর্ডার সফলভাবে জমা দেওয়া হয়েছে!")
+        st.query_params.pop("selected_order_party", None)
+        st.rerun()
 
 # =========================================================
 # 2. SEARCH PARTY & ADMIN DELETE OPTION
@@ -1190,12 +1250,11 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   else:
     st.write("### 📊 ডেলিভারি এজেন্ট অ্যাডভান্সড লাইভ ট্র্যাকিং")
     
-    # Auto refresh script for live tracking
     st.markdown("""
     <script>
         setTimeout(function(){
             window.location.reload();
-        }, 30000); // Auto refresh every 30 seconds
+        }, 30000);
     </script>
     <p style="color: #38bdf8 !important; font-size: 13px;">ℹ️ লাইভ পেজটি প্রতি ৩০ সেকেন্ডে স্বয়ংক্রিয়ভাবে আপডেট হচ্ছে।</p>
     """, unsafe_allow_html=True)
