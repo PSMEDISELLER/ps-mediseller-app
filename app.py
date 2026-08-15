@@ -87,16 +87,21 @@ input::placeholder, textarea::placeholder {
     font-weight: 700 !important;
 }
 
-/* Press Enter to Apply Helper Text Styling inside a Blue Box */
-div[data-testid="stTextInput"] small, div[data-testid="stTextArea"] small {
+/* Press Enter to Apply Helper Text Styling inside a Blue Box (Enhanced Selectors) */
+div[data-testid="stTextInput"] small, 
+div[data-testid="stTextArea"] small,
+div[data-testid="stTextInput"] div p,
+div[data-testid="stTextArea"] div p,
+.stTextInput small, 
+.stTextArea small {
     background: rgba(37, 99, 235, 0.25) !important;
     color: #60a5fa !important;
     border: 1px solid #3b82f6 !important;
-    padding: 4px 10px !important;
+    padding: 6px 12px !important;
     border-radius: 6px !important;
     font-weight: 600 !important;
     display: inline-block !important;
-    margin-top: 5px !important;
+    margin-top: 6px !important;
 }
 
 /* Navigation Radio Menu Styling - Crystal Clear Text */
