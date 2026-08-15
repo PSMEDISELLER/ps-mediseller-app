@@ -174,18 +174,41 @@ div[data-testid="stTextArea"] div p,
     margin-top: 6px !important;
 }
 
+/* --------------------------------------------------------- */
+/* MODERN BOX-BY-BOX (CARD STYLE) RADIO MENU STYLING         */
+/* --------------------------------------------------------- */
 .stRadio > div {
-    background: #1e293b;
-    padding: 12px;
-    border-radius: 14px;
-    border: 1px solid rgba(129, 140, 248, 0.3);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    background: transparent !important;
+    padding: 0px !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.stRadio div[role="radiogroup"] label {
+    background: #1e293b !important;
+    border: 1px solid rgba(129, 140, 248, 0.35) !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    margin-bottom: 10px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+    transition: all 0.3s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+.stRadio div[role="radiogroup"] label:hover {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #60a5fa !important;
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.3) !important;
+    transform: translateY(-2px);
 }
 
 .stRadio div[role="radiogroup"] label p {
     color: #ffffff !important;
     font-weight: 600 !important;
     font-size: 15px !important;
+    margin: 0 !important;
 }
 
 .stSuccess {
