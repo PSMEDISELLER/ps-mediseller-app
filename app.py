@@ -447,7 +447,7 @@ if selected_menu != current_page_param:
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY
+# 1. ADD NEW LOCATION & ORDER / VISIT ENTRY
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
   st.write("### 📍 নতুন লোকেশন ও ডক্টর/পার্টি এন্ট্রি ফর্ম")
@@ -514,7 +514,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
                 "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, NULL, NULL)",
                 (doc_name.strip(), doc_addr, doc_phone.strip()),
             )
-            # Log visit in daily work
             c.execute(
                 "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
                 (doc_name.strip(), "ভিজিট", get_ist_time().strftime("%Y-%m-%d"))
@@ -609,48 +608,81 @@ if selected_menu == "📍 নতুন লোকেশন এড":
       st.rerun()
 
   st.write("---")
-  st.write("### 📦 নতুন অর্ডার এন্ট্রি")
+  st.write("### 📦 অর্ডার ও ভিজিট এন্ট্রি এবং রিপোর্ট")
   
-  st.write("🔍 **পার্টি খুঁজুন ও সিলেক্ট করুন:**")
-  order_search_query = st.text_input("সার্চ", placeholder="সার্চ করুন", key="order_search_input_box", label_visibility="collapsed")
+  with st.form("order_visit_entry_form", clear_on_submit=True):
+    st.write("🔍 **পার্টি বা ডাক্তার খুঁজুন ও সিলেক্ট করুন:**")
+    order_search_query = st.text_input("সার্চ", placeholder="সার্চ করুন", key="order_search_input_box", label_visibility="collapsed")
 
-  if order_search_query.strip():
-    c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{order_search_query.strip()}%",))
-  else:
-    c.execute("SELECT party_name FROM locations ORDER BY party_name ASC LIMIT 15")
-
-  matched_order_parties = [row[0] for row in c.fetchall()]
-
-  if matched_order_parties:
-    selected_order_party_native = st.radio("সংশ্লিষ্ট পার্টি সিলেক্ট করুন:", matched_order_parties, key="order_party_radio_list")
-  else:
-    selected_order_party_native = "-- সিলেক্ট করুন --"
-    st.warning("এই নামের কোনো পার্টি পাওয়া যায়নি। সঠিক নাম লিখুন বা নতুন লোকেশন এন্ট্রি করুন।")
-
-  if selected_order_party_native != "-- সিলেক্ট করুন --":
-    st.success(f"✅ কনফার্মড পার্টি: **{selected_order_party_native}**")
-
-  ord_details = st.text_area("অর্ডারের বিবরণ")
-  
-  if st.button("🛒 অর্ডার জমা দিন", type="primary"):
-    if selected_order_party_native == "-- সিলেক্ট করুন --" or not selected_order_party_native:
-      st.error("দয়া করে সঠিক একটি পার্টি সিলেক্ট করুন।")
+    if order_search_query.strip():
+      c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{order_search_query.strip()}%",))
     else:
-      if not ord_details.strip():
-        st.error("দয়া করে অর্ডারের বিবরণ লিখুন।")
+      c.execute("SELECT party_name FROM locations ORDER BY party_name ASC LIMIT 15")
+
+    matched_order_parties = [row[0] for row in c.fetchall()]
+
+    if matched_order_parties:
+      selected_order_party_native = st.radio("সংশ্লিষ্ট পার্টি সিলেক্ট করুন:", matched_order_parties, key="order_party_radio_list")
+    else:
+      selected_order_party_native = "-- সিলেক্ট করুন --"
+      st.warning("এই নামের কোনো পার্টি পাওয়া যায়নি। সঠিক নাম লিখুন বা নতুন লোকেশন এন্ট্রি করুন।")
+
+    if selected_order_party_native != "-- সিলেক্ট করুন --":
+      st.success(f"✅ কনফার্মড পার্টি: **{selected_order_party_native}**")
+
+    ord_details = st.text_area("অর্ডারের বিবরণ (যদি অর্ডার থাকে)")
+    
+    col_ob1, col_ob2 = st.columns(2)
+    with col_ob1:
+      submitted_order = st.form_submit_button("🛒 অর্ডার জমা দিন", type="primary")
+    with col_ob2:
+      submitted_visit = st.form_submit_button("📍 ভিজিট হিসেবে সেভ করুন")
+
+    if submitted_order:
+      if selected_order_party_native == "-- সিলেক্ট করুন --" or not selected_order_party_native:
+        st.error("দয়া করে সঠিক একটি পার্টি সিলেক্ট করুন।")
+      else:
+        if not ord_details.strip():
+          st.error("দয়া করে অর্ডারের বিবরণ লিখুন।")
+        else:
+          current_date_str = get_ist_time().strftime("%Y-%m-%d")
+          c.execute(
+              "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
+              (selected_order_party_native, ord_details.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Pending", "0")
+          )
+          c.execute(
+              "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+              (selected_order_party_native, "অর্ডার", current_date_str)
+          )
+          conn.commit()
+          st.success("অর্ডার সফলভাবে জমা দেওয়া হয়েছে!")
+          st.rerun()
+
+    if submitted_visit:
+      if selected_order_party_native == "-- সিলেক্ট করুন --" or not selected_order_party_native:
+        st.error("দয়া করে সঠিক একটি পার্টি সিলেক্ট করুন।")
       else:
         current_date_str = get_ist_time().strftime("%Y-%m-%d")
         c.execute(
-            "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
-            (selected_order_party_native, ord_details.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Pending", "0")
-        )
-        c.execute(
             "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-            (selected_order_party_native, "অর্ডার", current_date_str)
+            (selected_order_party_native, "ভিজিট", current_date_str)
         )
         conn.commit()
-        st.success("অর্ডার সফলভাবে জমা দেওয়া হয়েছে!")
+        st.success("ভিজিট সফলভাবে সেভ করা হয়েছে!")
         st.rerun()
+
+  st.write("---")
+  st.write("#### 📋 সাম্প্রতিক অর্ডার ও ভিজিট রিপোর্টসমূহ")
+  report_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC LIMIT 20", conn)
+  if not report_df.empty:
+    for idx, r_row in report_df.iterrows():
+      cols = st.columns([3, 2, 2])
+      cols[0].write(f"পার্টি: **{r_row['party_name']}**")
+      cols[1].write(f"কার্যক্রম: `{r_row['activity_type']}`")
+      cols[2].write(f"তারিখ: `{r_row['work_date']}`")
+      st.write("---")
+  else:
+    st.info("কোনো রিপোর্ট পাওয়া যায়নি।")
 
 # =========================================================
 # 2. SEARCH PARTY & ADMIN DELETE OPTION
@@ -841,23 +873,6 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
 elif selected_menu == "📋 ডেইলি ওয়ার্ক":
   st.write("### 📋 ডেইলি ওয়ার্ক (ভিজিট ও অর্ডার তালিকা)")
 
-  with st.form("add_daily_work_form", clear_on_submit=True):
-    st.write("#### ➕ নতুন ভিজিট বা এন্ট্রি যোগ করুন")
-    c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
-    all_loc_parties = [r[0] for r in c.fetchall()]
-    dw_party = st.selectbox("পার্টি নির্বাচন করুন", all_loc_parties if all_loc_parties else ["কোনো পার্টি নেই"])
-    dw_type = st.selectbox("কাজের ধরণ", ["ভিজিট", "অর্ডার"])
-    submit_dw = st.form_submit_button("সেভ করুন", type="primary")
-
-    if submit_dw and dw_party != "কোনো পার্টি নেই":
-      current_date_str = get_ist_time().strftime("%Y-%m-%d")
-      c.execute("INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                (dw_party, dw_type, current_date_str))
-      conn.commit()
-      st.success("সফলভাবে ডেইলি ওয়ার্ক এন্ট্রি করা হয়েছে!")
-      st.rerun()
-
-  st.write("---")
   st.write("#### 📅 তারিখ অনুযায়ী ভিজিট ও অর্ডার তালিকা")
 
   work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
