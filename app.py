@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+  from datetime import datetime, timedelta, timezone
 import json
 import urllib.parse
 import base64
@@ -53,12 +53,11 @@ html, body, [class*="css"], p, span, label, div {
 
 /* Glassmorphism Containers & Expanders */
 div.stExpander, div[data-testid="stForm"] {
-    background: rgba(30, 41, 59, 0.85) !important;
+    background: #1e293b !important;
     border: 1px solid rgba(148, 163, 184, 0.35) !important;
     border-radius: 14px !important;
     padding: 20px !important;
     box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
     color: #ffffff !important;
 }
 
@@ -69,14 +68,14 @@ div.stExpander details summary p,
 [data-testid="stExpander"] summary,
 [data-testid="stExpander"] summary span,
 [data-testid="stExpander"] summary p {
-    background-color: rgba(30, 41, 59, 0.95) !important;
+    background-color: #1e293b !important;
     color: #ffffff !important;
     border-radius: 8px !important;
     padding: 6px 10px !important;
 }
 
 div.stExpander details {
-    background: rgba(30, 41, 59, 0.85) !important;
+    background: #1e293b !important;
     border: 1px solid rgba(148, 163, 184, 0.35) !important;
     border-radius: 14px !important;
 }
@@ -98,11 +97,11 @@ div.stExpander details {
     transform: translateY(-2px);
 }
 
-/* Input Fields Styling & Placeholder Highlight */
-input, textarea, select {
-    background-color: rgba(15, 23, 42, 0.9) !important;
+/* Input Fields & Textarea Styling for Light/Dark Mode Readability */
+input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"] textarea, div[data-baseweb="input"], div[data-baseweb="select"] {
+    background-color: #0f172a !important;
     color: #ffffff !important;
-    border: 1px solid rgba(148, 163, 184, 0.4) !important;
+    border: 1px solid #3b82f6 !important;
     border-radius: 8px !important;
 }
 
@@ -130,7 +129,7 @@ div[data-testid="stTextArea"] div p,
 
 /* Navigation Radio Menu Styling - Crystal Clear Text */
 .stRadio > div {
-    background: rgba(30, 41, 59, 0.9);
+    background: #1e293b;
     padding: 12px;
     border-radius: 14px;
     border: 1px solid rgba(129, 140, 248, 0.3);
