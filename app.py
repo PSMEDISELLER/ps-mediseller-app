@@ -29,7 +29,7 @@ def get_ist_time():
   return datetime.now(ist_offset)
 
 # =========================================================
-# ADVANCED CUSTOM STYLING (MODERN & COLORFUL UI - HIGH CONTRAST TEXT)
+# ADVANCED CUSTOM STYLING (MODERN UI & PRESS ENTER BOX HIGHLIGHT)
 # =========================================================
 st.markdown("""
 <style>
@@ -85,6 +85,18 @@ input, textarea, select {
 input::placeholder, textarea::placeholder {
     color: #60a5fa !important;
     font-weight: 700 !important;
+}
+
+/* Press Enter to Apply Helper Text Styling inside a Blue Box */
+div[data-testid="stTextInput"] small, div[data-testid="stTextArea"] small {
+    background: rgba(37, 99, 235, 0.25) !important;
+    color: #60a5fa !important;
+    border: 1px solid #3b82f6 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    display: inline-block !important;
+    margin-top: 5px !important;
 }
 
 /* Navigation Radio Menu Styling - Crystal Clear Text */
