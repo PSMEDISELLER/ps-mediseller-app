@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import json
 import urllib.parse
 import base64
@@ -15,7 +16,7 @@ from streamlit_js_eval import get_geolocation, streamlit_js_eval
 # PAGE CONFIGURATION
 # =========================================================
 st.set_page_config(
-    page_title="P.S Mediseller",
+    page_title="P. S MEDISELLER",
     page_icon="🚚",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -155,6 +156,20 @@ div[data-testid="stTextArea"] div p,
     border: 1px solid #f59e0b !important;
     color: #fbbf24 !important;
     border-radius: 10px !important;
+}
+.agent-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+.status-active {
+    background-color: #238636;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: bold;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1199,15 +1214,13 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
-    st.write("### 📊 ডেলিভারি এজেন্ট অ্যাডভান্সড লাইভ ট্র্যাকিং")
-    
+    st.title("📍 P. S MEDISELLER - লাইভ এজেন্ট ট্র্যাকিং ড্যাশবোর্ড")
+    st.markdown(
+        "ℹ️ লাইভ পেজটি প্রতি ৩০ সেকেন্ডে স্বয়ংক্রিয়ভাবে আপডেট হচ্ছে এবং সঠিক IST সময় দেখাচ্ছে।"
+    )
+
     st.markdown("""
-    <script>
-        setTimeout(function(){
-            window.location.reload();
-        }, 30000);
-    </script>
-    <p style="color: #38bdf8 !important; font-size: 13px;">ℹ️ লাইভ পেজটি প্রতি ৩০ সেকেন্ডে স্বয়ংক্রিয়ভাবে আপডেট হচ্ছে।</p>
+    <meta http-equiv="refresh" content="30">
     """, unsafe_allow_html=True)
 
     c.execute("SELECT username, role, fullname, phone FROM users")
@@ -1219,29 +1232,57 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
         agent_data = c.fetchone()
 
         disp_agent_name = f_name if f_name else u_name
-        with st.expander(f"👤 এজেন্ট: {disp_agent_name} ({u_name}) - রোল: {u_role}"):
-          if agent_data and agent_data[0] is not None:
-            lat, lon, last_updated, comp_del, comp_due = agent_data
-            st.success("🟢 রিয়েল-টাইম লোকেশন সক্রিয় (অলটাইম কানেক্টেড)")
-            
-            col_lt1, col_lt2 = st.columns(2)
-            with col_lt1:
-              st.write(f"📍 জিও-কোঅর্ডিনেট: `{lat:.5f}, {lon:.5f}`")
-              st.write(f"🕒 শেষ আপডেট সময়: `{last_updated}`")
-              st.write(f"📞 ফোন নম্বর: `{u_phone if u_phone else 'নেই'}`")
-            with col_lt2:
-              st.markdown(f"""
-              <div style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; border: 1px solid #475569;">
-                <p style="margin:0; font-weight:600; color:#38bdf8 !important;">📊 কাজের পরিসংখ্যান:</p>
-                <p style="margin:4px 0 0 0;">✅ সম্পন্ন ডেলিভারি: <b>{comp_del} টি</b></p>
-                <p style="margin:2px 0 0 0;">💰 ডিউ ক্লিয়ারেন্স: <b>{comp_due} টি</b></p>
-              </div>
-              """, unsafe_allow_html=True)
-            
-            agent_map_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-            st.markdown(f'<br><a href="{agent_map_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:600;">🧭 গুগল ম্যাপে লোকেশন দেখুন</button></a>', unsafe_allow_html=True)
-          else:
-            st.warning("🔴 এজেন্ট বর্তমানে অফলাইন বা জিপিএস সিগন্যাল পাওয়া যায়নি।")
+        
+        # সঠিক IST টাইম জেনারেট করা
+        IST = ZoneInfo("Asia/Kolkata")
+        current_time_str = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+
+        if agent_data and agent_data[0] is not None:
+          lat, lon, last_updated, comp_del, comp_due = agent_data
+          display_last_update = last_updated if last_updated else current_time_str
+          
+          with st.container():
+            st.markdown(
+                f"""
+                <div class="agent-card">
+                    <h3>👤 এজেন্ট: {disp_agent_name} ({u_name}) - রোল: {u_role}</h3>
+                    <span class="status-active">🟢 রিয়েল-টাইম লোকেশন সক্রিয় (অলটাইম কানেক্টটেড)</span>
+                    <p style="margin-top: 15px;"><b>📍 জিও-কোঅর্ডিনেট:</b> <code>{lat:.5f}, {lon:.5f}</code></p>
+                    <p><b>🕒 শেষ আপডেট সময় (IST):</b> <code>{display_last_update}</code></p>
+                    <p><b>📞 ফোন নম্বর:</b> <code>{u_phone if u_phone else 'নেই'}</code></p>
+                    <div style="background: #0d1117; padding: 10px; border-radius: 6px; margin-top: 10px;">
+                        <p>📊 <b>কাজের পরিসংখ্যান:</b></p>
+                        <p>✅ সম্পন্ন ডেলিভারি: <b>{comp_del} টি</b></p>
+                        <p>💰 ডিউ ক্লিয়ারেন্স: <b>{comp_due} টি</b></p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            st.markdown(
+                f"""
+                <a href="{maps_url}" target="_blank">
+                    <button style="background-color: #1f6feb; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                        🧭 গুগল ম্যাপে লোকেশন দেখুন
+                    </button>
+                </a>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+          with st.container():
+            st.markdown(
+                f"""
+                <div class="agent-card">
+                    <h3>👤 এজেন্ট: {disp_agent_name} ({u_name}) - রোল: {u_role}</h3>
+                    <p style="color: #f85149;">🔴 এজেন্ট বর্তমানে অফলাইন বা জিপিএস সিগন্যাল পাওয়া যায়নি।</p>
+                    <p><b>📞 ফোন নম্বর:</b> <code>{u_phone if u_phone else 'নেই'}</code></p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
     else:
       st.info("কোনো ইউজার পাওয়া যায়নি।")
 
