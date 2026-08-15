@@ -39,7 +39,6 @@ for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
       logo_b64 = base64.b64encode(f.read()).decode()
     break
 
-# Injecting PWA Manifest directly into the main browser window's head via window.parent
 pwa_manifest_html = f"""
 <script>
 try {{
@@ -89,7 +88,6 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
-/* Global Font & Rich Gradient Background */
 html, body, [class*="css"], p, span, label, div {
     font-family: 'Poppins', sans-serif;
     color: #ffffff !important;
@@ -100,12 +98,10 @@ html, body, [class*="css"], p, span, label, div {
     color: #ffffff !important;
 }
 
-/* Fix for Dataframes and Tables Text Color in Light Mode */
 [data-testid="stDataFrame"] *, [data-testid="stTable"] *, .dataframe *, table *, th, td {
     color: #0f172a !important;
 }
 
-/* Glassmorphism Containers & Expanders */
 div.stExpander, div[data-testid="stForm"] {
     background: #1e293b !important;
     border: 1px solid rgba(148, 163, 184, 0.35) !important;
@@ -115,7 +111,6 @@ div.stExpander, div[data-testid="stForm"] {
     color: #ffffff !important;
 }
 
-/* Expander Header & Summary Fix for Light & Dark Mode Compatibility */
 div.stExpander details summary, 
 div.stExpander details summary span, 
 div.stExpander details summary p,
@@ -134,7 +129,6 @@ div.stExpander details {
     border-radius: 14px !important;
 }
 
-/* Universal Button Styling Fix (Primary, Secondary & Form Buttons) */
 .stButton>button, div.stButton > button, button[kind="secondary"], button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
     color: #ffffff !important;
@@ -152,7 +146,6 @@ div.stExpander details {
     transform: translateY(-2px);
 }
 
-/* Input Fields & Textarea Styling for Light/Dark Mode Readability */
 input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"] textarea, div[data-baseweb="input"], div[data-baseweb="select"] {
     background-color: #0f172a !important;
     color: #ffffff !important;
@@ -165,7 +158,6 @@ input::placeholder, textarea::placeholder {
     font-weight: 700 !important;
 }
 
-/* Press Enter to Apply Helper Text Styling inside a Blue Box */
 div[data-testid="stTextInput"] small, 
 div[data-testid="stTextArea"] small,
 div[data-testid="stTextInput"] div p,
@@ -182,7 +174,6 @@ div[data-testid="stTextArea"] div p,
     margin-top: 6px !important;
 }
 
-/* Navigation Radio Menu Styling - Crystal Clear Text */
 .stRadio > div {
     background: #1e293b;
     padding: 12px;
@@ -197,7 +188,6 @@ div[data-testid="stTextArea"] div p,
     font-size: 15px !important;
 }
 
-/* Success & Info Alerts Styling */
 .stSuccess {
     background: rgba(16, 185, 129, 0.25) !important;
     border: 1px solid #10b981 !important;
@@ -310,7 +300,6 @@ CREATE TABLE IF NOT EXISTS attendance (
 )
 """)
 
-# কলাম চেক ও আপডেট
 c.execute("PRAGMA table_info(locations)")
 existing_cols_loc = [row[1] for row in c.fetchall()]
 if "party_phone" not in existing_cols_loc:
@@ -336,7 +325,6 @@ if "is_active" not in existing_user_cols:
 
 conn.commit()
 
-# ডিফল্ট ইউজার তৈরি
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
@@ -345,9 +333,6 @@ if c.fetchone()[0] == 0:
             ("delivery", "user123", "staff", "Delivery Agent", "910000000000", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
   conn.commit()
 
-# =========================================================
-# AUTO DELETE SYSTEM
-# =========================================================
 current_dt_str = get_ist_time()
 
 c.execute("SELECT id, order_date, status FROM orders")
@@ -369,9 +354,6 @@ for row_task in c.fetchall():
     pass
 conn.commit()
 
-# =========================================================
-# SESSION STATE INITIALIZATION & PERSISTENT LOGIN
-# =========================================================
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
@@ -382,9 +364,6 @@ if "username" not in st.session_state:
 if "user_role" not in st.session_state:
   st.session_state["user_role"] = "staff"
 
-# =========================================================
-# DIRECT WHATSAPP LOGIN HANDLER & LOCAL STORAGE PERSISTENCE
-# =========================================================
 query_params = st.query_params
 login_user = query_params.get("login", None)
 
@@ -420,9 +399,6 @@ if target_login:
         </script>
         """, unsafe_allow_html=True)
 
-# =========================================================
-# STYLISH SIDE-BY-SIDE LOGO & HEADER + ADMIN LOGIN OPTION
-# =========================================================
 col_ht1, col_ht2 = st.columns([3, 1])
 
 with col_ht1:
@@ -483,9 +459,6 @@ if st.session_state.get("show_admin_login", False):
 
 st.write("---")
 
-# =========================================================
-# BACKGROUND HIDDEN GPS TRACKING (ALWAYS-ON PERSISTENT)
-# =========================================================
 loc = get_geolocation(component_key="hidden_background_gps_tracker")
 gps_lat, gps_lon = None, None
 if loc and "coords" in loc:
@@ -503,19 +476,19 @@ if loc and "coords" in loc:
   conn.commit()
 
 # =========================================================
-# NAVIGATION MENU
+# NAVIGATION MENU (STYLED ENGLISH + BENGALIS IN BRACKET)
 # =========================================================
 menu_options = [
-    "📍 নতুন লোকেশন এড",
-    "🔍 সার্চ",
-    "📦 পেন্ডিং অর্ডার",
-    "📋 ডেইলি ওয়ার্ক",
-    "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান",
-    "🗺️ হোম-টু-হোম রুট ও ম্যাপ",
-    "📅 উপস্থিতি (Attendance)",
+    "📍 Add New Location (নতুন লোকেশন এড)",
+    "🔍 Search & Manage (সার্চ)",
+    "📦 Pending Orders (পেন্ডিং অর্ডার)",
+    "📋 Daily Work (ডেইলি ওয়ার্ক)",
+    "📋 Due & Delivery Plan (ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান)",
+    "🗺️ Route Map (হোম-টু-হোম রুট ও ম্যাপ)",
+    "📅 Attendance (উপস্থিতি)",
 ]
 if st.session_state["user_role"] == "admin":
-  menu_options.extend(["📊 লাইভ ট্র্যাকিং", "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট"])
+  menu_options.extend(["📊 Live Tracking (লাইভ ট্র্যাকিং)", "⚙️ Settings & Agents (সেটিংস ও এজেন্ট ম্যানেজমেন্ট)"])
 
 current_page_param = query_params.get("page", menu_options[0])
 if current_page_param not in menu_options:
@@ -523,7 +496,7 @@ if current_page_param not in menu_options:
 
 default_index = menu_options.index(current_page_param)
 
-selected_menu = st.radio("Select Menu:", menu_options, index=default_index, horizontal=True, label_visibility="collapsed")
+selected_menu = st.radio("Select Menu:", menu_options, index=default_index, horizontal=False, label_visibility="collapsed")
 
 if selected_menu != current_page_param:
   st.query_params["page"] = selected_menu
@@ -534,7 +507,7 @@ st.write("---")
 # =========================================================
 # 1. ADD NEW LOCATION & ORDER / VISIT ENTRY
 # =========================================================
-if selected_menu == "📍 নতুন লোকেশন এড":
+if selected_menu == "📍 Add New Location (নতুন লোকেশন এড)":
   st.write("### 📍 নতুন লোকেশন ও ডক্টর/পার্টি এন্ট্রি ফর্ম")
   
   col_tab1, col_tab2 = st.tabs(["🏠 সাধারণ লোকেশন (ম্যাপসহ)", "👨‍⚕️ ডক্টর / ম্যাপ ছাড়া পার্টি এন্ট্রি"])
@@ -772,7 +745,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
 # =========================================================
 # 2. SEARCH PARTY & ADMIN DELETE OPTION
 # =========================================================
-elif selected_menu == "🔍 সার্চ":
+elif selected_menu == "🔍 Search & Manage (সার্চ)":
   st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
 
   if st.session_state.get("mapping_party_id"):
@@ -931,7 +904,7 @@ elif selected_menu == "🔍 সার্চ":
 # =========================================================
 # 3. PENDING ORDERS
 # =========================================================
-elif selected_menu == "📦 পেন্ডিং অর্ডার":
+elif selected_menu == "📦 Pending Orders (পেন্ডিং অর্ডার)":
   st.write("### 📦 পেন্ডিং অর্ডার তালিকা")
   orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
   if not orders_df.empty:
@@ -955,7 +928,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
 # =========================================================
 # 4. DAILY WORK (ডেইলি ওয়ার্ক)
 # =========================================================
-elif selected_menu == "📋 ডেইলি ওয়ার্ক":
+elif selected_menu == "📋 Daily Work (ডেইলি ওয়ার্ক)":
   st.write("### 📋 ডেইলি ওয়ার্ক (ভিজিট ও অর্ডার তালিকা)")
 
   st.write("#### 📅 তারিখ অনুযায়ী ভিজিট ও অর্ডার তালিকা")
@@ -1001,7 +974,7 @@ elif selected_menu == "📋 ডেইলি ওয়ার্ক":
 # =========================================================
 # 5. DUE CLEAR & DELIVERY PLAN
 # =========================================================
-elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
+elif selected_menu == "📋 Due & Delivery Plan (ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান)":
   st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
   
   c.execute("SELECT username FROM users")
@@ -1110,7 +1083,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 # =========================================================
 # 6. HOME-TO-HOME AUTO ROUTE & MAP
 # =========================================================
-elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্যাপ":
+elif selected_menu == "🗺️ Route Map (হোম-টু-হোম রুট ও ম্যাপ)":
   st.write("### 🗺️ অটোমেটিক হোম-টু-হোম রুট প্ল্যানিং")
 
   locs_df = pd.read_sql_query("SELECT * FROM locations WHERE lat IS NOT NULL AND lon IS NOT NULL ORDER BY id ASC", conn)
@@ -1155,7 +1128,7 @@ elif selected_menu == "🗺️ হোম-টু-হোম রুট ও ম্�
 # =========================================================
 # 7. ATTENDANCE SYSTEM
 # =========================================================
-elif selected_menu == "📅 উপস্থিতি (Attendance)":
+elif selected_menu == "📅 Attendance (উপস্থিতি)":
   st.write("### 📅 স্টাফ ও এজেন্ট উপস্থিতি (Daily & Monthly Attendance)")
 
   att_tab1, att_tab2 = st.tabs(["📝 আজকের উপস্থিতি দিন", "📊 মাসিক উপস্থিতি ও টোটাল সামারি"])
@@ -1256,7 +1229,7 @@ elif selected_menu == "📅 উপস্থিতি (Attendance)":
 # =========================================================
 # 8. ADVANCED ADMIN LIVE TRACKING
 # =========================================================
-elif selected_menu == "📊 লাইভ ট্র্যাকিং":
+elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
@@ -1334,7 +1307,7 @@ elif selected_menu == "📊 লাইভ ট্র্যাকিং":
 # =========================================================
 # 9. SETTINGS, ADMIN PASSWORD & AGENT MANAGEMENT
 # =========================================================
-elif selected_menu == "⚙️ সেটিংস ও এজেন্ট ম্যানেজমেন্ট":
+elif selected_menu == "⚙️ Settings & Agents (সেটিংস ও এজেন্ট ম্যানেজমেন্ট)":
   if st.session_state["user_role"] != "admin":
     st.error("এই পেজটি শুধুমাত্র অ্যাডমিনের জন্য।")
   else:
