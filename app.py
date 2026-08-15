@@ -74,12 +74,17 @@ div.stExpander, div[data-testid="stForm"] {
     transform: translateY(-2px);
 }
 
-/* Input Fields Styling */
+/* Input Fields Styling & Placeholder Highlight */
 input, textarea, select {
     background-color: rgba(15, 23, 42, 0.9) !important;
     color: #ffffff !important;
     border: 1px solid rgba(148, 163, 184, 0.4) !important;
     border-radius: 8px !important;
+}
+
+input::placeholder, textarea::placeholder {
+    color: #60a5fa !important;
+    font-weight: 700 !important;
 }
 
 /* Navigation Radio Menu Styling - Crystal Clear Text */
@@ -576,7 +581,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   st.write("### 📦 নতুন অর্ডার এন্ট্রি")
   
   st.write("🔍 **পার্টি খুঁজুন ও সিলেক্ট করুন:**")
-  order_search_query = st.text_input("পার্টির নাম বা প্রথম অক্ষর এখানে লিখুন (কিবোর্ড দিয়ে টাইপ করতে পারবেন)", key="order_search_input_box")
+  order_search_query = st.text_input("সার্চ", placeholder="সার্চ করুন", key="order_search_input_box", label_visibility="collapsed")
 
   if order_search_query.strip():
     c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{order_search_query.strip()}%",))
@@ -708,7 +713,7 @@ elif selected_menu == "🔍 সার্চ":
     st.stop()
 
   st.write("🔍 **পার্টি বা ডাক্তার খুঁজুন:**")
-  master_search_query = st.text_input("নামের যেকোনো অংশ এখানে টাইপ করুন", key="master_search_input_box")
+  master_search_query = st.text_input("সার্চ", placeholder="সার্চ করুন", key="master_search_input_box", label_visibility="collapsed")
 
   if master_search_query.strip():
     df = pd.read_sql_query("SELECT * FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", conn, params=(f"%{master_search_query.strip()}%",))
@@ -808,7 +813,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 
   with st.form("easy_assign_form", clear_on_submit=True):
     st.write("🔍 **পার্টি সার্চ করুন:**")
-    task_search_query = st.text_input("পার্টির নাম বা প্রথম অক্ষর এখানে লিখুন", key="task_search_input_box")
+    task_search_query = st.text_input("সার্চ", placeholder="সার্চ করুন", key="task_search_input_box", label_visibility="collapsed")
 
     if task_search_query.strip():
       c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{task_search_query.strip()}%",))
