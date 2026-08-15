@@ -578,89 +578,28 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  parties_json = json.dumps(all_parties_db)
+  # Robust Native Streamlit Search & Select for Order Entry
+  order_search_query = st.text_input("পার্টি সার্চ করুন (নামের অক্ষর লিখুন)", key="order_search_input")
+  matching_orders_parties = [p for p in all_parties_db if order_search_query.lower() in p.lower()] if order_search_query else all_parties_db
 
-  q_params = st.query_params
-  js_selected_order_party = q_params.get("selected_order_party", "")
+  selected_order_party_native = st.selectbox(
+      "তালিকা থেকে পার্টি সিলেক্ট করুন", 
+      ["-- সিলেক্ট করুন --"] + matching_orders_parties, 
+      key="order_party_selectbox"
+  )
 
-  search_html = f"""
-  <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
-    <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">পার্টি সার্চ করুন (নামের অক্ষর লিখুন)</label>
-    <input type="text" id="party_search_box" value="{js_selected_order_party}" placeholder="এখানে টাইপ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
-    <div id="suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #1e293b; border: 1px solid #475569; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
-  </div>
-
-  <script>
-    const allParties = {parties_json};
-    const searchBox = document.getElementById("party_search_box");
-    const suggestionsList = document.getElementById("suggestions_list");
-
-    function updateOrderPartyParam(val) {{
-      const url = new URL(window.location.href);
-      if (val.trim() !== "") {{
-        url.searchParams.set('selected_order_party', val.trim());
-      }} else {{
-        url.searchParams.delete('selected_order_party');
-      }}
-      window.history.replaceState({{}}, '', url);
-      window.location.reload();
-    }}
-
-    searchBox.addEventListener("input", function() {{
-      const query = this.value.toLowerCase().trim();
-      suggestionsList.innerHTML = "";
-      if (query === "") {{
-        suggestionsList.style.display = "none";
-        return;
-      }}
-      const filtered = allParties.filter(p => p.toLowerCase().includes(query));
-      if (filtered.length > 0) {{
-        suggestionsList.style.display = "block";
-        filtered.forEach(party => {{
-          const item = document.createElement("div");
-          item.innerText = party;
-          item.style.padding = "10px 12px";
-          item.style.cursor = "pointer";
-          item.style.borderBottom = "1px solid #334155";
-          item.style.color = "#ffffff";
-          item.onmouseover = function() {{ this.style.backgroundColor = "#334155"; }};
-          item.onmouseout = function() {{ this.style.backgroundColor = "#1e293b"; }};
-          item.onclick = function() {{
-            searchBox.value = party;
-            suggestionsList.style.display = "none";
-            updateOrderPartyParam(party);
-          }};
-          suggestionsList.appendChild(item);
-        }});
-      }} else {{
-        suggestionsList.style.display = "none";
-      }}
-    }});
-
-    searchBox.addEventListener("change", function() {{
-      updateOrderPartyParam(this.value);
-    }});
-
-    document.addEventListener("click", function(e) {{
-      let path = e.composedPath();
-      if (!path.includes(searchBox) && !path.includes(suggestionsList)) {{
-        suggestionsList.style.display = "none";
-      }}
-    }});
-  </script>
-  """
-  st.components.v1.html(search_html, height=115)
+  js_selected_order_party = selected_order_party_native if selected_order_party_native != "-- সিলেক্ট করুন --" else ""
 
   if js_selected_order_party:
     st.success(f"নির্বাচিত পার্টি: **{js_selected_order_party}**")
   else:
-    st.warning("দয়া করে ওপরের সার্চ বক্স থেকে পার্টির নাম লিখে বা ড্রপডাউন থেকে সিলেক্ট করুন।")
+    st.warning("দয়া করে ওপরের সার্চ বক্সে লিখে বা ড্রপডাউন থেকে পার্টির নাম সিলেক্ট করুন।")
 
   ord_details = st.text_area("অর্ডারের বিবরণ")
   
   if st.button("🛒 অর্ডার জমা দিন", type="primary"):
     if not js_selected_order_party or js_selected_order_party not in all_parties_db:
-      st.error("দয়া করে সার্চ বক্স থেকে পার্টির নামটি লিখে বা ড্রপডাউন থেকে সিলেক্ট করে নিশ্চিত করুন।")
+      st.error("দয়া করে ড্রপডাউন থেকে সঠিক একটি পার্টি সিলেক্ট করুন।")
     else:
       if not ord_details.strip():
         st.error("দয়া করে অর্ডারের বিবরণ লিখুন।")
@@ -671,7 +610,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
         )
         conn.commit()
         st.success("অর্ডার সফলভাবে জমা দেওয়া হয়েছে!")
-        st.query_params.pop("selected_order_party", None)
         st.rerun()
 
 # =========================================================
@@ -781,72 +719,17 @@ elif selected_menu == "🔍 সার্চ":
   
   unique_search_items = sorted(list(set(search_items)))
 
-  search_items_json = json.dumps(unique_search_items)
+  # Robust Native Streamlit Search & Select for Master Search
+  master_search_query = st.text_input("সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা দিয়ে)", key="master_search_input")
+  matching_master_items = [item for item in unique_search_items if master_search_query.lower() in item.lower()] if master_search_query else unique_search_items
 
-  q_params = st.query_params
-  js_search_val = q_params.get("search_keyword", "")
+  selected_master_item = st.selectbox(
+      "তালিকাতে ফিল্টার করুন", 
+      ["-- সব দেখান --"] + matching_master_items, 
+      key="master_item_selectbox"
+  )
 
-  search_bar_html = f"""
-  <div style="position: relative; width: 100%; margin-bottom: 20px; box-sizing: border-box;">
-    <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা দিয়ে)</label>
-    <input type="text" id="master_search_box" value="{js_search_val}" placeholder="নাম, ফোন বা ঠিকানা লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
-    <div id="master_suggestions_list" style="position: absolute; width: 100%; max-height: 220px; overflow-y: auto; background: #1e293b; border: 1px solid #475569; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
-  </div>
-
-  <script>
-    const allSearchItems = {search_items_json};
-    const mSearchBox = document.getElementById("master_search_box");
-    const mSuggestionsList = document.getElementById("master_suggestions_list");
-
-    function triggerSearch(val) {{
-      const url = new URL(window.location.href);
-      url.searchParams.set('search_keyword', val);
-      window.history.replaceState({{}}, '', url);
-      window.location.reload();
-    }}
-
-    mSearchBox.addEventListener("input", function() {{
-      const query = this.value.toLowerCase().trim();
-      mSuggestionsList.innerHTML = "";
-      if (query === "") {{
-        mSuggestionsList.style.display = "none";
-        triggerSearch("");
-        return;
-      }}
-      const filtered = allSearchItems.filter(item => item.toLowerCase().includes(query));
-      if (filtered.length > 0) {{
-        mSuggestionsList.style.display = "block";
-        filtered.forEach(itemText => {{
-          const div = document.createElement("div");
-          div.innerText = itemText;
-          div.style.padding = "10px 12px";
-          div.style.cursor = "pointer";
-          div.style.borderBottom = "1px solid #334155";
-          div.style.color = "#ffffff";
-          div.onmouseover = function() {{ this.style.backgroundColor = "#334155"; }};
-          div.onmouseout = function() {{ this.style.backgroundColor = "#1e293b"; }};
-          div.onclick = function() {{
-            mSearchBox.value = itemText;
-            mSuggestionsList.style.display = "none";
-            triggerSearch(itemText);
-          }};
-          mSuggestionsList.appendChild(div);
-        }});
-      }} else {{
-        mSuggestionsList.style.display = "none";
-      }}
-      triggerSearch(this.value);
-    }});
-
-    document.addEventListener("click", function(e) {{
-      let path = e.composedPath();
-      if (!path.includes(mSearchBox) && !path.includes(mSuggestionsList)) {{
-        mSuggestionsList.style.display = "none";
-      }}
-    }});
-  </script>
-  """
-  st.components.v1.html(search_bar_html, height=115)
+  js_search_val = selected_master_item if selected_master_item != "-- সব দেখান --" else master_search_query
 
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   
@@ -950,73 +833,22 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
-  parties_json = json.dumps(all_parties)
+  # Robust Native Streamlit Search & Select for Task Assignment
+  task_search_query = st.text_input("সার্চ করুন (পার্টির নাম)", key="task_search_input")
+  matching_task_parties = [p for p in all_parties if task_search_query.lower() in p.lower()] if task_search_query else all_parties
 
-  q_params = st.query_params
-  js_selected_party = q_params.get("selected_task_party", "")
+  selected_task_party_native = st.selectbox(
+      "তালিকা থেকে পার্টি সিলেক্ট করুন", 
+      ["-- সিলেক্ট করুন --"] + matching_task_parties, 
+      key="task_party_selectbox"
+  )
 
-  search_html_task = f"""
-  <div style="position: relative; width: 100%; margin-bottom: 15px; box-sizing: border-box;">
-    <label style="font-weight: 600; font-size: 14px; color: #ffffff; display: block; margin-bottom: 5px;">সার্চ করুন (পার্টির নাম)</label>
-    <input type="text" id="task_party_search_box" value="{js_selected_party}" placeholder="পার্টির নাম লিখে সার্চ করুন..." style="width: 100%; max-width: 100%; padding: 12px; border: 1px solid #cccccc; border-radius: 6px; font-size: 16px; background-color: #0f172a; color: #ffffff; box-sizing: border-box;" autocomplete="off">
-    <div id="task_suggestions_list" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: #1e293b; border: 1px solid #475569; border-top: none; border-radius: 0 0 6px 6px; z-index: 9999; display: none; box-sizing: border-box; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);"></div>
-  </div>
-
-  <script>
-    const allPartiesTask = {parties_json};
-    const searchBoxTask = document.getElementById("task_party_search_box");
-    const suggestionsListTask = document.getElementById("task_suggestions_list");
-
-    searchBoxTask.addEventListener("input", function() {{
-      const query = this.value.toLowerCase().trim();
-      suggestionsListTask.innerHTML = "";
-      if (query === "") {{
-        suggestionsListTask.style.display = "none";
-        return;
-      }}
-      const filtered = allPartiesTask.filter(p => p.toLowerCase().includes(query));
-      if (filtered.length > 0) {{
-        suggestionsListTask.style.display = "block";
-        filtered.forEach(party => {{
-          const item = document.createElement("div");
-          item.innerText = party;
-          item.style.padding = "10px 12px";
-          item.style.cursor = "pointer";
-          item.style.borderBottom = "1px solid #334155";
-          item.style.color = "#ffffff";
-          item.onmouseover = function() {{ this.style.backgroundColor = "#334155"; }};
-          item.onmouseout = function() {{ this.style.backgroundColor = "#1e293b"; }};
-          item.onclick = function() {{
-            searchBoxTask.value = party;
-            suggestionsListTask.style.display = "none";
-            const url = new URL(window.location.href);
-            url.searchParams.set('selected_task_party', party);
-            window.history.replaceState({{}}, '', url);
-            window.location.reload();
-          }};
-          suggestionsListTask.appendChild(item);
-        }});
-      }} else {{
-        suggestionsListTask.style.display = "none";
-      }}
-    }});
-
-    document.addEventListener("click", function(e) {{
-      let path = e.composedPath();
-      if (!path.includes(searchBoxTask) && !path.includes(suggestionsListTask)) {{
-        suggestionsListTask.style.display = "none";
-      }}
-    }});
-  </script>
-  """
-  st.components.v1.html(search_html_task, height=115)
-
-  sel_pt = js_selected_party
+  sel_pt = selected_task_party_native if selected_task_party_native != "-- সিলেক্ট করুন --" else ""
 
   if sel_pt:
     st.success(f"নির্বাচিত পার্টি: **{sel_pt}**")
   else:
-    st.warning("দয়া করে উপরের সার্চ বক্সে পার্টির নাম লিখে সিলেক্ট করুন।")
+    st.warning("দয়া করে উপরের সার্চ বক্সে লিখে বা ড্রপডাউন থেকে পার্টি সিলেক্ট করুন।")
 
   with st.form("easy_assign_form", clear_on_submit=True):
     sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
@@ -1034,7 +866,7 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
 
     if submit_easy_task:
       if not sel_pt or sel_pt not in all_parties:
-        st.error("দয়া করে প্রথমে ওপরের সার্চ বক্স থেকে সঠিক একটি পার্টি সিলেক্ট করুন।")
+        st.error("দয়া করে ড্রপডাউন থেকে সঠিক একটি পার্টি সিলেক্ট করুন।")
       else:
         selected_tasks = []
         if chk_delivery:
@@ -1050,7 +882,6 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
           )
           conn.commit()
           st.success("সফলভাবে কাজ অ্যাসাইন করা হয়েছে!")
-          st.query_params.pop("selected_task_party", None)
           st.rerun()
         else:
           st.warning("অন্তত একটি কাজের ধরণ (ডেলিভারি বা ডিউ কালেকশন) সিলেক্ট করুন।")
