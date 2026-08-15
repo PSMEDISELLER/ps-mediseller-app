@@ -578,12 +578,12 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
   all_parties_db = [row[0] for row in c.fetchall()]
 
-  # Robust Native Streamlit Search & Select for Order Entry
-  order_search_query = st.text_input("পার্টি সার্চ করুন (নামের অক্ষর লিখুন)", key="order_search_input")
+  # Live letter-by-letter dynamic search & select with auto confirmation display
+  order_search_query = st.text_input("🔍 প্রথম অক্ষর বা নাম লিখে সার্চ করুন", key="order_search_input", placeholder="এখানে টাইপ করলেই নিচের লিস্ট ফিল্টার হয়ে যাবে...")
   matching_orders_parties = [p for p in all_parties_db if order_search_query.lower() in p.lower()] if order_search_query else all_parties_db
 
   selected_order_party_native = st.selectbox(
-      "তালিকা থেকে পার্টি সিলেক্ট করুন", 
+      "তালিকা থেকে পার্টি সিলেক্ট করুন (ফিল্টারড ফলাফল)", 
       ["-- সিলেক্ট করুন --"] + matching_orders_parties, 
       key="order_party_selectbox"
   )
@@ -591,9 +591,9 @@ if selected_menu == "📍 নতুন লোকেশন এড":
   js_selected_order_party = selected_order_party_native if selected_order_party_native != "-- সিলেক্ট করুন --" else ""
 
   if js_selected_order_party:
-    st.success(f"নির্বাচিত পার্টি: **{js_selected_order_party}**")
+    st.success(f"✅ কনফার্মড পার্টি: **{js_selected_order_party}** (অর্ডারের জন্য নির্বাচিত)")
   else:
-    st.warning("দয়া করে ওপরের সার্চ বক্সে লিখে বা ড্রপডাউন থেকে পার্টির নাম সিলেক্ট করুন।")
+    st.warning("দয়া করে ওপরের সার্চ বক্সে প্রথম অক্ষর বা নাম লিখে তালিকা থেকে পার্টি সিলেক্ট করুন।")
 
   ord_details = st.text_area("অর্ডারের বিবরণ")
   
@@ -719,17 +719,20 @@ elif selected_menu == "🔍 সার্চ":
   
   unique_search_items = sorted(list(set(search_items)))
 
-  # Robust Native Streamlit Search & Select for Master Search
-  master_search_query = st.text_input("সার্চ করুন (পার্টির নাম, ফোন নম্বর বা ঠিকানা দিয়ে)", key="master_search_input")
+  # Live letter-by-letter dynamic search & select for Master Search
+  master_search_query = st.text_input("🔍 প্রথম অক্ষর বা নাম লিখে সার্চ করুন", key="master_search_input", placeholder="যেকোনো অক্ষর টাইপ করলেই ফিল্টার হবে...")
   matching_master_items = [item for item in unique_search_items if master_search_query.lower() in item.lower()] if master_search_query else unique_search_items
 
   selected_master_item = st.selectbox(
-      "তালিকাতে ফিল্টার করুন", 
+      "তালিকাতে ফিল্টার করুন (অথবা সিলেক্ট করুন)", 
       ["-- সব দেখান --"] + matching_master_items, 
       key="master_item_selectbox"
   )
 
   js_search_val = selected_master_item if selected_master_item != "-- সব দেখান --" else master_search_query
+
+  if js_search_val and js_search_val != master_search_query:
+    st.success(f"✅ কনফার্মড সিলেক্টেড ফিল্টার: **{js_search_val}**")
 
   df = pd.read_sql_query("SELECT * FROM locations", conn)
   
@@ -833,12 +836,12 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   all_parties = [r[0] for r in loc_data]
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
-  # Robust Native Streamlit Search & Select for Task Assignment
-  task_search_query = st.text_input("সার্চ করুন (পার্টির নাম)", key="task_search_input")
+  # Live letter-by-letter dynamic search & select for Task Assignment / Due Plan
+  task_search_query = st.text_input("🔍 প্রথম অক্ষর বা নাম লিখে পার্টি সার্চ করুন", key="task_search_input", placeholder="এখানে টাইপ করলেই নিচের ড্রপডাউন ফিল্টার হবে...")
   matching_task_parties = [p for p in all_parties if task_search_query.lower() in p.lower()] if task_search_query else all_parties
 
   selected_task_party_native = st.selectbox(
-      "তালিকা থেকে পার্টি সিলেক্ট করুন", 
+      "তালিকাতে পার্টি সিলেক্ট করুন (ফিল্টারড ফলাফল)", 
       ["-- সিলেক্ট করুন --"] + matching_task_parties, 
       key="task_party_selectbox"
   )
@@ -846,9 +849,9 @@ elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভ�
   sel_pt = selected_task_party_native if selected_task_party_native != "-- সিলেক্ট করুন --" else ""
 
   if sel_pt:
-    st.success(f"নির্বাচিত পার্টি: **{sel_pt}**")
+    st.success(f"✅ কনফার্মড পার্টি: **{sel_pt}** (কাজের জন্য নির্বাচিত)")
   else:
-    st.warning("দয়া করে উপরের সার্চ বক্সে লিখে বা ড্রপডাউন থেকে পার্টি সিলেক্ট করুন।")
+    st.warning("দয়া করে ওপরের সার্চ বক্সে প্রথম অক্ষর বা নাম লিখে পার্টি সিলেক্ট করুন।")
 
   with st.form("easy_assign_form", clear_on_submit=True):
     sel_ag = st.selectbox("এজেন্ট নির্বাচন করুন", all_agents)
