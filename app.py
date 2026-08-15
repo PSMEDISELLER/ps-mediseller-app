@@ -29,7 +29,7 @@ def get_ist_time():
     return datetime.now(ist_offset)
 
 # =========================================================
-# ADVANCED CUSTOM STYLING (HIDE "PRESS ENTER TO APPLY")
+# ADVANCED CUSTOM STYLING (PERFECTLY HIDE "PRESS ENTER TO APPLY")
 # =========================================================
 st.markdown("""
 <style>
@@ -46,9 +46,15 @@ html, body, [class*="css"], p, span, label, div {
     color: #ffffff !important;
 }
 
-/* Hide Streamlit Input Instructions ("Press Enter to apply") */
-[data-testid="stInputInstructions"] {
+/* Completely Hide Streamlit Input Instructions ("Press Enter to apply") */
+[data-testid="stInputInstructions"],
+div[data-testid="stInputInstructions"],
+.stInputInstructions,
+div[data-baseweb="input"] + div {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
 }
 
 /* Glassmorphism Containers & Expanders */
@@ -428,7 +434,7 @@ if selected_menu != current_page_param:
 st.write("---")
 
 # =========================================================
-# 1. ADD NEW LOCATION & ORDER ENTRY (FIXED AUTOCOMPLETE)
+# 1. ADD NEW LOCATION & ORDER ENTRY
 # =========================================================
 if selected_menu == "📍 নতুন লোকেশন এড":
     st.write("### 📍 নতুন লোকেশন ও ডক্টর/পার্টি এন্ট্রি ফর্ম")
@@ -587,9 +593,6 @@ if selected_menu == "📍 নতুন লোকেশন এড":
     st.write("---")
     st.write("### 📦 নতুন অর্ডার এন্ট্রি")
     
-    # ---------------------------------------------------------
-    # AUTOCOMPLETE SEARCH DROPDOWN (PRESS ENTER REMOVED)
-    # ---------------------------------------------------------
     c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
     all_parties_list = [row[0] for row in c.fetchall()]
 
@@ -625,7 +628,7 @@ if selected_menu == "📍 নতুন লোকেশন এড":
                 st.rerun()
 
 # =========================================================
-# 2. SEARCH PARTY & ADMIN DELETE OPTION
+# 2. SEARCH PARTY & ADMIN DELETE OPTION (FIXED WITH SEARCH BUTTON)
 # =========================================================
 elif selected_menu == "🔍 সার্চ":
     st.write("### 🔍 সার্চ ও পার্টি/ডক্টর ম্যানেজমেন্ট পোর্টাল")
@@ -721,7 +724,13 @@ elif selected_menu == "🔍 সার্চ":
         st.stop()
 
     st.write("🔍 **পার্টি বা ডাক্তার খুঁজুন:**")
-    master_search_query = st.text_input("নামের যেকোনো অংশ এখানে টাইপ করুন", key="master_search_input_box")
+    
+    # Improved Search Box with Explicit Search Button for Mobile
+    col_sch1, col_sch2 = st.columns([3, 1])
+    with col_sch1:
+        master_search_query = st.text_input("নামের যেকোনো অংশ এখানে টাইপ করুন", key="master_search_input_box", label_visibility="collapsed", placeholder="এখানে নাম লিখে সার্চ করুন...")
+    with col_sch2:
+        search_clicked = st.button("🔍 সার্চ করুন", type="primary")
 
     if master_search_query.strip():
         df = pd.read_sql_query("SELECT * FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", conn, params=(f"%{master_search_query.strip()}%",))
@@ -808,7 +817,7 @@ elif selected_menu == "📦 পেন্ডিং অর্ডার":
         st.info("কোনো পেন্ডিং অর্ডার নেই।")
 
 # =========================================================
-# 4. DUE CLEAR & DELIVERY PLAN (FIXED SEARCH DROPDOWN)
+# 4. DUE CLEAR & DELIVERY PLAN
 # =========================================================
 elif selected_menu == "📋 ডিউ ক্লিয়ার ও ডেলিভারি প্ল্যান":
     st.write("### 📋 ডিউ ক্লিয়ার, ডেলিভারি ও অ্যাসাইনমেন্ট প্ল্যান")
