@@ -29,7 +29,7 @@ def get_ist_time():
   return datetime.now(ist_offset)
 
 # =========================================================
-# ADVANCED CUSTOM STYLING (MODERN UI & PRESS ENTER BOX HIGHLIGHT)
+# ADVANCED CUSTOM STYLING (LIGHT & DARK MODE READABILITY FIX)
 # =========================================================
 st.markdown("""
 <style>
@@ -55,6 +55,25 @@ div.stExpander, div[data-testid="stForm"] {
     box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
     color: #ffffff !important;
+}
+
+/* Expander Header & Summary Fix for Light & Dark Mode Compatibility */
+div.stExpander details summary, 
+div.stExpander details summary span, 
+div.stExpander details summary p,
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary p {
+    background-color: rgba(30, 41, 59, 0.95) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 6px 10px !important;
+}
+
+div.stExpander details {
+    background: rgba(30, 41, 59, 0.85) !important;
+    border: 1px solid rgba(148, 163, 184, 0.35) !important;
+    border-radius: 14px !important;
 }
 
 /* Modern Gradient Buttons */
@@ -87,7 +106,7 @@ input::placeholder, textarea::placeholder {
     font-weight: 700 !important;
 }
 
-/* Press Enter to Apply Helper Text Styling inside a Blue Box (Enhanced Selectors) */
+/* Press Enter to Apply Helper Text Styling inside a Blue Box */
 div[data-testid="stTextInput"] small, 
 div[data-testid="stTextArea"] small,
 div[data-testid="stTextInput"] div p,
