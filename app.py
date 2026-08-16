@@ -833,11 +833,17 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
   all_parties_list = [r[0] for r in c.fetchall()]
 
-  st.write("🔍 **Select Party (পার্টি সিলেক্ট করুন - টাইপ করে সার্চ করতে পারেন):**")
-  if all_parties_list:
-    selected_order_party_native = st.selectbox("Select Party", all_parties_list, label_visibility="collapsed", key="order_select_party_box")
+  st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
+  order_search_text = st.text_input("Search Party", placeholder="Type to search party...", key="order_party_search_text_input", label_visibility="collapsed")
+  if order_search_text.strip():
+    filtered_parties_list = [p for p in all_parties_list if order_search_text.strip().lower() in p.lower()]
   else:
-    st.warning("No party found! (কোনো পার্টি পাওয়া যায়নি!)")
+    filtered_parties_list = all_parties_list
+
+  if filtered_parties_list:
+    selected_order_party_native = st.selectbox("Select Party", filtered_parties_list, label_visibility="collapsed", key="order_select_party_box")
+  else:
+    st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
     selected_order_party_native = ""
 
   with st.form("order_visit_entry_form"):
@@ -1324,11 +1330,17 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         )
         st.write("---")
 
-    st.write("🔍 **Select Party (পার্টি সিলেক্ট করুন - টাইপ করে সার্চ করতে পারেন):**")
-    if all_parties:
-      sel_pt = st.selectbox("Select Party", all_parties, label_visibility="collapsed", key="task_select_party_box")
+    st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
+    task_search_text = st.text_input("Search Party for Task", placeholder="Type to search party...", key="task_party_search_text_input", label_visibility="collapsed")
+    if task_search_text.strip():
+      filtered_task_parties = [p for p in all_parties if task_search_text.strip().lower() in p.lower()]
     else:
-      st.warning("No party found! (কোনো পার্টি পাওয়া যায়নি!)")
+      filtered_task_parties = all_parties
+
+    if filtered_task_parties:
+      sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
+    else:
+      st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
       sel_pt = ""
 
     with st.form("easy_assign_form"):
