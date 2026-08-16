@@ -4,7 +4,6 @@ import json
 import urllib.parse
 import base64
 import os
-import io
 import folium
 from folium.plugins import MousePosition
 import pandas as pd
@@ -12,12 +11,6 @@ import sqlite3
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
-
-# ReportLab imports for Advanced Professional PDF Generation
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 
 # =========================================================
 # PAGE CONFIGURATION
@@ -37,117 +30,7 @@ def get_ist_time():
   return datetime.now(ist_offset)
 
 # =========================================================
-# ADVANCED PROFESSIONAL PDF GENERATOR
-# =========================================================
-def generate_advanced_pdf(title_text, df):
-  buffer = io.BytesIO()
-  doc = SimpleDocTemplate(
-      buffer,
-      pagesize=letter,
-      rightMargin=36,
-      leftMargin=36,
-      topMargin=36,
-      bottomMargin=36
-  )
-  elements = []
-  
-  styles = getSampleStyleSheet()
-  
-  title_style = ParagraphStyle(
-      'DocTitle',
-      parent=styles['Heading1'],
-      fontSize=16,
-      textColor=colors.HexColor('#1e1b4b'),
-      spaceAfter=4,
-      alignment=1,
-      fontName='Helvetica-Bold'
-  )
-  
-  subtitle_style = ParagraphStyle(
-      'DocSubtitle',
-      parent=styles['Heading2'],
-      fontSize=12,
-      textColor=colors.HexColor('#3b82f6'),
-      spaceAfter=12,
-      alignment=1,
-      fontName='Helvetica-Bold'
-  )
-  
-  meta_style = ParagraphStyle(
-      'MetaText',
-      parent=styles['Normal'],
-      fontSize=8,
-      textColor=colors.HexColor('#64748b'),
-      spaceAfter=15,
-      alignment=1,
-      fontName='Helvetica'
-  )
-
-  elements.append(Paragraph("P.S MEDISELLER - Delivery & Attendance Portal", title_style))
-  elements.append(Paragraph(title_text, subtitle_style))
-  
-  current_time_str = get_ist_time().strftime("%d-%m-%Y %H:%M:%S IST")
-  elements.append(Paragraph(f"Generated On: {current_time_str}", meta_style))
-  elements.append(Spacer(1, 5))
-  
-  if not df.empty:
-    cell_style = ParagraphStyle(
-        'TableCell',
-        parent=styles['Normal'],
-        fontSize=8.5,
-        textColor=colors.HexColor('#0f172a'),
-        fontName='Helvetica'
-    )
-    header_style = ParagraphStyle(
-        'TableHeader',
-        parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.white,
-        fontName='Helvetica-Bold',
-        alignment=1
-    )
-    
-    headers = [Paragraph(str(col), header_style) for col in df.columns]
-    data = [headers]
-    
-    for _, row in df.iterrows():
-      row_cells = [Paragraph(str(val) if val is not None else "", cell_style) for val in row]
-      data.append(row_cells)
-      
-    num_cols = len(df.columns)
-    col_width = 540.0 / num_cols if num_cols > 0 else 540.0
-    col_widths = [col_width] * num_cols
-    
-    table = Table(data, colWidths=col_widths, repeatRows=1)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e293b')),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8fafc')]),
-    ]))
-    elements.append(table)
-  else:
-    no_data_style = ParagraphStyle(
-        'NoData',
-        parent=styles['Normal'],
-        fontSize=10,
-        textColor=colors.HexColor('#ef4444'),
-        alignment=1,
-        fontName='Helvetica-Bold'
-    )
-    elements.append(Paragraph("No records found for this report.", no_data_style))
-    
-  doc.build(elements)
-  buffer.seek(0)
-  return buffer.getvalue()
-
-# =========================================================
-# STYLING & PWA MANIFEST
+# ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION
 # =========================================================
 logo_b64 = ""
 for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
@@ -177,6 +60,7 @@ try {{
   const stringManifest = JSON.stringify(manifest);
   const blob = new Blob([stringManifest], {{type: 'application/json'}});
   const manifestURL = URL.createObjectURL(blob);
+
   const targetHead = window.parent.document.head || document.head;
 
   let link = document.createElement('link');
@@ -227,6 +111,24 @@ div.stExpander, div[data-testid="stForm"] {
     color: #ffffff !important;
 }
 
+div.stExpander details summary, 
+div.stExpander details summary span, 
+div.stExpander details summary p,
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary p {
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 6px 10px !important;
+}
+
+div.stExpander details {
+    background: #1e293b !important;
+    border: 1px solid rgba(148, 163, 184, 0.35) !important;
+    border-radius: 14px !important;
+}
+
 .stButton>button, div.stButton > button, button[kind="secondary"], button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
     color: #ffffff !important;
@@ -238,11 +140,45 @@ div.stExpander, div[data-testid="stForm"] {
     transition: all 0.3s ease !important;
 }
 
+.stButton>button:hover, div.stButton > button:hover, button[kind="secondary"]:hover, button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6) !important;
+    transform: translateY(-2px);
+}
+
 input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"] textarea, div[data-baseweb="input"], div[data-baseweb="select"] {
     background-color: #0f172a !important;
     color: #ffffff !important;
     border: 1px solid #3b82f6 !important;
     border-radius: 8px !important;
+}
+
+input::placeholder, textarea::placeholder {
+    color: #60a5fa !important;
+    font-weight: 700 !important;
+}
+
+div[data-testid="stTextInput"] small, 
+div[data-testid="stTextArea"] small,
+div[data-testid="stTextInput"] div p,
+div[data-testid="stTextArea"] div p,
+.stTextInput small, 
+.stTextArea small {
+    background: rgba(37, 99, 235, 0.25) !important;
+    color: #60a5fa !important;
+    border: 1px solid #3b82f6 !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    display: inline-block !important;
+    margin-top: 6px !important;
+}
+
+.stRadio > div {
+    background: transparent !important;
+    padding: 0px !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 .stRadio div[role="radiogroup"] label {
@@ -251,11 +187,42 @@ input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"]
     border-radius: 12px !important;
     padding: 10px 14px !important;
     margin-bottom: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+    transition: all 0.3s ease !important;
     display: flex !important;
     align-items: center !important;
     width: 100% !important;
 }
 
+.stRadio div[role="radiogroup"] label:hover {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #60a5fa !important;
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.3) !important;
+    transform: translateY(-2px);
+}
+
+.stRadio div[role="radiogroup"] label p {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.stSuccess {
+    background: rgba(16, 185, 129, 0.25) !important;
+    border: 1px solid #10b981 !important;
+    color: #34d399 !important;
+    border-radius: 10px !important;
+}
+.stWarning {
+    background: rgba(245, 158, 11, 0.25) !important;
+    border: 1px solid #f59e0b !important;
+    color: #fbbf24 !important;
+    border-radius: 10px !important;
+}
 .agent-card {
     background: #161b22;
     border: 1px solid #30363d;
@@ -274,7 +241,7 @@ input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"]
 """, unsafe_allow_html=True)
 
 # =========================================================
-# DATABASE SETUP
+# DATABASE SETUP & 7-DAY RETENTION CLEANUP
 # =========================================================
 DB_FILE = "mediseller_delivery.db"
 
@@ -391,11 +358,12 @@ if c.fetchone()[0] == 0:
 
 current_dt_str = get_ist_time()
 
+# Automatically retain completed orders and tasks for 7 days (1 week) before deletion
 c.execute("SELECT id, order_date, status FROM orders")
 for row_ord in c.fetchall():
   try:
     o_time = datetime.strptime(row_ord[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-    if (current_dt_str - o_time) > timedelta(hours=24):
+    if (current_dt_str - o_time) > timedelta(days=7):
       c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
   except:
     pass
@@ -404,11 +372,52 @@ c.execute("SELECT id, created_at, status FROM task_assignments")
 for row_task in c.fetchall():
   try:
     t_time = datetime.strptime(row_task[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-    if (current_dt_str - t_time) > timedelta(hours=24):
+    if (current_dt_str - t_time) > timedelta(days=7):
       c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
   except:
     pass
 conn.commit()
+
+# =========================================================
+# PROFESSIONAL HTML/PDF REPORT GENERATOR HELPER
+# =========================================================
+def generate_html_report(title, df):
+  html = f"""
+  <!DOCTYPE html>
+  <html lang="bn">
+  <head>
+      <meta charset="UTF-8">
+      <title>{title} - P.S MEDISELLER</title>
+      <style>
+          body {{ font-family: 'Poppins', Arial, sans-serif; margin: 20px; color: #1e293b; background: #f8fafc; }}
+          .header {{ text-align: center; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
+          h2 {{ color: #1e40af; margin: 0; }}
+          p {{ color: #64748b; font-size: 14px; margin: 5px 0; }}
+          table {{ width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+          th, td {{ border: 1px solid #e2e8f0; padding: 12px 15px; text-align: left; font-size: 13px; }}
+          th {{ background-color: #3b82f6; color: white; font-weight: 600; }}
+          tr:nth-child(even) {{ background-color: #f1f5f9; }}
+          .print-btn {{ display: block; width: 220px; margin: 20px auto; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 4px 10px rgba(37,99,235,0.3); }}
+          .print-btn:hover {{ background: #1d4ed8; }}
+          @media print {{
+              .print-btn {{ display: none; }}
+              body {{ background: white; margin: 0; }}
+              table {{ box-shadow: none; }}
+          }}
+      </style>
+  </head>
+  <body>
+      <div class="header">
+          <h2>P.S MEDISELLER</h2>
+          <p><b>{title}</b></p>
+          <p>Generated on: {get_ist_time().strftime('%d-%m-%Y %H:%M:%S')} IST</p>
+      </div>
+      <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF (প্রিন্ট / পিডিএফ)</button>
+      {df.to_html(index=False, classes='table', border=0)}
+  </body>
+  </html>
+  """
+  return html.encode('utf-8')
 
 if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
@@ -446,8 +455,7 @@ if target_login:
         st.session_state["user_role"] = r_role
         if login_user:
             st.success(f"Welcome, {f_name}! Logged in. (স্বাগতম, {f_name}!)")
-            if "login" in st.query_params:
-                del st.query_params["login"]
+            st.query_params.pop("login", None)
             st.rerun()
     else:
         st.markdown("""
@@ -461,10 +469,10 @@ col_ht1, col_ht2 = st.columns([3, 1])
 with col_ht1:
   st.markdown(f"""
   <div style="display: flex; align-items: center; gap: 12px;">
-      <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);">
+      <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
       <div>
           <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
-          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Delivery & Attendance Portal</p>
+          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Delivery & Attendance Portal (ডেলিভারি পোর্টাল)</p>
       </div>
   </div>
   """, unsafe_allow_html=True)
@@ -532,6 +540,9 @@ if loc and "coords" in loc:
     )
   conn.commit()
 
+# =========================================================
+# NAVIGATION MENU
+# =========================================================
 menu_options = [
     "📍 Add Location (লোকেশন যোগ)",
     "🔍 Search & Details (অনুসন্ধান ও বিবরণ)",
@@ -677,23 +688,25 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       tiles=None
   )
 
-  folium.TileLayer(
+  street_layer = folium.TileLayer(
       tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
       attr="Google Maps Street",
       name="Street View (স্ট্রিট ভিউ)",
       overlay=False,
       control=True,
       show=True
-  ).add_to(advanced_map)
+  )
+  street_layer.add_to(advanced_map)
 
-  folium.TileLayer(
+  satellite_layer = folium.TileLayer(
       tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
       attr="Google Maps Satellite",
       name="Satellite View (স্যাটেলাইট ভিউ)",
       overlay=False,
       control=True,
       show=False
-  ).add_to(advanced_map)
+  )
+  satellite_layer.add_to(advanced_map)
 
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
@@ -804,12 +817,12 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   if not report_df.empty:
     if st.session_state["user_role"] == "admin":
       full_report_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
-      pdf_all_report = generate_advanced_pdf("Daily Work Complete Report", full_report_df)
+      html_all_report = generate_html_report("Daily Work & Visit Report", full_report_df)
       st.download_button(
-          label="📥 Download Daily Work Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-          data=pdf_all_report,
-          file_name="mediseller_daily_work_report.pdf",
-          mime="application/pdf",
+          label="📥 Download Daily Work Report (PDF/HTML)",
+          data=html_all_report,
+          file_name=f"mediseller_daily_work_report.html",
+          mime="text/html",
           type="primary"
       )
       st.write("---")
@@ -927,12 +940,12 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
     df = pd.read_sql_query("SELECT * FROM locations ORDER BY party_name ASC", conn)
 
   if st.session_state["user_role"] == "admin" and not df.empty:
-    pdf_locs_df = generate_advanced_pdf("Locations & Parties Directory", df)
+    html_locs_df = generate_html_report("Locations & Parties Directory", df)
     st.download_button(
-        label="📥 Download Locations Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-        data=pdf_locs_df,
-        file_name="mediseller_locations_report.pdf",
-        mime="application/pdf",
+        label="📥 Download Locations Report (PDF/HTML)",
+        data=html_locs_df,
+        file_name="mediseller_locations_report.html",
+        mime="text/html",
         type="primary"
     )
     st.write("---")
@@ -993,42 +1006,73 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
     st.info("No mapped parties found. (ম্যাপযুক্ত পার্টি নেই।)")
 
 # =========================================================
-# 3. PENDING ORDERS
+# 3. PENDING ORDERS & 7-DAY COMPLETED ORDERS HISTORY
 # =========================================================
 elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
-  st.write("### 📦 Pending Orders (পেন্ডিং অর্ডার)")
+  st.write("### 📦 Orders Management (অর্ডার ম্যানেজমেন্ট)")
   
   if st.session_state["user_role"] == "admin":
-    all_ord_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
-    if not all_ord_df.empty:
-      pdf_ord_report = generate_advanced_pdf("Orders Complete Report", all_ord_df)
-      st.download_button(
-          label="📥 Download Orders Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-          data=pdf_ord_report,
-          file_name="mediseller_orders_report.pdf",
-          mime="application/pdf",
-          type="primary"
-      )
-      st.write("---")
-
-  orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
-  if not orders_df.empty:
-    for index, row in orders_df.iterrows():
-      cols = st.columns([2, 4, 2, 2])
-      cols[0].write(f"**{row['party_name']}**")
-      cols[1].write(row['order_details'])
-      cols[2].write("⏳ Pending (পেন্ডিং)")
-
-      if cols[3].button("✔️ Complete (কমপ্লিট)", key=f"ord_btn_{row['id']}"):
-        c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
-        conn.commit()
-        c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
-        conn.commit()
-        st.success("Order completed! (কমপ্লিট করা হয়েছে!)")
-        st.rerun()
-      st.write("---")
+    ord_tab1, ord_tab2 = st.tabs(["⏳ Pending Orders (পেন্ডিং)", "📜 Completed History (গত ৭ দিনের সম্পন্ন অর্ডার)"])
   else:
-    st.info("No pending orders. (পেন্ডিং অর্ডার নেই।)")
+    ord_tab1 = st.container()
+    ord_tab2 = None
+
+  with ord_tab1:
+    st.write("#### ⏳ Active Pending Orders")
+    if st.session_state["user_role"] == "admin":
+      all_ord_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
+      if not all_ord_df.empty:
+        html_ord_report = generate_html_report("Pending Orders Report", all_ord_df)
+        st.download_button(
+            label="📥 Download Pending Orders Report (PDF/HTML)",
+            data=html_ord_report,
+            file_name="mediseller_pending_orders_report.html",
+            mime="text/html",
+            type="primary"
+        )
+        st.write("---")
+
+    orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
+    if not orders_df.empty:
+      for index, row in orders_df.iterrows():
+        cols = st.columns([2, 4, 2, 2])
+        cols[0].write(f"**{row['party_name']}**")
+        cols[1].write(row['order_details'])
+        cols[2].write("⏳ Pending (পেন্ডিং)")
+
+        if cols[3].button("✔️ Complete (কমপ্লিট)", key=f"ord_btn_{row['id']}"):
+          c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
+          conn.commit()
+          c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
+          conn.commit()
+          st.success("Order completed! (কমপ্লিট করা হয়েছে!)")
+          st.rerun()
+        st.write("---")
+    else:
+      st.info("No pending orders. (পেন্ডিং অর্ডার নেই।)")
+
+  if ord_tab2 is not None:
+    with ord_tab2:
+      st.write("#### 📜 Completed Orders History (Visible to Admin for 7 Days)")
+      completed_ord_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Completed' ORDER BY order_date DESC", conn)
+      if not completed_ord_df.empty:
+        html_comp_ord = generate_html_report("Completed Orders History (Last 7 Days)", completed_ord_df)
+        st.download_button(
+            label="📥 Download Completed Orders Report (PDF/HTML)",
+            data=html_comp_ord,
+            file_name="mediseller_completed_orders_history.html",
+            mime="text/html",
+            type="primary"
+        )
+        st.write("---")
+        for idx, row in completed_ord_df.iterrows():
+          cols = st.columns([2, 4, 2])
+          cols[0].write(f"**{row['party_name']}**")
+          cols[1].write(row['order_details'])
+          cols[2].write("✅ Completed (সম্পন্ন)")
+          st.write("---")
+      else:
+        st.info("No completed orders history in the last 7 days.")
 
 # =========================================================
 # 4. DAILY & MONTHLY WORK
@@ -1047,12 +1091,12 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
     if st.session_state["user_role"] == "admin":
       full_dw_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
       if not full_dw_df.empty:
-        pdf_dw_report = generate_advanced_pdf("Daily Work Summary", full_dw_df)
+        html_dw_report = generate_html_report("Daily Work Report", full_dw_df)
         st.download_button(
-            label="📥 Download Daily Work Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-            data=pdf_dw_report,
-            file_name="mediseller_daily_work_report.pdf",
-            mime="application/pdf",
+            label="📥 Download Daily Work Report (PDF/HTML)",
+            data=html_dw_report,
+            file_name="mediseller_daily_work_report.html",
+            mime="text/html",
             type="primary"
         )
         st.write("---")
@@ -1148,12 +1192,12 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.write(f"##### 📋 Complete Activity Summary for `{selected_month}`")
         
         if st.session_state["user_role"] == "admin":
-          pdf_summary = generate_advanced_pdf(f"Monthly Summary - {selected_month}", report_summary_df)
+          html_summary = generate_html_report(f"Monthly Summary - {selected_month}", report_summary_df)
           st.download_button(
-              label="📥 Download Monthly Summary Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-              data=pdf_summary,
-              file_name=f"mediseller_monthly_summary_{selected_month}.pdf",
-              mime="application/pdf",
+              label="📥 Download Monthly Summary Report (PDF/HTML)",
+              data=html_summary,
+              file_name=f"mediseller_monthly_summary_{selected_month}.html",
+              mime="text/html",
               type="primary"
           )
           st.write("---")
@@ -1180,7 +1224,7 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
-# 5. DUE CLEAR & DELIVERY PLAN
+# 5. DUE CLEAR, DELIVERY PLAN & 7-DAY COMPLETED TASKS
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
   st.write("### 📋 Due & Delivery Plan (ডেলিভারি ও ডিউ প্ল্যান)")
@@ -1192,117 +1236,147 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
 
   if st.session_state["user_role"] == "admin":
-    full_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments ORDER BY id DESC", conn)
-    if not full_tasks_df.empty:
-      pdf_tasks_report = generate_advanced_pdf("Due & Delivery Task Assignments", full_tasks_df)
-      st.download_button(
-          label="📥 Download Task & Delivery Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-          data=pdf_tasks_report,
-          file_name="mediseller_due_delivery_report.pdf",
-          mime="application/pdf",
-          type="primary"
-      )
-      st.write("---")
+    task_tab1, task_tab2 = st.tabs(["🎯 Active Tasks (চলমান কাজ)", "📜 Completed Tasks History (গত ৭ দিনের সম্পন্ন কাজ)"])
+  else:
+    task_tab1 = st.container()
+    task_tab2 = None
 
-  with st.form("easy_assign_form", clear_on_submit=True):
-    st.write("🔍 **Search Party (পার্টি সার্চ):**")
-    task_search_query = st.text_input("Search (সার্চ)", placeholder="Search here (সার্চ)", key="task_search_input_box", label_visibility="collapsed")
+  with task_tab1:
+    if st.session_state["user_role"] == "admin":
+      full_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
+      if not full_tasks_df.empty:
+        html_tasks_report = generate_html_report("Active Tasks & Deliveries Report", full_tasks_df)
+        st.download_button(
+            label="📥 Download Tasks Report (PDF/HTML)",
+            data=html_tasks_report,
+            file_name="mediseller_due_delivery_report.html",
+            mime="text/html",
+            type="primary"
+        )
+        st.write("---")
 
-    if task_search_query.strip():
-      c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{task_search_query.strip()}%",))
-    else:
-      c.execute("SELECT party_name FROM locations ORDER BY party_name ASC LIMIT 15")
+    with st.form("easy_assign_form", clear_on_submit=True):
+      st.write("🔍 **Search Party (পার্টি সার্চ):**")
+      task_search_query = st.text_input("Search (সার্চ)", placeholder="Search here (সার্চ)", key="task_search_input_box", label_visibility="collapsed")
 
-    matched_task_parties = [row[0] for row in c.fetchall()]
-
-    if matched_task_parties:
-      sel_pt = st.radio("Select Party (পার্টি সিলেক্ট):", matched_task_parties, key="task_party_radio_list")
-    else:
-      sel_pt = "-- Select (সিলেক্ট) --"
-      st.warning("No party found. (পাওয়া যায়নি।)")
-    
-    sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents)
-
-    st.write("**Work Type (কাজের ধরণ):**")
-    col_chk1, col_chk2 = st.columns(2)
-    with col_chk1:
-      chk_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)")
-    with col_chk2:
-      chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)")
-
-    d_amount = st.text_input("Due Amount (ডিউ টাকা)", "0")
-
-    submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
-
-    if submit_easy_task:
-      if sel_pt == "-- Select (সিলেক্ট) --" or not sel_pt:
-        st.error("Select a valid party. (পার্টি সিলেক্ট করুন।)")
+      if task_search_query.strip():
+        c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{task_search_query.strip()}%",))
       else:
-        selected_tasks = []
-        if chk_delivery:
-          selected_tasks.append("Delivery (ডেলিভারি)")
-        if chk_due:
-          selected_tasks.append("Due Collection (ডিউ কালেকশন)")
+        c.execute("SELECT party_name FROM locations ORDER BY party_name ASC LIMIT 15")
 
-        if selected_tasks:
-          t_type_str = " & ".join(selected_tasks)
-          current_date_str = get_ist_time().strftime("%Y-%m-%d")
-          c.execute(
-              "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-              (sel_ag, sel_pt, t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")),
-          )
-          c.execute(
-              "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-              (sel_pt, "Visit (ভিজিট)", current_date_str)
-          )
-          conn.commit()
-          st.success("Task assigned! (কাজ অ্যাসাইন করা হয়েছে!)")
-          st.rerun()
+      matched_task_parties = [row[0] for row in c.fetchall()]
+
+      if matched_task_parties:
+        sel_pt = st.radio("Select Party (পার্টি সিলেক্ট):", matched_task_parties, key="task_party_radio_list")
+      else:
+        sel_pt = "-- Select (সিলেক্ট) --"
+        st.warning("No party found. (পাওয়া যায়নি।)")
+      
+      sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents)
+
+      st.write("**Work Type (কাজের ধরণ):**")
+      col_chk1, col_chk2 = st.columns(2)
+      with col_chk1:
+        chk_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)")
+      with col_chk2:
+        chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)")
+
+      d_amount = st.text_input("Due Amount (ডিউ টাকা)", "0")
+
+      submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
+
+      if submit_easy_task:
+        if sel_pt == "-- Select (সিলেক্ট) --" or not sel_pt:
+          st.error("Select a valid party. (পার্টি সিলেক্ট করুন।)")
         else:
-          st.warning("Select at least one work type. (কাজের ধরণ সিলেক্ট করুন।)")
+          selected_tasks = []
+          if chk_delivery:
+            selected_tasks.append("Delivery (ডেলিভারি)")
+          if chk_due:
+            selected_tasks.append("Due Collection (ডিউ কালেকশন)")
 
-  st.write("---")
-  st.write("### 📋 Current Tasks (বর্তমান কাজ)")
+          if selected_tasks:
+            t_type_str = " & ".join(selected_tasks)
+            current_date_str = get_ist_time().strftime("%Y-%m-%d")
+            c.execute(
+                "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (sel_ag, sel_pt, t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")),
+            )
+            c.execute(
+                "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                (sel_pt, "Visit (ভিজিট)", current_date_str)
+            )
+            conn.commit()
+            st.success("Task assigned! (কাজ অ্যাসাইন করা হয়েছে!)")
+            st.rerun()
+          else:
+            st.warning("Select at least one work type. (কাজের ধরণ সিলেক্ট করুন।)")
 
-  if st.session_state["user_role"] == "admin":
-    tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
-  else:
-    tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(st.session_state["username"],))
+    st.write("---")
+    st.write("### 📋 Current Tasks (বর্তমান কাজ)")
 
-  if not tasks_df.empty:
-    for idx, row in tasks_df.iterrows():
-      p_name = row['party_name']
-      cols = st.columns([2, 2, 2, 2])
-      cols[0].write(f"Agent: **{row['agent_name']}**\n\nParty: **{p_name}**")
-      cols[1].write(f"Work: {row['task_type']}\n\nDue: {row['due_amount']} INR")
+    if st.session_state["user_role"] == "admin":
+      tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
+    else:
+      tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(st.session_state["username"],))
 
-      auto_completed = False
-      if gps_lat and gps_lon and p_name in party_coords:
-        p_coords = party_coords[p_name]
-        if p_coords[0] is not None and p_coords[1] is not None:
-          p_lat, p_lon = p_coords
-          import math
-          dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
-          if dist <= 30:
-            auto_completed = True
+    if not tasks_df.empty:
+      for idx, row in tasks_df.iterrows():
+        p_name = row['party_name']
+        cols = st.columns([2, 2, 2, 2])
+        cols[0].write(f"Agent: **{row['agent_name']}**\n\nParty: **{p_name}**")
+        cols[1].write(f"Work: {row['task_type']}\n\nDue: {row['due_amount']} INR")
 
-      if cols[2].button("✅ Complete (সম্পন্ন)", key=f"comp_task_{row['id']}") or auto_completed:
-        c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
-        if "Delivery" in row['task_type']:
-          c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-        if "Due" in row['task_type']:
-          c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
-        conn.commit()
-        st.success("Task completed! (সম্পন্ন!)")
-        st.rerun()
+        auto_completed = False
+        if gps_lat and gps_lon and p_name in party_coords:
+          p_coords = party_coords[p_name]
+          if p_coords[0] is not None and p_coords[1] is not None:
+            p_lat, p_lon = p_coords
+            import math
+            dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
+            if dist <= 30:
+              auto_completed = True
 
-      cols[3].write("Pending (পেন্ডিং)")
-      st.write("---")
-  else:
-    st.info("No tasks assigned. (কোনো কাজ নেই।)")
+        if cols[2].button("✅ Complete (সম্পন্ন)", key=f"comp_task_{row['id']}") or auto_completed:
+          c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
+          if "Delivery" in row['task_type']:
+            c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
+          if "Due" in row['task_type']:
+            c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
+          conn.commit()
+          st.success("Task completed! (সম্পন্ন!)")
+          st.rerun()
+
+        cols[3].write("Pending (পেন্ডিং)")
+        st.write("---")
+    else:
+      st.info("No tasks assigned. (কোনো কাজ নেই।)")
+
+  if task_tab2 is not None:
+    with task_tab2:
+      st.write("#### 📜 Completed Tasks History (Visible to Admin for 7 Days)")
+      completed_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Completed' ORDER BY id DESC", conn)
+      if not completed_tasks_df.empty:
+        html_comp_tasks = generate_html_report("Completed Tasks History (Last 7 Days)", completed_tasks_df)
+        st.download_button(
+            label="📥 Download Completed Tasks Report (PDF/HTML)",
+            data=html_comp_tasks,
+            file_name="mediseller_completed_tasks_history.html",
+            mime="text/html",
+            type="primary"
+        )
+        st.write("---")
+        for idx, row in completed_tasks_df.iterrows():
+          cols = st.columns([2, 2, 2])
+          cols[0].write(f"Agent: **{row['agent_name']}**\n\nParty: **{row['party_name']}**")
+          cols[1].write(f"Work: {row['task_type']}\n\nDue: {row['due_amount']} INR")
+          cols[2].write("✅ Completed (সম্পন্ন)")
+          st.write("---")
+      else:
+        st.info("No completed tasks history in the last 7 days.")
 
 # =========================================================
-# 6. ROUTE MAP
+# 6. HOME-TO-HOME AUTO ROUTE & MAP
 # =========================================================
 elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
   st.write("### 🗺️ Route Planning (রুট প্ল্যানিং)")
@@ -1387,12 +1461,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     if st.session_state["user_role"] == "admin":
       full_att_today = pd.read_sql_query("SELECT username, check_time, status FROM attendance WHERE date=?", conn, params=(today_str,))
       if not full_att_today.empty:
-        pdf_att_today = generate_advanced_pdf(f"Attendance Report - {display_today_str}", full_att_today)
+        html_att_today = generate_html_report(f"Attendance Report - {today_str}", full_att_today)
         st.download_button(
-            label="📥 Download Today's Attendance Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-            data=pdf_att_today,
-            file_name=f"mediseller_attendance_{today_str}.pdf",
-            mime="application/pdf",
+            label="📥 Download Today's Attendance Report (PDF/HTML)",
+            data=html_att_today,
+            file_name=f"mediseller_attendance_{today_str}.html",
+            mime="text/html",
             type="primary"
         )
         st.write("---")
@@ -1426,12 +1500,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
       """, conn, params=(current_month_str,))
       
       if not full_monthly_att.empty:
-        pdf_monthly_att = generate_advanced_pdf(f"Monthly Attendance - {current_month_str}", full_monthly_att)
+        html_monthly_att = generate_html_report(f"Monthly Attendance - {current_month_str}", full_monthly_att)
         st.download_button(
-            label="📥 Download Monthly Attendance Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
-            data=pdf_monthly_att,
-            file_name=f"mediseller_monthly_attendance_{current_month_str}.pdf",
-            mime="application/pdf",
+            label="📥 Download Monthly Attendance Report (PDF/HTML)",
+            data=html_monthly_att,
+            file_name=f"mediseller_monthly_attendance_{current_month_str}.html",
+            mime="text/html",
             type="primary"
         )
         st.write("---")
