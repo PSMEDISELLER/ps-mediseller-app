@@ -840,11 +840,21 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   else:
     filtered_parties_list = all_parties_list
 
-  if filtered_parties_list:
-    selected_order_party_native = st.selectbox("Select Party", filtered_parties_list, label_visibility="collapsed", key="order_select_party_box")
+  # Floating / dynamic suggestions list when typing
+  if order_search_text.strip() and filtered_parties_list:
+    st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_parties_list)} found): Select below</p>", unsafe_allow_html=True)
+    selected_order_party_native = st.radio(
+        "Matching Parties",
+        filtered_parties_list[:10],
+        key="order_floating_suggestions_radio",
+        label_visibility="collapsed"
+    )
   else:
-    st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
-    selected_order_party_native = ""
+    if filtered_parties_list:
+      selected_order_party_native = st.selectbox("Select Party", filtered_parties_list, label_visibility="collapsed", key="order_select_party_box")
+    else:
+      st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
+      selected_order_party_native = ""
 
   with st.form("order_visit_entry_form"):
     ord_details = st.text_area("Order Details (অর্ডার বিবরণ)")
@@ -1337,11 +1347,21 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     else:
       filtered_task_parties = all_parties
 
-    if filtered_task_parties:
-      sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
+    # Floating / dynamic suggestions list when typing for tasks
+    if task_search_text.strip() and filtered_task_parties:
+      st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_task_parties)} found): Select below</p>", unsafe_allow_html=True)
+      sel_pt = st.radio(
+          "Matching Task Parties",
+          filtered_task_parties[:10],
+          key="task_floating_suggestions_radio",
+          label_visibility="collapsed"
+      )
     else:
-      st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
-      sel_pt = ""
+      if filtered_task_parties:
+        sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
+      else:
+        st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
+        sel_pt = ""
 
     with st.form("easy_assign_form"):
       sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents)
