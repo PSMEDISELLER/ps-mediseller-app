@@ -773,6 +773,18 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   st.write("#### 📋 Recent Orders & Visits (সাম্প্রতিক রিপোর্ট)")
   report_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC LIMIT 20", conn)
   if not report_df.empty:
+    if st.session_state["user_role"] == "admin":
+      full_report_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
+      csv_all_report = full_report_df.to_csv(index=False).encode('utf-8')
+      st.download_button(
+          label="📥 Download All Daily Work Report (CSV) (রিপোর্ট ডাউনলোড)",
+          data=csv_all_report,
+          file_name=f"mediseller_daily_work_report.csv",
+          mime="text/csv",
+          type="primary"
+      )
+      st.write("---")
+
     for idx, r_row in report_df.iterrows():
       cols = st.columns([3, 2, 2])
       cols[0].write(f"Party: **{r_row['party_name']}**")
@@ -885,6 +897,17 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
   else:
     df = pd.read_sql_query("SELECT * FROM locations ORDER BY party_name ASC", conn)
 
+  if st.session_state["user_role"] == "admin" and not df.empty:
+    csv_locs_df = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Locations Report (CSV) (রিপোর্ট ডাউনলোড)",
+        data=csv_locs_df,
+        file_name="mediseller_locations_report.csv",
+        mime="text/csv",
+        type="primary"
+    )
+    st.write("---")
+
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
@@ -945,6 +968,20 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
 # =========================================================
 elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
   st.write("### 📦 Pending Orders (পেন্ডিং অর্ডার)")
+  
+  if st.session_state["user_role"] == "admin":
+    all_ord_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
+    if not all_ord_df.empty:
+      csv_ord_report = all_ord_df.to_csv(index=False).encode('utf-8')
+      st.download_button(
+          label="📥 Download Orders Report (CSV) (রিপোর্ট ডাউনলোড)",
+          data=csv_ord_report,
+          file_name="mediseller_orders_report.csv",
+          mime="text/csv",
+          type="primary"
+      )
+      st.write("---")
+
   orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
   if not orders_df.empty:
     for index, row in orders_df.iterrows():
@@ -977,6 +1014,19 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
 
   with work_tab1:
     st.write("#### 📅 Visit & Order List (তারিখ অনুযায়ী)")
+
+    if st.session_state["user_role"] == "admin":
+      full_dw_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
+      if not full_dw_df.empty:
+        csv_dw_report = full_dw_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Daily Work Report (CSV) (রিপোর্ট ডাউনলোড)",
+            data=csv_dw_report,
+            file_name="mediseller_daily_work_report.csv",
+            mime="text/csv",
+            type="primary"
+        )
+        st.write("---")
 
     work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
     if not work_df.empty:
@@ -1019,11 +1069,23 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
   with work_tab2:
     st.write("#### 📊 Monthly Doctor/Party Activity Report (মাসিক ডাক্তার ও পার্টি রিপোর্ট)")
     
-    current_month_default = get_ist_time().strftime("%Y-%m")
-    selected_month = st.text_input("Select Month (YYYY-MM) (মাস নির্বাচন করুন):", value=current_month_default)
+    st.write("🗓️ **Select Year & Month (বছর ও মাস সিলেক্ট করুন):**")
+    col_yr, col_mo = st.columns(2)
+    with col_yr:
+      selected_year = st.selectbox("Select Year (বছর)", [2026, 2025, 2024], index=0)
+    with col_mo:
+      months_dict = {
+          "01": "January (জানুয়ারি)", "02": "February (ফেব্রুয়ারি)", "03": "March (মার্চ)", 
+          "04": "April (এপ্রিল)", "05": "May (মে)", "06": "June (জুন)", 
+          "07": "July (জুলাই)", "08": "August (আগস্ট)", "09": "September (সেপ্টেম্বর)", 
+          "10": "October (অক্টোবর)", "11": "November (নভেম্বর)", "12": "December (ডিসেম্বর)"
+      }
+      current_mo_num = get_ist_time().strftime("%m")
+      selected_mo_key = st.selectbox("Select Month (মাস)", list(months_dict.keys()), format_func=lambda x: months_dict[x], index=list(months_dict.keys()).index(current_mo_num) if current_mo_num in months_dict else 7)
+    
+    selected_month = f"{selected_year}-{selected_mo_key}"
 
     if selected_month.strip():
-      # Fetch all locations (both mapped and unmapped doctors/parties)
       all_locs_df = pd.read_sql_query("SELECT party_name, address, lat, lon FROM locations ORDER BY party_name ASC", conn)
       
       if not all_locs_df.empty:
@@ -1033,14 +1095,12 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
           p_name = loc_row['party_name']
           is_mapped = "Mapped (ম্যাপযুক্ত)" if pd.notna(loc_row['lat']) and pd.notna(loc_row['lon']) else "Non-Map (ম্যাপবিহীন)"
           
-          # Count visits in this month
           c.execute("""
             SELECT COUNT(*) FROM daily_work 
             WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Visit%'
           """, (p_name, f"{selected_month}%"))
           v_count = c.fetchone()[0]
 
-          # Count orders in this month
           c.execute("""
             SELECT COUNT(*) FROM daily_work 
             WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Order%'
@@ -1057,9 +1117,20 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         report_summary_df = pd.DataFrame(report_data)
 
         st.write(f"##### 📋 Complete Activity Summary for `{selected_month}`")
+        
+        if st.session_state["user_role"] == "admin":
+          csv_summary = report_summary_df.to_csv(index=False).encode('utf-8')
+          st.download_button(
+              label="📥 Download Monthly Summary Report (CSV) (রিপোর্ট ডাউনলোড)",
+              data=csv_summary,
+              file_name=f"mediseller_monthly_summary_{selected_month}.csv",
+              mime="text/csv",
+              type="primary"
+          )
+          st.write("---")
+
         st.dataframe(report_summary_df, use_container_width=True)
 
-        # Zero activity filter (No visits and No orders)
         zero_activity_df = report_summary_df[(report_summary_df["Total Visits"] == 0) & (report_summary_df["Total Orders"] == 0)]
         
         st.write(f"⚠️ **Doctors/Parties with ZERO Visits & ZERO Orders ({len(zero_activity_df)}):**")
@@ -1068,7 +1139,6 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         else:
           st.success("All parties/doctors had at least one visit or order this month! (সব ডাক্তারের ভিজিট বা অর্ডার হয়েছে!)")
 
-        # Admin reset/delete option for the selected month
         if st.session_state["user_role"] == "admin":
           st.write("---")
           st.write("#### ⚙️ Admin Actions for this Month")
@@ -1091,6 +1161,19 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
   c.execute("SELECT party_name, lat, lon FROM locations ORDER BY party_name ASC")
   loc_data = c.fetchall()
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
+
+  if st.session_state["user_role"] == "admin":
+    full_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments ORDER BY id DESC", conn)
+    if not full_tasks_df.empty:
+      csv_tasks_report = full_tasks_df.to_csv(index=False).encode('utf-8')
+      st.download_button(
+          label="📥 Download Task & Delivery Report (CSV) (রিপোর্ট ডাউনলোড)",
+          data=csv_tasks_report,
+          file_name="mediseller_due_delivery_report.csv",
+          mime="text/csv",
+          type="primary"
+      )
+      st.write("---")
 
   with st.form("easy_assign_form", clear_on_submit=True):
     st.write("🔍 **Search Party (পার্টি সার্চ):**")
@@ -1271,6 +1354,20 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
 
     st.write("---")
     st.write("#### Today's Attendance List (আজকের তালিকা)")
+    
+    if st.session_state["user_role"] == "admin":
+      full_att_today = pd.read_sql_query("SELECT username, check_time, status FROM attendance WHERE date=?", conn, params=(today_str,))
+      if not full_att_today.empty:
+        csv_att_today = full_att_today.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Today's Attendance Report (CSV) (রিপোর্ট ডাউনলোড)",
+            data=csv_att_today,
+            file_name=f"mediseller_attendance_{today_str}.csv",
+            mime="text/csv",
+            type="primary"
+        )
+        st.write("---")
+
     today_att_df = pd.read_sql_query("SELECT username, check_time, status FROM attendance WHERE date=?", conn, params=(today_str,))
     if not today_att_df.empty:
       st.dataframe(today_att_df, use_container_width=True)
@@ -1292,6 +1389,23 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
           WHERE strftime('%Y-%m', date) = ? 
           GROUP BY username
       """, conn, params=(current_month_str,))
+      
+      full_monthly_att = pd.read_sql_query("""
+          SELECT * FROM attendance 
+          WHERE strftime('%Y-%m', date) = ? 
+          ORDER BY date DESC, check_time DESC
+      """, conn, params=(current_month_str,))
+      
+      if not full_monthly_att.empty:
+        csv_monthly_att = full_monthly_att.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Monthly Attendance Report (CSV) (রিপোর্ট ডাউনলোড)",
+            data=csv_monthly_att,
+            file_name=f"mediseller_monthly_attendance_{current_month_str}.csv",
+            mime="text/csv",
+            type="primary"
+        )
+        st.write("---")
     else:
       st.write(f"Current Month: **{current_month_str}**")
       summary_df = pd.read_sql_query("""
@@ -1519,7 +1633,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
       
       copy_html = f"""
       <div style="background: #1e293b; padding: 15px; border-radius: 10px; border: 1px solid #475569; margin-top: 10px;">
-        <p style="color: #fff; margin-bottom: 8px; font-weight: 600;">Generated Direct Link (লিংক):</p>
+        <p style="color: #fff; margin-bottom: 8px; font-weight: 600;">Generated Direct Link (লিংক):</p> &nbsp;
         <input type="text" id="generated_link" readonly style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #64748b; background: #0f172a; color: #fff; font-size: 14px; margin-bottom: 10px; box-sizing: border-box;">
         <button onclick="copyLink()" id="copy_btn" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📋 Copy Link (কপি)</button>
         <span id="copy_status" style="color: #34d399; margin-left: 10px; font-weight: bold; display: none;">✓ Copied! (✓ কপি হয়েছে!)</span>
