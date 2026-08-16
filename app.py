@@ -16,7 +16,7 @@ from streamlit_js_eval import get_geolocation, streamlit_js_eval
 # PAGE CONFIGURATION
 # =========================================================
 st.set_page_config(
-    page_title="P. S MEDISELLER",
+    page_title="P. S MEDISELLER - Allopathy & Ayurvedic Wholesaler",
     page_icon="🚚",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -429,9 +429,9 @@ conn.commit()
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-            ("admin", "admin123", "admin", "Admin", "910000000000", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
+            ("admin", "admin123", "admin", "Admin", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-            ("delivery", "user123", "staff", "Delivery Agent", "910000000000", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
+            ("delivery", "user123", "staff", "Delivery Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
   conn.commit()
 
 current_dt_str = get_ist_time()
@@ -466,7 +466,7 @@ def generate_html_report(title, df):
   <html lang="bn">
   <head>
       <meta charset="UTF-8">
-      <title>{title} - P.S MEDISELLER</title>
+      <title>{title} - P. S MEDISELLER</title>
       <style>
           body {{ font-family: 'Poppins', Arial, sans-serif; margin: 20px; color: #1e293b; background: #f8fafc; }}
           .header {{ text-align: center; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
@@ -487,7 +487,8 @@ def generate_html_report(title, df):
   </head>
   <body>
       <div class="header">
-          <h2>P.S MEDISELLER</h2>
+          <h2>P. S MEDISELLER</h2>
+          <p><b>Allopathy & Ayurvedic Wholesaler</b> | Address: Ledagama 1, Amlagora, Garhbeta, Paschim Medinipur</p>
           <p><b>{title}</b></p>
           <p>Generated on: {get_ist_time().strftime('%d-%m-%Y %H:%M:%S')} IST</p>
       </div>
@@ -550,8 +551,8 @@ with col_ht1:
   <div style="display: flex; align-items: center; gap: 12px;">
       <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
       <div>
-          <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
-          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Delivery & Attendance Portal (ডেলিভারি পোর্টাল)</p>
+          <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P. S MEDISELLER</h1>
+          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Allopathy & Ayurvedic Wholesaler | Ph: 8918740325</p>
       </div>
   </div>
   """, unsafe_allow_html=True)
