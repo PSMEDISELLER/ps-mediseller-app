@@ -598,9 +598,14 @@ with col_ht2:
       st.session_state["show_admin_login"] = True
       st.rerun()
 
+# Fetch current user's full name for display
+c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
+curr_user_row = c.fetchone()
+current_fullname = curr_user_row[0] if curr_user_row and curr_user_row[0] else st.session_state['username']
+
 col_u1, _ = st.columns([3, 1])
 with col_u1:
-  st.write(f"👤 User: **{st.session_state['username']}** (`{st.session_state['user_role']}`)")
+  st.write(f"👤 User: **{current_fullname}** (`{st.session_state['user_role']}`)")
 
 if st.session_state.get("show_admin_login", False):
   with st.form("admin_login_popup_form"):
@@ -1338,13 +1343,16 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
-# 5. DUE CLEAR, DELIVERY PLAN & CARD-BASED UI (GROUPED BY AGENT)
+# 5. DUE CLEAR, DELIVERY PLAN & CARD-BASED UI (GROUPED BY AGENT FULLNAME)
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
   st.markdown('<div class="main-title">📋 ডেলিভারি ও ডিউ প্ল্যান (কর্মী সহায়ক মোড)</div>', unsafe_allow_html=True)
   
-  c.execute("SELECT username FROM users")
-  all_agents = [r[0] for r in c.fetchall()]
+  c.execute("SELECT username, fullname FROM users")
+  users_data = c.fetchall()
+  all_agents = [r[0] for r in users_data]
+  agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in users_data}
+
   c.execute("SELECT party_name, lat, lon FROM locations ORDER BY party_name ASC")
   loc_data = c.fetchall()
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
@@ -1358,9 +1366,20 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
 
   with task_tab1:
     if st.session_state["user_role"] == "admin":
-      full_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
+      full_tasks_df = pd.read_sql_query("""
+          SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.status, t.created_at, l.address 
+          FROM task_assignments t 
+          LEFT JOIN users u ON t.agent_name = u.username 
+          LEFT JOIN locations l ON t.party_name = l.party_name 
+          WHERE t.status='Pending' 
+          ORDER BY t.id DESC
+      """, conn)
       if not full_tasks_df.empty:
-        html_tasks_report = generate_html_report("Active Tasks & Deliveries Report", full_tasks_df)
+        export_tasks_df = full_tasks_df.copy()
+        export_tasks_df['agent_name'] = export_tasks_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
+        export_tasks_df = export_tasks_df[['agent_name', 'party_name', 'task_type', 'due_amount', 'created_at', 'address']]
+        
+        html_tasks_report = generate_html_report("Active Tasks & Deliveries Report", export_tasks_df)
         st.download_button(
             label="📥 Download Tasks Report (PDF/HTML)",
             data=html_tasks_report,
@@ -1396,7 +1415,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         sel_pt = ""
 
     with st.form("easy_assign_form"):
-      sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents)
+      sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents, format_func=lambda x: agent_name_map.get(x, x))
 
       st.write("**Work Type (কাজের ধরণ):**")
       col_chk1, col_chk2 = st.columns(2)
@@ -1441,21 +1460,24 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
 
     if st.session_state["user_role"] == "admin":
       tasks_all_df = pd.read_sql_query("""
-          SELECT t.*, l.address 
+          SELECT t.*, l.address, u.fullname as agent_fullname 
           FROM task_assignments t 
           LEFT JOIN locations l ON t.party_name = l.party_name 
+          LEFT JOIN users u ON t.agent_name = u.username
           WHERE t.status='Pending' 
           ORDER BY t.id DESC
       """, conn)
       if not tasks_all_df.empty:
         grouped_by_worker = {}
         for _, row in tasks_all_df.iterrows():
-          ag = row['agent_name']
-          if ag not in grouped_by_worker:
-            grouped_by_worker[ag] = []
-          grouped_by_worker[ag].append({
+          ag_uname = row['agent_name']
+          ag_fname = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else ag_uname
+          if ag_fname not in grouped_by_worker:
+            grouped_by_worker[ag_fname] = []
+          grouped_by_worker[ag_fname].append({
               "id": row['id'],
-              "agent_name": row['agent_name'],
+              "agent_name": ag_uname,
+              "agent_display": ag_fname,
               "party_name": row['party_name'],
               "type": row['task_type'],
               "due_amount": row['due_amount'],
@@ -1463,14 +1485,14 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
               "address": row['address'] if pd.notna(row['address']) else ""
           })
 
-        for worker_name, worker_tasks in grouped_by_worker.items():
+        for worker_display_name, worker_tasks in grouped_by_worker.items():
           total_tasks = len(worker_tasks)
           delivery_count = sum(1 for t in worker_tasks if "Delivery" in str(t.get("type", "")))
           due_count = sum(1 for t in worker_tasks if "Due" in str(t.get("type", "")))
           total_due_amount = sum(float(t.get("due_amount", 0) or 0) for t in worker_tasks)
 
           expander_title = (
-              f"👤 {worker_name} | ডেলিভারি: {delivery_count} | লেকশন: {due_count}"
+              f"👤 {worker_display_name} | ডেলিভারি: {delivery_count} | লেকশন: {due_count}"
               f" | মোট ডিউ: টাকা {total_due_amount}"
           )
 
@@ -1567,9 +1589,10 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         st.info("No pending tasks assigned. (কোনো কাজ নেই।)")
     else:
       tasks_staff_df = pd.read_sql_query("""
-          SELECT t.*, l.address 
+          SELECT t.*, l.address, u.fullname as agent_fullname 
           FROM task_assignments t 
           LEFT JOIN locations l ON t.party_name = l.party_name 
+          LEFT JOIN users u ON t.agent_name = u.username
           WHERE t.agent_name=? AND t.status='Pending' 
           ORDER BY t.id DESC
       """, conn, params=(st.session_state["username"],))
@@ -1579,6 +1602,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
           worker_tasks.append({
               "id": row['id'],
               "agent_name": row['agent_name'],
+              "agent_display": row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name'],
               "party_name": row['party_name'],
               "type": row['task_type'],
               "due_amount": row['due_amount'],
@@ -1586,14 +1610,14 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
               "address": row['address'] if pd.notna(row['address']) else ""
           })
         
-        worker_name = st.session_state["username"]
+        worker_display_name = worker_tasks[0]['agent_display'] if worker_tasks else st.session_state["username"]
         total_tasks = len(worker_tasks)
         delivery_count = sum(1 for t in worker_tasks if "Delivery" in str(t.get("type", "")))
         due_count = sum(1 for t in worker_tasks if "Due" in str(t.get("type", "")))
         total_due_amount = sum(float(t.get("due_amount", 0) or 0) for t in worker_tasks)
 
         expander_title = (
-            f"👤 {worker_name} | ডেলিভারি: {delivery_count} | লেকশন: {due_count}"
+            f"👤 {worker_display_name} | ডেলিভারি: {delivery_count} | লেকশন: {due_count}"
             f" | মোট ডিউ: টাকা {total_due_amount}"
         )
 
@@ -1664,9 +1688,10 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     st.write("#### 📊 Agent Date-wise & Party Summary (এজেন্ট ও তারিখ অনুযায়ী কাজের বিবরণ)")
     
     agent_summary_df = pd.read_sql_query("""
-        SELECT agent_name, substr(created_at, 1, 10) as task_date, task_type, COUNT(DISTINCT party_name) as party_count, SUM(CAST(due_amount AS REAL)) as total_due
-        FROM task_assignments
-        GROUP BY agent_name, task_date, task_type
+        SELECT u.fullname as agent_name, substr(t.created_at, 1, 10) as task_date, t.task_type, COUNT(DISTINCT t.party_name) as party_count, SUM(CAST(t.due_amount AS REAL)) as total_due
+        FROM task_assignments t
+        LEFT JOIN users u ON t.agent_name = u.username
+        GROUP BY t.agent_name, task_date, t.task_type
         ORDER BY task_date DESC, agent_name ASC
     """, conn)
 
@@ -1688,9 +1713,19 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
   if task_tab3 is not None:
     with task_tab3:
       st.write("#### 📜 Completed Tasks History (Auto expires after 48 hours)")
-      completed_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Completed' ORDER BY id DESC", conn)
+      completed_tasks_df = pd.read_sql_query("""
+          SELECT t.*, u.fullname as agent_fullname 
+          FROM task_assignments t 
+          LEFT JOIN users u ON t.agent_name = u.username 
+          WHERE t.status='Completed' 
+          ORDER BY t.id DESC
+      """, conn)
       if not completed_tasks_df.empty:
-        html_comp_tasks = generate_html_report("Completed Tasks History", completed_tasks_df)
+        export_comp_tasks = completed_tasks_df.copy()
+        export_comp_tasks['agent_name'] = export_comp_tasks.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
+        export_comp_tasks = export_comp_tasks[['agent_name', 'party_name', 'task_type', 'due_amount', 'created_at', 'status']]
+        
+        html_comp_tasks = generate_html_report("Completed Tasks History", export_comp_tasks)
         st.download_button(
             label="📥 Download Completed Tasks Report (PDF/HTML)",
             data=html_comp_tasks,
@@ -1700,8 +1735,9 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         )
         st.write("---")
         for idx, row in completed_tasks_df.iterrows():
+          disp_ag_name = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name']
           cols = st.columns([2, 2, 2, 1.5])
-          cols[0].write(f"Agent: **{row['agent_name']}**\n\nParty: **{row['party_name']}**")
+          cols[0].write(f"Agent: **{disp_ag_name}**\n\nParty: **{row['party_name']}**")
           cols[1].write(f"Work: {row['task_type']}\n\nDue: {row['due_amount']} INR")
           cols[2].write("✅ Completed (সম্পন্ন)")
           
@@ -1801,7 +1837,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     st.write("#### Today's Attendance List (আজকের তালিকা)")
     
     if st.session_state["user_role"] == "admin":
-      full_att_today = pd.read_sql_query("SELECT username, check_time, status FROM attendance WHERE date=?", conn, params=(today_str,))
+      full_att_today = pd.read_sql_query("""
+          SELECT u.fullname as employee_name, a.check_time, a.status 
+          FROM attendance a 
+          LEFT JOIN users u ON a.username = u.username 
+          WHERE a.date=?
+      """, conn, params=(today_str,))
       if not full_att_today.empty:
         html_att_today = generate_html_report(f"Attendance Report - {today_str}", full_att_today)
         st.download_button(
@@ -1813,7 +1854,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         )
         st.write("---")
 
-    today_att_df = pd.read_sql_query("SELECT username, check_time, status FROM attendance WHERE date=?", conn, params=(today_str,))
+    today_att_df = pd.read_sql_query("""
+        SELECT u.fullname as employee_name, a.check_time, a.status 
+        FROM attendance a 
+        LEFT JOIN users u ON a.username = u.username 
+        WHERE a.date=?
+    """, conn, params=(today_str,))
     if not today_att_df.empty:
       st.dataframe(today_att_df, use_container_width=True)
     else:
@@ -1829,16 +1875,19 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     if user_role == "admin":
       st.write(f"Current Month: **{current_month_str}** (Admin View)")
       summary_df = pd.read_sql_query("""
-          SELECT username, COUNT(*) as total_present 
-          FROM attendance 
-          WHERE strftime('%Y-%m', date) = ? 
-          GROUP BY username
+          SELECT u.fullname as employee_name, COUNT(*) as total_present 
+          FROM attendance a 
+          LEFT JOIN users u ON a.username = u.username
+          WHERE strftime('%Y-%m', a.date) = ? 
+          GROUP BY a.username
       """, conn, params=(current_month_str,))
       
       full_monthly_att = pd.read_sql_query("""
-          SELECT * FROM attendance 
-          WHERE strftime('%Y-%m', date) = ? 
-          ORDER BY date DESC, check_time DESC
+          SELECT u.fullname as employee_name, a.date, a.check_time, a.status 
+          FROM attendance a 
+          LEFT JOIN users u ON a.username = u.username
+          WHERE strftime('%Y-%m', a.date) = ? 
+          ORDER BY a.date DESC, a.check_time DESC
       """, conn, params=(current_month_str,))
       
       if not full_monthly_att.empty:
@@ -1854,10 +1903,11 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     else:
       st.write(f"Current Month: **{current_month_str}**")
       summary_df = pd.read_sql_query("""
-          SELECT username, COUNT(*) as total_present 
-          FROM attendance 
-          WHERE strftime('%Y-%m', date) = ? AND username = ?
-          GROUP BY username
+          SELECT u.fullname as employee_name, COUNT(*) as total_present 
+          FROM attendance a 
+          LEFT JOIN users u ON a.username = u.username
+          WHERE strftime('%Y-%m', a.date) = ? AND a.username = ?
+          GROUP BY a.username
       """, conn, params=(current_month_str, current_user))
 
     if not summary_df.empty:
@@ -1868,9 +1918,18 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     st.write("---")
     if user_role == "admin":
       st.write("#### 📋 Detailed Records (বিস্তারিত রেকর্ড)")
-      all_att_df = pd.read_sql_query("SELECT * FROM attendance ORDER BY date DESC, check_time DESC", conn)
+      all_att_df = pd.read_sql_query("""
+          SELECT a.id, a.username, u.fullname, a.date, a.check_time, a.status 
+          FROM attendance a 
+          LEFT JOIN users u ON a.username = u.username 
+          ORDER BY a.date DESC, a.check_time DESC
+      """, conn)
       if not all_att_df.empty:
-        html_all_att_records = generate_html_report("All Attendance Detailed Records", all_att_df)
+        export_all_att = all_att_df.copy()
+        export_all_att['username'] = export_all_att.apply(lambda r: r['fullname'] if pd.notna(r['fullname']) and r['fullname'] else r['username'], axis=1)
+        export_all_att = export_all_att[['username', 'date', 'check_time', 'status']]
+        
+        html_all_att_records = generate_html_report("All Attendance Detailed Records", export_all_att)
         st.download_button(
             label="📥 Download Detailed Attendance History Report (PDF/HTML)",
             data=html_all_att_records,
@@ -1881,7 +1940,13 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         st.write("---")
     else:
       st.write("#### 📋 Attendance History (ইতিহাস)")
-      all_att_df = pd.read_sql_query("SELECT * FROM attendance WHERE username=? ORDER BY date DESC, check_time DESC", conn, params=(current_user,))
+      all_att_df = pd.read_sql_query("""
+          SELECT a.id, a.username, u.fullname, a.date, a.check_time, a.status 
+          FROM attendance a 
+          LEFT JOIN users u ON a.username = u.username 
+          WHERE a.username=? 
+          ORDER BY a.date DESC, a.check_time DESC
+      """, conn, params=(current_user,))
     
     if not all_att_df.empty:
       for idx, row in all_att_df.iterrows():
@@ -1890,8 +1955,10 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         except:
           formatted_row_date = row['date']
 
+        disp_uname = row['fullname'] if pd.notna(row['fullname']) and row['fullname'] else row['username']
+
         cols = st.columns([2, 2, 2, 1.5, 1.5])
-        cols[0].write(f"User: **{row['username']}**")
+        cols[0].write(f"Name: **{disp_uname}**")
         cols[1].write(f"Date: {formatted_row_date}")
         cols[2].write(f"Time: {row['check_time']}")
         cols[3].write(f"Status: {row['status']}")
