@@ -598,7 +598,6 @@ with col_ht2:
       st.session_state["show_admin_login"] = True
       st.rerun()
 
-# Fetch current user's full name for display
 c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
 curr_user_row = c.fetchone()
 current_fullname = curr_user_row[0] if curr_user_row and curr_user_row[0] else st.session_state['username']
@@ -2247,22 +2246,9 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
     if os.path.exists("mediseller_delivery.db"):
         with open("mediseller_delivery.db", "rb") as f:
             st.download_button(
-                label="📥 Download DB (ডাউনলোড)",
+                label="📥 Download Database Backup (.db)",
                 data=f,
                 file_name="mediseller_delivery.db",
                 mime="application/octet-stream",
                 type="primary"
             )
-    else:
-        st.warning("No database file found. (নেই।)")
-
-    st.write("---")
-    st.write("### 📤 Restore DB (ডাটাবেস রিস্টোর)")
-    uploaded_db = st.file_uploader("Upload .db file (.db ফাইল আপলোড)", type=["db"])
-
-    if uploaded_db is not None:
-        if st.button("⚠️ Confirm & Restore (রিস্টোর নিশ্চিত)", type="primary"):
-            with open("mediseller_delivery.db", "wb") as f:
-                f.write(uploaded_db.getbuffer())
-            st.success("Database restored! Please refresh. (রিস্টোর হয়েছে!)")
-            st.rerun()
