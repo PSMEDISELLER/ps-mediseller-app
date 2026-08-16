@@ -1443,19 +1443,34 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     st.markdown("### 📋 Current Tasks Grouped by Worker (কর্মী অনুযায়ী বর্তমান কাজ)")
 
     if st.session_state["user_role"] == "admin":
-      c.execute("SELECT DISTINCT agent_name FROM task_assignments WHERE status='Pending'")
-      active_agents = [r[0] for r in c.fetchall()]
-      
-      if active_agents:
-        for ag_name in active_agents:
-          agent_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(ag_name,))
-          
-          total_t = len(agent_tasks_df)
-          deliv_count = len(agent_tasks_df[agent_tasks_df['task_type'].str.contains('Delivery')])
-          due_count = len(agent_tasks_df[agent_tasks_df['task_type'].str.contains('Due')])
-          
-          with st.expander(f"👤 কর্মী/এজেন্ট: {ag_name} (মোট কাজ: {total_t} | ডেলিভারি: {deliv_count} | ডিউ কালেকশন: {due_count})", expanded=True):
-            for index, row in agent_tasks_df.iterrows():
+      tasks_all_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
+      if not tasks_all_df.empty:
+        grouped_by_worker = {}
+        for _, row in tasks_all_df.iterrows():
+          ag = row['agent_name']
+          if ag not in grouped_by_worker:
+            grouped_by_worker[ag] = []
+          grouped_by_worker[ag].append({
+              "id": row['id'],
+              "agent_name": row['agent_name'],
+              "party_name": row['party_name'],
+              "type": row['task_type'],
+              "due_amount": row['due_amount'],
+              "created_at": row['created_at']
+          })
+
+        for worker_name, worker_tasks in grouped_by_worker.items():
+          total_tasks = len(worker_tasks)
+          delivery_count = sum(1 for t in worker_tasks if "Delivery" in str(t.get("type", "")))
+          due_count = sum(1 for t in worker_tasks if "Due" in str(t.get("type", "")))
+          total_due_amount = sum(float(t.get("due_amount", 0) or 0) for t in worker_tasks)
+
+          with st.expander(f"👤 কর্মী/এজেন্ট: {worker_name} (মোট কাজ: {total_tasks} | ডেলিভারি: {delivery_count} | ডিউ কালেকশন: {due_count} | মোট ডিউ টাকা: {total_due_amount:.2f} INR)", expanded=True):
+            st.markdown(
+                f"👤 **কর্মী/এজেন্ট: {worker_name}** (মোট কাজ: {total_tasks} | ডেলিভারি: {delivery_count} | ডিউ কালেকশন: {due_count} | মোট ডিউ টাকা: {total_due_amount:.2f} INR)"
+            )
+
+            for row in worker_tasks:
               p_name = row['party_name']
               t_date = row['created_at'][:10]
               
@@ -1463,7 +1478,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
                   <div class="card">
                       <div class="party-title">🏪 {p_name}</div>
                       <div class="card-text"><b>👤 কর্মীর নাম:</b> {row['agent_name']}</div>
-                      <div class="card-text"><b>📌 কাজের ধরন:</b> {row['task_type']} (Due: {row['due_amount']} INR)</div>
+                      <div class="card-text"><b>📌 কাজের ধরন:</b> {row['type']} (Due: {row['due_amount']} INR)</div>
                       <div class="card-text"><b>📅 তারিখ:</b> {t_date}</div>
                   </div>
               """, unsafe_allow_html=True)
@@ -1482,9 +1497,9 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
               with col1:
                 if st.button(f"✅ কাজ সম্পন্ন", key=f"done_{row['id']}", use_container_width=True) or auto_completed:
                   c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
-                  if "Delivery" in row['task_type']:
+                  if "Delivery" in row['type']:
                     c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-                  if "Due" in row['task_type']:
+                  if "Due" in row['type']:
                     c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
                   conn.commit()
                   st.success(f"'{p_name}' এর কাজটি সফলভাবে সম্পন্ন হিসেবে সেভ করা হয়েছে!")
@@ -1502,16 +1517,37 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         st.info("No pending tasks assigned. (কোনো কাজ নেই।)")
     else:
       # Staff view for their own tasks
-      tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(st.session_state["username"],))
-      if not tasks_df.empty:
-        for index, row in tasks_df.iterrows():
+      tasks_staff_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(st.session_state["username"],))
+      if not tasks_staff_df.empty:
+        worker_tasks = []
+        for _, row in tasks_staff_df.iterrows():
+          worker_tasks.append({
+              "id": row['id'],
+              "agent_name": row['agent_name'],
+              "party_name": row['party_name'],
+              "type": row['task_type'],
+              "due_amount": row['due_amount'],
+              "created_at": row['created_at']
+          })
+        
+        worker_name = st.session_state["username"]
+        total_tasks = len(worker_tasks)
+        delivery_count = sum(1 for t in worker_tasks if "Delivery" in str(t.get("type", "")))
+        due_count = sum(1 for t in worker_tasks if "Due" in str(t.get("type", "")))
+        total_due_amount = sum(float(t.get("due_amount", 0) or 0) for t in worker_tasks)
+
+        st.markdown(
+            f"👤 **কর্মী/এজেন্ট: {worker_name}** (মোট কাজ: {total_tasks} | ডেলিভারি: {delivery_count} | ডিউ কালেকশন: {due_count} | মোট ডিউ টাকা: {total_due_amount:.2f} INR)"
+        )
+
+        for row in worker_tasks:
           p_name = row['party_name']
           t_date = row['created_at'][:10]
           
           st.markdown(f"""
               <div class="card">
                   <div class="party-title">🏪 {p_name}</div>
-                  <div class="card-text"><b>📌 কাজের ধরন:</b> {row['task_type']} (Due: {row['due_amount']} INR)</div>
+                  <div class="card-text"><b>📌 কাজের ধরন:</b> {row['type']} (Due: {row['due_amount']} INR)</div>
                   <div class="card-text"><b>📅 তারিখ:</b> {t_date}</div>
               </div>
           """, unsafe_allow_html=True)
@@ -1520,9 +1556,9 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
           with col1:
             if st.button(f"✅ কাজ সম্পন্ন", key=f"done_staff_{row['id']}", use_container_width=True):
               c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
-              if "Delivery" in row['task_type']:
+              if "Delivery" in row['type']:
                 c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-              if "Due" in row['task_type']:
+              if "Due" in row['type']:
                 c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
               conn.commit()
               st.success("কাজ সম্পন্ন করা হয়েছে!")
