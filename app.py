@@ -833,17 +833,9 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
   all_parties_list = [r[0] for r in c.fetchall()]
 
-  st.write("🔍 **Search Party (পার্টি সার্চ):**")
-  order_search_q = st.text_input("Search Party", placeholder="পার্টি সার্চ করুন...", label_visibility="collapsed", key="order_search_party_input")
-
-  if order_search_q.strip():
-    filtered_order_parties = [p for p in all_parties_list if order_search_q.strip().lower() in p.lower()]
-  else:
-    filtered_order_parties = all_parties_list[:15]
-
-  st.write("Select Party (পার্টি সিলেক্ট):")
-  if filtered_order_parties:
-    selected_order_party_native = st.radio("Select Party", filtered_order_parties, label_visibility="collapsed", key="order_select_party_radio")
+  st.write("🔍 **Select Party (পার্টি সিলেক্ট করুন - টাইপ করে সার্চ করতে পারেন):**")
+  if all_parties_list:
+    selected_order_party_native = st.selectbox("Select Party", all_parties_list, label_visibility="collapsed", key="order_select_party_box")
   else:
     st.warning("No party found! (কোনো পার্টি পাওয়া যায়নি!)")
     selected_order_party_native = ""
@@ -1332,17 +1324,9 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         )
         st.write("---")
 
-    st.write("🔍 **Search Party (পার্টি সার্চ):**")
-    task_search_q = st.text_input("Search Party", placeholder="পার্টি সার্চ করুন...", label_visibility="collapsed", key="task_search_party_input")
-
-    if task_search_q.strip():
-      filtered_task_parties = [p for p in all_parties if task_search_q.strip().lower() in p.lower()]
-    else:
-      filtered_task_parties = all_parties[:15]
-
-    st.write("Select Party (পার্টি সিলেক্ট):")
-    if filtered_task_parties:
-      sel_pt = st.radio("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_radio")
+    st.write("🔍 **Select Party (পার্টি সিলেক্ট করুন - টাইপ করে সার্চ করতে পারেন):**")
+    if all_parties:
+      sel_pt = st.selectbox("Select Party", all_parties, label_visibility="collapsed", key="task_select_party_box")
     else:
       st.warning("No party found! (কোনো পার্টি পাওয়া যায়নি!)")
       sel_pt = ""
@@ -1974,3 +1958,4 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
                 f.write(uploaded_db.getbuffer())
             st.success("Database restored! Please refresh. (রিস্টোর হয়েছে!)")
             st.rerun()
+
