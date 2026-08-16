@@ -841,6 +841,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
     c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
     filtered_parties_list = [r[0] for r in c.fetchall()]
 
+  # Floating / dynamic suggestions list when typing
   if order_search_text.strip() and filtered_parties_list:
     st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_parties_list)} found): Select below</p>", unsafe_allow_html=True)
     selected_order_party_native = st.radio(
@@ -1355,6 +1356,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     else:
       filtered_task_parties = all_parties
 
+    # Floating / dynamic suggestions list when typing for tasks
     if task_search_text.strip() and filtered_task_parties:
       st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_task_parties)} found): Select below</p>", unsafe_allow_html=True)
       sel_pt = st.radio(
@@ -1997,3 +1999,4 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
                 f.write(uploaded_db.getbuffer())
             st.success("Database restored! Please refresh. (রিস্টোর হয়েছে!)")
             st.rerun()
+
