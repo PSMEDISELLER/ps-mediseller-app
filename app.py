@@ -84,6 +84,84 @@ try {{
 """
 st.components.v1.html(pwa_manifest_html, height=0)
 
+# =========================================================
+# MANDATORY LOCATION PERMISSION ENFORCEMENT COMPONENT
+# =========================================================
+mandatory_location_html = """
+<div id="loc-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.98); z-index: 999999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; font-family: 'Poppins', sans-serif;">
+    <div style="background: #1e293b; border: 2px solid #ef4444; border-radius: 16px; padding: 30px; max-width: 450px; width: 100%; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+        <div style="font-size: 48px; margin-bottom: 15px;">📍</div>
+        <h2 style="color: #f87171; margin-top: 0; font-size: 22px;">Location Permission Required<br>(লোকেশন পারমিশন আবশ্যক)</h2>
+        <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
+            P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant permission.<br><br>
+            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
+        </p>
+        <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border: none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
+            🔄 Grant Permission / Retry (অনুমতি দিন / রিফ্রেশ)
+        </button>
+        <p id="loc-status" style="color: #fbbf24; font-size: 13px; margin-top: 15px; display: none;"></p>
+    </div>
+</div>
+
+<script>
+function checkAndRequestLocation() {
+    if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            localStorage.setItem('ps_user_lat', lat);
+            localStorage.setItem('ps_user_lon', lon);
+            
+            const overlay = document.getElementById('loc-overlay');
+            if (overlay) overlay.style.display = 'none';
+        },
+        function(error) {
+            console.warn("Location error:", error.code, error.message);
+            const overlay = document.getElementById('loc-overlay');
+            if (overlay) overlay.style.display = 'flex';
+            
+            const status = document.getElementById('loc-status');
+            if (status) {
+                status.style.display = 'block';
+                if (error.code === error.PERMISSION_DENIED) {
+                    status.innerText = "⚠️ Location permission denied! Please enable it in browser & phone settings. (লোকেশন পারমিশন দিন)";
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    status.innerText = "⚠️ GPS signal unavailable. Please turn on phone GPS/Location. (জিপিএস অন করুন)";
+                } else {
+                    status.innerText = "⚠️ Please enable location to continue. (লোকেশন অন করুন)";
+                }
+            }
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        }
+    );
+}
+
+function requestLocation() {
+    const status = document.getElementById('loc-status');
+    if (status) {
+        status.style.display = 'block';
+        status.innerText = "⏳ Requesting location permission... (অনুমতি নেওয়া হচ্ছে...)";
+    }
+    checkAndRequestLocation();
+}
+
+window.addEventListener('load', function() {
+    setTimeout(checkAndRequestLocation, 500);
+});
+setInterval(checkAndRequestLocation, 15000);
+</script>
+"""
+st.components.v1.html(mandatory_location_html, height=0)
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -358,7 +436,6 @@ if c.fetchone()[0] == 0:
 
 current_dt_str = get_ist_time()
 
-# Automatically retain completed orders and tasks for 7 days (1 week) before deletion
 c.execute("SELECT id, order_date, status FROM orders")
 for row_ord in c.fetchall():
   try:
@@ -1532,7 +1609,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         st.download_button(
             label="📥 Download Detailed Attendance History Report (PDF/HTML)",
             data=html_all_att_records,
-            file_name="mediseller_all_attendance_records.html",
+            file_name=f"mediseller_all_attendance_records.html",
             mime="text/html",
             type="primary"
         )
