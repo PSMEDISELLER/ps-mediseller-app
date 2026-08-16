@@ -4,6 +4,7 @@ import json
 import urllib.parse
 import base64
 import os
+import io
 import folium
 from folium.plugins import MousePosition
 import pandas as pd
@@ -11,6 +12,12 @@ import sqlite3
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
+
+# ReportLab imports for Advanced Professional PDF Generation
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # =========================================================
 # PAGE CONFIGURATION
@@ -28,6 +35,119 @@ st.set_page_config(
 def get_ist_time():
   ist_offset = timezone(timedelta(hours=5, minutes=30))
   return datetime.now(ist_offset)
+
+# =========================================================
+# ADVANCED PROFESSIONAL PDF GENERATOR
+# =========================================================
+def generate_advanced_pdf(title_text, df):
+  buffer = io.BytesIO()
+  doc = SimpleDocTemplate(
+      buffer,
+      pagesize=letter,
+      rightMargin=36,
+      leftMargin=36,
+      topMargin=36,
+      bottomMargin=36
+  )
+  elements = []
+  
+  styles = getSampleStyleSheet()
+  
+  # Custom Styles
+  title_style = ParagraphStyle(
+      'DocTitle',
+      parent=styles['Heading1'],
+      fontSize=16,
+      textColor=colors.HexColor('#1e1b4b'),
+      spaceAfter=4,
+      alignment=1, # Center
+      fontName='Helvetica-Bold'
+  )
+  
+  subtitle_style = ParagraphStyle(
+      'DocSubtitle',
+      parent=styles['Heading2'],
+      fontSize=12,
+      textColor=colors.HexColor('#3b82f6'),
+      spaceAfter=12,
+      alignment=1, # Center
+      fontName='Helvetica-Bold'
+  )
+  
+  meta_style = ParagraphStyle(
+      'MetaText',
+      parent=styles['Normal'],
+      fontSize=8,
+      textColor=colors.HexColor('#64748b'),
+      spaceAfter=15,
+      alignment=1,
+      fontName='Helvetica'
+  )
+
+  elements.append(Paragraph("P.S MEDISELLER - Delivery & Attendance Portal", title_style))
+  elements.append(Paragraph(title_text, subtitle_style))
+  
+  current_time_str = get_ist_time().strftime("%d-%m-%Y %H:%M:%S IST")
+  elements.append(Paragraph(f"Generated On: {current_time_str}", meta_style))
+  elements.append(Spacer(1, 5))
+  
+  if not df.empty:
+    # Prepare table data with wrapped paragraphs for clean mobile/desktop display
+    cell_style = ParagraphStyle(
+        'TableCell',
+        parent=styles['Normal'],
+        fontSize=8.5,
+        textColor=colors.HexColor('#0f172a'),
+        fontName='Helvetica'
+    )
+    header_style = ParagraphStyle(
+        'TableHeader',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.white,
+        fontName='Helvetica-Bold',
+        alignment=1
+    )
+    
+    headers = [Paragraph(str(col), header_style) for col in df.columns]
+    data = [headers]
+    
+    for _, row in df.iterrows():
+      row_cells = [Paragraph(str(val) if val is not None else "", cell_style) for val in row]
+      data.append(row_cells)
+      
+    # Calculate column widths dynamically based on page width (~540 pt available)
+    num_cols = len(df.columns)
+    col_width = 540.0 / num_cols if num_cols > 0 else 540.0
+    col_widths = [col_width] * num_cols
+    
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e293b')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8fafc')]),
+    ]))
+    elements.append(table)
+  else:
+    no_data_style = ParagraphStyle(
+        'NoData',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#ef4444'),
+        alignment=1,
+        fontName='Helvetica-Bold'
+    )
+    elements.append(Paragraph("No records found for this report.", no_data_style))
+    
+  doc.build(elements)
+  buffer.seek(0)
+  return buffer.getvalue()
 
 # =========================================================
 # ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION
@@ -775,12 +895,12 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   if not report_df.empty:
     if st.session_state["user_role"] == "admin":
       full_report_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
-      csv_all_report = full_report_df.to_csv(index=False).encode('utf-8')
+      pdf_all_report = generate_advanced_pdf("Daily Work Complete Report", full_report_df)
       st.download_button(
-          label="📥 Download All Daily Work Report (CSV) (রিপোর্ট ডাউনলোড)",
-          data=csv_all_report,
-          file_name=f"mediseller_daily_work_report.csv",
-          mime="text/csv",
+          label="📥 Download Daily Work Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+          data=pdf_all_report,
+          file_name="mediseller_daily_work_report.pdf",
+          mime="application/pdf",
           type="primary"
       )
       st.write("---")
@@ -898,12 +1018,12 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
     df = pd.read_sql_query("SELECT * FROM locations ORDER BY party_name ASC", conn)
 
   if st.session_state["user_role"] == "admin" and not df.empty:
-    csv_locs_df = df.to_csv(index=False).encode('utf-8')
+    pdf_locs_df = generate_advanced_pdf("Locations & Parties Directory", df)
     st.download_button(
-        label="📥 Download Locations Report (CSV) (রিপোর্ট ডাউনলোড)",
-        data=csv_locs_df,
-        file_name="mediseller_locations_report.csv",
-        mime="text/csv",
+        label="📥 Download Locations Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+        data=pdf_locs_df,
+        file_name="mediseller_locations_report.pdf",
+        mime="application/pdf",
         type="primary"
     )
     st.write("---")
@@ -972,12 +1092,12 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
   if st.session_state["user_role"] == "admin":
     all_ord_df = pd.read_sql_query("SELECT * FROM orders ORDER BY order_date DESC", conn)
     if not all_ord_df.empty:
-      csv_ord_report = all_ord_df.to_csv(index=False).encode('utf-8')
+      pdf_ord_report = generate_advanced_pdf("Orders Complete Report", all_ord_df)
       st.download_button(
-          label="📥 Download Orders Report (CSV) (রিপোর্ট ডাউনলোড)",
-          data=csv_ord_report,
-          file_name="mediseller_orders_report.csv",
-          mime="text/csv",
+          label="📥 Download Orders Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+          data=pdf_ord_report,
+          file_name="mediseller_orders_report.pdf",
+          mime="application/pdf",
           type="primary"
       )
       st.write("---")
@@ -1018,12 +1138,12 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
     if st.session_state["user_role"] == "admin":
       full_dw_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
       if not full_dw_df.empty:
-        csv_dw_report = full_dw_df.to_csv(index=False).encode('utf-8')
+        pdf_dw_report = generate_advanced_pdf("Daily Work Summary", full_dw_df)
         st.download_button(
-            label="📥 Download Daily Work Report (CSV) (রিপোর্ট ডাউনলোড)",
-            data=csv_dw_report,
-            file_name="mediseller_daily_work_report.csv",
-            mime="text/csv",
+            label="📥 Download Daily Work Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+            data=pdf_dw_report,
+            file_name="mediseller_daily_work_report.pdf",
+            mime="application/pdf",
             type="primary"
         )
         st.write("---")
@@ -1119,12 +1239,12 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.write(f"##### 📋 Complete Activity Summary for `{selected_month}`")
         
         if st.session_state["user_role"] == "admin":
-          csv_summary = report_summary_df.to_csv(index=False).encode('utf-8')
+          pdf_summary = generate_advanced_pdf(f"Monthly Summary - {selected_month}", report_summary_df)
           st.download_button(
-              label="📥 Download Monthly Summary Report (CSV) (রিপোর্ট ডাউনলোড)",
-              data=csv_summary,
-              file_name=f"mediseller_monthly_summary_{selected_month}.csv",
-              mime="text/csv",
+              label="📥 Download Monthly Summary Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+              data=pdf_summary,
+              file_name=f"mediseller_monthly_summary_{selected_month}.pdf",
+              mime="application/pdf",
               type="primary"
           )
           st.write("---")
@@ -1165,12 +1285,12 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
   if st.session_state["user_role"] == "admin":
     full_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments ORDER BY id DESC", conn)
     if not full_tasks_df.empty:
-      csv_tasks_report = full_tasks_df.to_csv(index=False).encode('utf-8')
+      pdf_tasks_report = generate_advanced_pdf("Due & Delivery Task Assignments", full_tasks_df)
       st.download_button(
-          label="📥 Download Task & Delivery Report (CSV) (রিপোর্ট ডাউনলোড)",
-          data=csv_tasks_report,
-          file_name="mediseller_due_delivery_report.csv",
-          mime="text/csv",
+          label="📥 Download Task & Delivery Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+          data=pdf_tasks_report,
+          file_name="mediseller_due_delivery_report.pdf",
+          mime="application/pdf",
           type="primary"
       )
       st.write("---")
@@ -1358,12 +1478,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     if st.session_state["user_role"] == "admin":
       full_att_today = pd.read_sql_query("SELECT username, check_time, status FROM attendance WHERE date=?", conn, params=(today_str,))
       if not full_att_today.empty:
-        csv_att_today = full_att_today.to_csv(index=False).encode('utf-8')
+        pdf_att_today = generate_advanced_pdf(f"Attendance Report - {display_today_str}", full_att_today)
         st.download_button(
-            label="📥 Download Today's Attendance Report (CSV) (রিপোর্ট ডাউনলোড)",
-            data=csv_att_today,
-            file_name=f"mediseller_attendance_{today_str}.csv",
-            mime="text/csv",
+            label="📥 Download Today's Attendance Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+            data=pdf_att_today,
+            file_name=f"mediseller_attendance_{today_str}.pdf",
+            mime="application/pdf",
             type="primary"
         )
         st.write("---")
@@ -1397,12 +1517,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
       """, conn, params=(current_month_str,))
       
       if not full_monthly_att.empty:
-        csv_monthly_att = full_monthly_att.to_csv(index=False).encode('utf-8')
+        pdf_monthly_att = generate_advanced_pdf(f"Monthly Attendance - {current_month_str}", full_monthly_att)
         st.download_button(
-            label="📥 Download Monthly Attendance Report (CSV) (রিপোর্ট ডাউনলোড)",
-            data=csv_monthly_att,
-            file_name=f"mediseller_monthly_attendance_{current_month_str}.csv",
-            mime="text/csv",
+            label="📥 Download Monthly Attendance Report (PDF) (রিপোর্ট পিডিএফ ডাউনলোড)",
+            data=pdf_monthly_att,
+            file_name=f"mediseller_monthly_attendance_{current_month_str}.pdf",
+            mime="application/pdf",
             type="primary"
         )
         st.write("---")
