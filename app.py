@@ -539,8 +539,8 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   selected_entry_tab = st.radio(
       "Select Entry Mode (মোড সিলেক্ট):",
       [
-          "🏠 With Map Party (উইথ ম্যাপ পার্টি)",
-          "👨‍⚕️ Without Map Party (উইদাউট ম্যাপ পার্টি)"
+          "🏠 With Map Party (ম্যাপ সহ পার্টি)",
+          "👨‍⚕️ Without Map Party (ম্যাপ ছাড়া পার্টি)"
       ],
       label_visibility="collapsed"
   )
@@ -583,7 +583,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
 
   else:
     with st.form("doctor_details_form", clear_on_submit=True):
-      st.write("#### 2. Without Map Party Details (উইদাউট ম্যাপ পার্টি বিবরণ)")
+      st.write("#### 2. Without Map Party Details (ম্যাপ ছাড়া পার্টির বিবরণ)")
       col_d1, col_d2, col_d3 = st.columns(3)
       with col_d1:
         doc_name = st.text_input("Name (নাম)", key="input_doc_name")
@@ -1439,7 +1439,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
       created_n = st.session_state["last_created_agent_name"]
       
       st.markdown("---")
-      st.write(f"#### 🔗 Direct Login Link (ডাইরেক্ট লিংক)")
+      st.write(f"#### 🔗 Direct Link (ডাইরেক্ট লিংক)")
       
       direct_msg = f"Hello {created_n}, your account has been created in P.S Mediseller. Click below to login:\n"
       
