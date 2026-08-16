@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+rom datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
 import urllib.parse
@@ -92,7 +92,6 @@ def generate_advanced_pdf(title_text, df):
   elements.append(Spacer(1, 5))
   
   if not df.empty:
-    # Prepare table data with wrapped paragraphs for clean mobile/desktop display
     cell_style = ParagraphStyle(
         'TableCell',
         parent=styles['Normal'],
@@ -116,7 +115,6 @@ def generate_advanced_pdf(title_text, df):
       row_cells = [Paragraph(str(val) if val is not None else "", cell_style) for val in row]
       data.append(row_cells)
       
-    # Calculate column widths dynamically based on page width (~540 pt available)
     num_cols = len(df.columns)
     col_width = 540.0 / num_cols if num_cols > 0 else 540.0
     col_widths = [col_width] * num_cols
@@ -533,7 +531,8 @@ if target_login:
         st.session_state["user_role"] = r_role
         if login_user:
             st.success(f"Welcome, {f_name}! Logged in. (স্বাগতম, {f_name}!)")
-            st.query_params.pop("login", None)
+            if "login" in st.query_params:
+                del st.query_params["login"]
             st.rerun()
     else:
         st.markdown("""
