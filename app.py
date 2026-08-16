@@ -1,4 +1,4 @@
-rom datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
 import urllib.parse
@@ -53,14 +53,13 @@ def generate_advanced_pdf(title_text, df):
   
   styles = getSampleStyleSheet()
   
-  # Custom Styles
   title_style = ParagraphStyle(
       'DocTitle',
       parent=styles['Heading1'],
       fontSize=16,
       textColor=colors.HexColor('#1e1b4b'),
       spaceAfter=4,
-      alignment=1, # Center
+      alignment=1,
       fontName='Helvetica-Bold'
   )
   
@@ -70,7 +69,7 @@ def generate_advanced_pdf(title_text, df):
       fontSize=12,
       textColor=colors.HexColor('#3b82f6'),
       spaceAfter=12,
-      alignment=1, # Center
+      alignment=1,
       fontName='Helvetica-Bold'
   )
   
@@ -148,7 +147,7 @@ def generate_advanced_pdf(title_text, df):
   return buffer.getvalue()
 
 # =========================================================
-# ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION
+# STYLING & PWA MANIFEST
 # =========================================================
 logo_b64 = ""
 for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
@@ -178,7 +177,6 @@ try {{
   const stringManifest = JSON.stringify(manifest);
   const blob = new Blob([stringManifest], {{type: 'application/json'}});
   const manifestURL = URL.createObjectURL(blob);
-
   const targetHead = window.parent.document.head || document.head;
 
   let link = document.createElement('link');
@@ -229,24 +227,6 @@ div.stExpander, div[data-testid="stForm"] {
     color: #ffffff !important;
 }
 
-div.stExpander details summary, 
-div.stExpander details summary span, 
-div.stExpander details summary p,
-[data-testid="stExpander"] summary,
-[data-testid="stExpander"] summary span,
-[data-testid="stExpander"] summary p {
-    background-color: #1e293b !important;
-    color: #ffffff !important;
-    border-radius: 8px !important;
-    padding: 6px 10px !important;
-}
-
-div.stExpander details {
-    background: #1e293b !important;
-    border: 1px solid rgba(148, 163, 184, 0.35) !important;
-    border-radius: 14px !important;
-}
-
 .stButton>button, div.stButton > button, button[kind="secondary"], button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
     color: #ffffff !important;
@@ -258,45 +238,11 @@ div.stExpander details {
     transition: all 0.3s ease !important;
 }
 
-.stButton>button:hover, div.stButton > button:hover, button[kind="secondary"]:hover, button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover {
-    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6) !important;
-    transform: translateY(-2px);
-}
-
 input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"] textarea, div[data-baseweb="input"], div[data-baseweb="select"] {
     background-color: #0f172a !important;
     color: #ffffff !important;
     border: 1px solid #3b82f6 !important;
     border-radius: 8px !important;
-}
-
-input::placeholder, textarea::placeholder {
-    color: #60a5fa !important;
-    font-weight: 700 !important;
-}
-
-div[data-testid="stTextInput"] small, 
-div[data-testid="stTextArea"] small,
-div[data-testid="stTextInput"] div p,
-div[data-testid="stTextArea"] div p,
-.stTextInput small, 
-.stTextArea small {
-    background: rgba(37, 99, 235, 0.25) !important;
-    color: #60a5fa !important;
-    border: 1px solid #3b82f6 !important;
-    padding: 6px 12px !important;
-    border-radius: 6px !important;
-    font-weight: 600 !important;
-    display: inline-block !important;
-    margin-top: 6px !important;
-}
-
-.stRadio > div {
-    background: transparent !important;
-    padding: 0px !important;
-    border: none !important;
-    box-shadow: none !important;
 }
 
 .stRadio div[role="radiogroup"] label {
@@ -305,42 +251,11 @@ div[data-testid="stTextArea"] div p,
     border-radius: 12px !important;
     padding: 10px 14px !important;
     margin-bottom: 8px !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
-    transition: all 0.3s ease !important;
     display: flex !important;
     align-items: center !important;
     width: 100% !important;
 }
 
-.stRadio div[role="radiogroup"] label:hover {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #60a5fa !important;
-    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.3) !important;
-    transform: translateY(-2px);
-}
-
-.stRadio div[role="radiogroup"] label p {
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    margin: 0 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-}
-
-.stSuccess {
-    background: rgba(16, 185, 129, 0.25) !important;
-    border: 1px solid #10b981 !important;
-    color: #34d399 !important;
-    border-radius: 10px !important;
-}
-.stWarning {
-    background: rgba(245, 158, 11, 0.25) !important;
-    border: 1px solid #f59e0b !important;
-    color: #fbbf24 !important;
-    border-radius: 10px !important;
-}
 .agent-card {
     background: #161b22;
     border: 1px solid #30363d;
@@ -546,10 +461,10 @@ col_ht1, col_ht2 = st.columns([3, 1])
 with col_ht1:
   st.markdown(f"""
   <div style="display: flex; align-items: center; gap: 12px;">
-      <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+      <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);">
       <div>
           <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P.S MEDISELLER</h1>
-          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Delivery & Attendance Portal (ডেলিভারি পোর্টাল)</p>
+          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Delivery & Attendance Portal</p>
       </div>
   </div>
   """, unsafe_allow_html=True)
@@ -617,9 +532,6 @@ if loc and "coords" in loc:
     )
   conn.commit()
 
-# =========================================================
-# NAVIGATION MENU
-# =========================================================
 menu_options = [
     "📍 Add Location (লোকেশন যোগ)",
     "🔍 Search & Details (অনুসন্ধান ও বিবরণ)",
@@ -765,25 +677,23 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       tiles=None
   )
 
-  street_layer = folium.TileLayer(
+  folium.TileLayer(
       tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
       attr="Google Maps Street",
       name="Street View (স্ট্রিট ভিউ)",
       overlay=False,
       control=True,
       show=True
-  )
-  street_layer.add_to(advanced_map)
+  ).add_to(advanced_map)
 
-  satellite_layer = folium.TileLayer(
+  folium.TileLayer(
       tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
       attr="Google Maps Satellite",
       name="Satellite View (স্যাটেলাইট ভিউ)",
       overlay=False,
       control=True,
       show=False
-  )
-  satellite_layer.add_to(advanced_map)
+  ).add_to(advanced_map)
 
   folium.Marker(
       [st.session_state["selected_lat"], st.session_state["selected_lon"]],
@@ -1392,7 +1302,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     st.info("No tasks assigned. (কোনো কাজ নেই।)")
 
 # =========================================================
-# 6. HOME-TO-HOME AUTO ROUTE & MAP
+# 6. ROUTE MAP
 # =========================================================
 elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
   st.write("### 🗺️ Route Planning (রুট প্ল্যানিং)")
