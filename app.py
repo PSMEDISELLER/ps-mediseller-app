@@ -319,70 +319,6 @@ div[data-testid="stTextArea"] div p,
 """, unsafe_allow_html=True)
 
 # =========================================================
-# VOICE SEARCH COMPONENT HELPER
-# =========================================================
-def render_voice_search(key_name):
-  voice_html = f"""
-  <div style="margin: 4px 0 10px 0; font-family: 'Poppins', sans-serif;">
-      <button id="mic_btn_{key_name}" onclick="startVoice_{key_name}()" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); font-size: 13px;">
-          🎤 Voice Search / ভয়েস সার্চ <span id="vstatus_{key_name}" style="font-size: 11px; font-weight: normal; color: #fee2e2;"></span>
-      </button>
-  </div>
-  <script>
-  function startVoice_{key_name}() {{
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {{
-          alert("Speech recognition is not supported in this browser. Please use Google Chrome.");
-          return;
-      }}
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'bn-IN';
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      const statusEl = document.getElementById('vstatus_{key_name}');
-      const btnEl = document.getElementById('mic_btn_{key_name}');
-
-      recognition.onstart = function() {{
-          statusEl.innerText = "🎤 Listening... (শুনছি...)";
-          btnEl.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
-      }};
-
-      recognition.onresult = function(event) {{
-          const speechResult = event.results[0][0].transcript;
-          statusEl.innerText = "✓ " + speechResult;
-          localStorage.setItem('voice_search_{key_name}', speechResult);
-          setTimeout(() => {{
-              window.parent.location.reload();
-          }, 400);
-      }};
-
-      recognition.onerror = function(event) {{
-          statusEl.innerText = "⚠️ Error: " + event.error;
-          btnEl.style.background = "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)";
-      }};
-
-      recognition.onend = function() {{
-          setTimeout(() => {{
-              statusEl.innerText = "";
-              btnEl.style.background = "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)";
-          }, 3000);
-      }};
-
-      recognition.start();
-  }}
-  </script>
-  """
-  st.components.v1.html(voice_html, height=45)
-
-def get_voice_input_value(key_name):
-  saved_voice = streamlit_js_eval(js_expressions=f"localStorage.getItem('voice_search_{key_name}')", key=f"get_v_{key_name}")
-  if saved_voice:
-    streamlit_js_eval(js_expressions=f"localStorage.removeItem('voice_search_{key_name}')", key=f"clear_v_{key_name}")
-    return saved_voice
-  return None
-
-# =========================================================
 # DATABASE SETUP & 48-HOUR / 7-DAY RETENTION CLEANUP
 # =========================================================
 DB_FILE = "mediseller_delivery.db"
@@ -895,11 +831,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   st.write("### 📦 Orders & Visits (অর্ডার ও ভিজিট)")
 
   st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-  render_voice_search("order_search_key")
-  voice_order_query = get_voice_input_value("order_search_key")
-
-  default_order_search = voice_order_query if voice_order_query else ""
-  order_search_text = st.text_input("Search Party", value=default_order_search, placeholder="Type name, address or keyword...", key="order_party_search_text_input", label_visibility="collapsed")
+  order_search_text = st.text_input("Search Party", placeholder="Type name, address or keyword...", key="order_party_search_text_input", label_visibility="collapsed")
   
   if order_search_text.strip():
     q_term = f"%{order_search_text.strip()}%"
@@ -1084,11 +1016,7 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
     st.stop()
 
   st.write("🔍 **Search Party/Doctor (পার্টি খুঁজুন):**")
-  render_voice_search("master_search_key")
-  voice_master_query = get_voice_input_value("master_search_key")
-
-  default_master_search = voice_master_query if voice_master_query else ""
-  master_search_query = st.text_input("Search", value=default_master_search, placeholder="Type name, address or keyword and press enter...", key="master_search_input_box", label_visibility="collapsed")
+  master_search_query = st.text_input("Search", placeholder="Type name, address or keyword and press enter...", key="master_search_input_box", label_visibility="collapsed")
 
   if master_search_query.strip():
     q_term = f"%{master_search_query.strip()}%"
@@ -1418,11 +1346,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         st.write("---")
 
     st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-    render_voice_search("task_search_key")
-    voice_task_query = get_voice_input_value("task_search_key")
-
-    default_task_search = voice_task_query if voice_task_query else ""
-    task_search_text = st.text_input("Search Party for Task", value=default_task_search, placeholder="Type name, address or keyword...", key="task_party_search_text_input", label_visibility="collapsed")
+    task_search_text = st.text_input("Search Party for Task", placeholder="Type name, address or keyword...", key="task_party_search_text_input", label_visibility="collapsed")
     
     if task_search_text.strip():
       q_term = f"%{task_search_text.strip()}%"
