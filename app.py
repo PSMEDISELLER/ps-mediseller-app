@@ -315,6 +315,34 @@ div[data-testid="stTextArea"] div p,
     border-radius: 6px;
     font-weight: bold;
 }
+
+/* Custom Card Styling for Due & Delivery */
+.main-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 20px;
+}
+.card {
+    background-color: #1e1e2f;
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #33334d;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+.party-title {
+    color: #00ffcc;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+.card-text {
+    color: #e0e0e0;
+    font-size: 16px;
+    margin: 4px 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -841,7 +869,6 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
     c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
     filtered_parties_list = [r[0] for r in c.fetchall()]
 
-  # Floating / dynamic suggestions list when typing
   if order_search_text.strip() and filtered_parties_list:
     st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_parties_list)} found): Select below</p>", unsafe_allow_html=True)
     selected_order_party_native = st.radio(
@@ -1314,10 +1341,10 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
-# 5. DUE CLEAR, DELIVERY PLAN & 48-HOUR AUTO-EXPIRING TASKS
+# 5. DUE CLEAR, DELIVERY PLAN & CARD-BASED UI
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
-  st.write("### 📋 Due & Delivery Plan (ডেলিভারি ও ডিউ প্ল্যান)")
+  st.markdown('<div class="main-title">📋 ডেলিভারি ও ডিউ প্ল্যান (কর্মী সহায়ক মোড)</div>', unsafe_allow_html=True)
   
   c.execute("SELECT username FROM users")
   all_agents = [r[0] for r in c.fetchall()]
@@ -1356,7 +1383,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     else:
       filtered_task_parties = all_parties
 
-    # Floating / dynamic suggestions list when typing for tasks
     if task_search_text.strip() and filtered_task_parties:
       st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_task_parties)} found): Select below</p>", unsafe_allow_html=True)
       sel_pt = st.radio(
@@ -1414,7 +1440,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
             st.warning("Select at least one work type. (কাজের ধরণ সিলেক্ট করুন।)")
 
     st.write("---")
-    st.write("### 📋 Current Tasks (বর্তমান কাজ)")
+    st.markdown("### 📋 Current Tasks (বর্তমান কাজ)")
 
     if st.session_state["user_role"] == "admin":
       tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
@@ -1422,11 +1448,19 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
       tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(st.session_state["username"],))
 
     if not tasks_df.empty:
-      for idx, row in tasks_df.iterrows():
+      for index, row in tasks_df.iterrows():
         p_name = row['party_name']
-        cols = st.columns([2, 2, 2, 2])
-        cols[0].write(f"Agent: **{row['agent_name']}**\n\nParty: **{p_name}**")
-        cols[1].write(f"Work: {row['task_type']}\n\nDue: {row['due_amount']} INR")
+        t_date = row['created_at'][:10]
+        
+        # কার্ড স্টাইলিং অনুযায়ী প্রদর্শন
+        st.markdown(f"""
+            <div class="card">
+                <div class="party-title">🏪 {p_name}</div>
+                <div class="card-text"><b>👤 কর্মীর নাম:</b> {row['agent_name']}</div>
+                <div class="card-text"><b>📌 কাজের ধরন:</b> {row['task_type']} (Due: {row['due_amount']} INR)</div>
+                <div class="card-text"><b>📅 তারিখ:</b> {t_date}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
         auto_completed = False
         if gps_lat and gps_lon and p_name in party_coords:
@@ -1438,25 +1472,30 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
             if dist <= 30:
               auto_completed = True
 
-        if cols[2].button("✅ Complete (সম্পন্ন)", key=f"comp_task_{row['id']}") or auto_completed:
-          c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
-          if "Delivery" in row['task_type']:
-            c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-          if "Due" in row['task_type']:
-            c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
-          conn.commit()
-          st.success("Task completed! (সম্পন্ন!)")
-          st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+          if st.button(f"✅ কাজ সম্পন্ন", key=f"done_{row['id']}", use_container_width=True) or auto_completed:
+            c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
+            if "Delivery" in row['task_type']:
+              c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
+            if "Due" in row['task_type']:
+              c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
+            conn.commit()
+            st.success(f"'{p_name}' এর কাজটি সফলভাবে সম্পন্ন হিসেবে সেভ করা হয়েছে!")
+            st.rerun()
+            
+        with col2:
+          if st.button(f"⏳ বাকি আছে", key=f"pending_{row['id']}", use_container_width=True):
+            st.warning(f"'{p_name}' এর কাজটি বাকি রাখা হলো।")
 
         if st.session_state["user_role"] == "admin":
-          if cols[3].button("🗑️ Delete (ডিলিট)", key=f"del_task_admin_{row['id']}"):
+          if st.button(f"🗑️ Delete Task (ডিলিট)", key=f"del_task_admin_{row['id']}"):
             c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
             conn.commit()
             st.success("Deleted by admin! (ডিলিট হয়েছে!)")
             st.rerun()
-        else:
-          cols[3].write("Pending (পেন্ডিং)\n\n*(Admin only delete)*")
-        st.write("---")
+
+        st.markdown("---")
     else:
       st.info("No tasks assigned. (কোনো কাজ নেই।)")
 
@@ -1999,4 +2038,3 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
                 f.write(uploaded_db.getbuffer())
             st.success("Database restored! Please refresh. (রিস্টোর হয়েছে!)")
             st.rerun()
-
