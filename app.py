@@ -830,10 +830,25 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   st.write("---")
   st.write("### 📦 Orders & Visits (অর্ডার ও ভিজিট)")
 
-  with st.form("order_visit_entry_form", clear_on_submit=True):
-    st.write("🔍 **Enter Party/Doctor Name (পার্টির নাম লিখুন):**")
-    selected_order_party_native = st.text_input("Party Name", placeholder="পার্টির নাম লিখুন...", label_visibility="collapsed", key="order_party_input_text")
+  c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
+  all_parties_list = [r[0] for r in c.fetchall()]
 
+  st.write("🔍 **Search Party (পার্টি সার্চ):**")
+  order_search_q = st.text_input("Search Party", placeholder="পার্টি সার্চ করুন...", label_visibility="collapsed", key="order_search_party_input")
+
+  if order_search_q.strip():
+    filtered_order_parties = [p for p in all_parties_list if order_search_q.strip().lower() in p.lower()]
+  else:
+    filtered_order_parties = all_parties_list[:15]
+
+  st.write("Select Party (পার্টি সিলেক্ট):")
+  if filtered_order_parties:
+    selected_order_party_native = st.radio("Select Party", filtered_order_parties, label_visibility="collapsed", key="order_select_party_radio")
+  else:
+    st.warning("No party found! (কোনো পার্টি পাওয়া যায়নি!)")
+    selected_order_party_native = ""
+
+  with st.form("order_visit_entry_form"):
     ord_details = st.text_area("Order Details (অর্ডার বিবরণ)")
     
     col_ob1, col_ob2 = st.columns(2)
@@ -844,7 +859,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
 
     if submitted_order:
       if not selected_order_party_native.strip():
-        st.error("Please enter party name. (পার্টির নাম লিখুন।)")
+        st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
       else:
         current_date_str = get_ist_time().strftime("%Y-%m-%d")
         c.execute(
@@ -861,7 +876,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
 
     if submitted_visit:
       if not selected_order_party_native.strip():
-        st.error("Please enter party name. (পার্টির নাম লিখুন।)")
+        st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
       else:
         current_date_str = get_ist_time().strftime("%Y-%m-%d")
         c.execute(
@@ -1317,10 +1332,22 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         )
         st.write("---")
 
-    with st.form("easy_assign_form", clear_on_submit=True):
-      st.write("🔍 **Enter Party / Doctor Name (পার্টি বা ডাক্তারের নাম লিখুন):**")
-      sel_pt = st.text_input("Party Name", placeholder="পার্টির নাম লিখুন...", label_visibility="collapsed", key="task_party_input_text")
-      
+    st.write("🔍 **Search Party (পার্টি সার্চ):**")
+    task_search_q = st.text_input("Search Party", placeholder="পার্টি সার্চ করুন...", label_visibility="collapsed", key="task_search_party_input")
+
+    if task_search_q.strip():
+      filtered_task_parties = [p for p in all_parties if task_search_q.strip().lower() in p.lower()]
+    else:
+      filtered_task_parties = all_parties[:15]
+
+    st.write("Select Party (পার্টি সিলেক্ট):")
+    if filtered_task_parties:
+      sel_pt = st.radio("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_radio")
+    else:
+      st.warning("No party found! (কোনো পার্টি পাওয়া যায়নি!)")
+      sel_pt = ""
+
+    with st.form("easy_assign_form"):
       sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents)
 
       st.write("**Work Type (কাজের ধরণ):**")
@@ -1336,7 +1363,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
 
       if submit_easy_task:
         if not sel_pt.strip():
-          st.error("Enter a valid party name. (পার্টির নাম লিখুন।)")
+          st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
         else:
           selected_tasks = []
           if chk_delivery:
