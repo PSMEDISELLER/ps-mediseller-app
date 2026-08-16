@@ -830,15 +830,16 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   st.write("---")
   st.write("### 📦 Orders & Visits (অর্ডার ও ভিজিট)")
 
-  c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
-  all_parties_list = [r[0] for r in c.fetchall()]
-
   st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-  order_search_text = st.text_input("Search Party", placeholder="Type to search party...", key="order_party_search_text_input", label_visibility="collapsed")
+  order_search_text = st.text_input("Search Party", placeholder="Type name, address or keyword...", key="order_party_search_text_input", label_visibility="collapsed")
+  
   if order_search_text.strip():
-    filtered_parties_list = [p for p in all_parties_list if order_search_text.strip().lower() in p.lower()]
+    q_term = f"%{order_search_text.strip()}%"
+    c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
+    filtered_parties_list = [r[0] for r in c.fetchall()]
   else:
-    filtered_parties_list = all_parties_list
+    c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
+    filtered_parties_list = [r[0] for r in c.fetchall()]
 
   # Floating / dynamic suggestions list when typing
   if order_search_text.strip() and filtered_parties_list:
@@ -1016,10 +1017,15 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
     st.stop()
 
   st.write("🔍 **Search Party/Doctor (পার্টি খুঁজুন):**")
-  master_search_query = st.text_input("Search (সার্চ)", placeholder="Search here (সার্চ)", key="master_search_input_box", label_visibility="collapsed")
+  master_search_query = st.text_input("Search", placeholder="Type name, address or keyword and press enter...", key="master_search_input_box", label_visibility="collapsed")
 
   if master_search_query.strip():
-    df = pd.read_sql_query("SELECT * FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", conn, params=(f"%{master_search_query.strip()}%",))
+    q_term = f"%{master_search_query.strip()}%"
+    df = pd.read_sql_query(
+        "SELECT * FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC",
+        conn,
+        params=(q_term, q_term, q_term)
+    )
   else:
     df = pd.read_sql_query("SELECT * FROM locations ORDER BY party_name ASC", conn)
 
@@ -1341,9 +1347,12 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         st.write("---")
 
     st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-    task_search_text = st.text_input("Search Party for Task", placeholder="Type to search party...", key="task_party_search_text_input", label_visibility="collapsed")
+    task_search_text = st.text_input("Search Party for Task", placeholder="Type name, address or keyword...", key="task_party_search_text_input", label_visibility="collapsed")
+    
     if task_search_text.strip():
-      filtered_task_parties = [p for p in all_parties if task_search_text.strip().lower() in p.lower()]
+      q_term = f"%{task_search_text.strip()}%"
+      c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
+      filtered_task_parties = [r[0] for r in c.fetchall()]
     else:
       filtered_task_parties = all_parties
 
