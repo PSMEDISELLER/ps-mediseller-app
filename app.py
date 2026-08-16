@@ -319,7 +319,7 @@ div[data-testid="stTextArea"] div p,
 """, unsafe_allow_html=True)
 
 # =========================================================
-# DATABASE SETUP & 7-DAY RETENTION CLEANUP
+# DATABASE SETUP & 48-HOUR / 7-DAY RETENTION CLEANUP
 # =========================================================
 DB_FILE = "mediseller_delivery.db"
 
@@ -436,6 +436,7 @@ if c.fetchone()[0] == 0:
 
 current_dt_str = get_ist_time()
 
+# 7-day cleanup for orders
 c.execute("SELECT id, order_date, status FROM orders")
 for row_ord in c.fetchall():
   try:
@@ -445,11 +446,12 @@ for row_ord in c.fetchall():
   except:
     pass
 
+# 48-hour auto cleanup for task assignments
 c.execute("SELECT id, created_at, status FROM task_assignments")
 for row_task in c.fetchall():
   try:
     t_time = datetime.strptime(row_task[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-    if (current_dt_str - t_time) > timedelta(days=7):
+    if (current_dt_str - t_time) > timedelta(hours=48):
       c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
   except:
     pass
@@ -827,25 +829,16 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   st.write("---")
   st.write("### 📦 Orders & Visits (অর্ডার ও ভিজিট)")
   
+  c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
+  all_party_list = [r[0] for r in c.fetchall()]
+
   with st.form("order_visit_entry_form", clear_on_submit=True):
-    st.write("🔍 **Search Party/Doctor (পার্টি খুঁজুন):**")
-    order_search_query = st.text_input("Search (সার্চ)", placeholder="Search here (সার্চ)", key="order_search_input_box", label_visibility="collapsed")
-
-    if order_search_query.strip():
-      c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{order_search_query.strip()}%",))
+    st.write("🔍 **Select Party/Doctor (পার্টি সিলেক্ট করুন):**")
+    if all_party_list:
+      selected_order_party_native = st.selectbox("Select Party", all_party_list, label_visibility="collapsed")
     else:
-      c.execute("SELECT party_name FROM locations ORDER BY party_name ASC LIMIT 15")
-
-    matched_order_parties = [row[0] for row in c.fetchall()]
-
-    if matched_order_parties:
-      selected_order_party_native = st.radio("Select Party (পার্টি সিলেক্ট):", matched_order_parties, key="order_party_radio_list")
-    else:
-      selected_order_party_native = "-- Select (সিলেক্ট) --"
-      st.warning("No party found. (পাওয়া যায়নি।)")
-
-    if selected_order_party_native != "-- Select (সিলেক্ট) --":
-      st.success(f"✅ Selected Party: **{selected_order_party_native}**")
+      selected_order_party_native = None
+      st.warning("No parties found. Please add a party first. (কোনো পার্টি নেই।)")
 
     ord_details = st.text_area("Order Details (অর্ডার বিবরণ)")
     
@@ -856,7 +849,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       submitted_visit = st.form_submit_button("📍 Save Visit (ভিজিট সেভ)")
 
     if submitted_order:
-      if selected_order_party_native == "-- Select (সিলেক্ট) --" or not selected_order_party_native:
+      if not selected_order_party_native:
         st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
       else:
         if not ord_details.strip():
@@ -876,7 +869,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
           st.rerun()
 
     if submitted_visit:
-      if selected_order_party_native == "-- Select (সিলেক্ট) --" or not selected_order_party_native:
+      if not selected_order_party_native:
         st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
       else:
         current_date_str = get_ist_time().strftime("%Y-%m-%d")
@@ -1083,13 +1076,13 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
     st.info("No mapped parties found. (ম্যাপযুক্ত পার্টি নেই।)")
 
 # =========================================================
-# 3. PENDING ORDERS & 7-DAY COMPLETED ORDERS HISTORY
+# 3. PENDING ORDERS & COMPLETED ORDERS HISTORY
 # =========================================================
 elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
   st.write("### 📦 Orders Management (অর্ডার ম্যানেজমেন্ট)")
   
   if st.session_state["user_role"] == "admin":
-    ord_tab1, ord_tab2 = st.tabs(["⏳ Pending Orders (পেন্ডিং)", "📜 Completed History (গত ৭ দিনের সম্পন্ন অর্ডার)"])
+    ord_tab1, ord_tab2 = st.tabs(["⏳ Pending Orders (পেন্ডিং)", "📜 Completed History (সম্পন্ন অর্ডার)"])
   else:
     ord_tab1 = st.container()
     ord_tab2 = None
@@ -1130,10 +1123,10 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
 
   if ord_tab2 is not None:
     with ord_tab2:
-      st.write("#### 📜 Completed Orders History (Visible to Admin for 7 Days)")
+      st.write("#### 📜 Completed Orders History")
       completed_ord_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Completed' ORDER BY order_date DESC", conn)
       if not completed_ord_df.empty:
-        html_comp_ord = generate_html_report("Completed Orders History (Last 7 Days)", completed_ord_df)
+        html_comp_ord = generate_html_report("Completed Orders History", completed_ord_df)
         st.download_button(
             label="📥 Download Completed Orders Report (PDF/HTML)",
             data=html_comp_ord,
@@ -1149,7 +1142,7 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
           cols[2].write("✅ Completed (সম্পন্ন)")
           st.write("---")
       else:
-        st.info("No completed orders history in the last 7 days.")
+        st.info("No completed orders history.")
 
 # =========================================================
 # 4. DAILY & MONTHLY WORK
@@ -1301,7 +1294,7 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
-# 5. DUE CLEAR, DELIVERY PLAN & 7-DAY COMPLETED TASKS
+# 5. DUE CLEAR, DELIVERY PLAN & 48-HOUR AUTO-EXPIRING TASKS
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
   st.write("### 📋 Due & Delivery Plan (ডেলিভারি ও ডিউ প্ল্যান)")
@@ -1311,12 +1304,13 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
   c.execute("SELECT party_name, lat, lon FROM locations ORDER BY party_name ASC")
   loc_data = c.fetchall()
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
+  all_parties = [r[0] for r in loc_data]
 
-  if st.session_state["user_role"] == "admin":
-    task_tab1, task_tab2 = st.tabs(["🎯 Active Tasks (চলমান কাজ)", "📜 Completed Tasks History (গত ৭ দিনের সম্পন্ন কাজ)"])
-  else:
-    task_tab1 = st.container()
-    task_tab2 = None
+  task_tab1, task_tab2, task_tab3 = st.tabs([
+      "🎯 Active Tasks (চলমান কাজ)", 
+      "📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
+      "📜 Completed Tasks History (সম্পন্ন কাজ)"
+  ])
 
   with task_tab1:
     if st.session_state["user_role"] == "admin":
@@ -1333,21 +1327,12 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         st.write("---")
 
     with st.form("easy_assign_form", clear_on_submit=True):
-      st.write("🔍 **Search Party (পার্টি সার্চ):**")
-      task_search_query = st.text_input("Search (সার্চ)", placeholder="Search here (সার্চ)", key="task_search_input_box", label_visibility="collapsed")
-
-      if task_search_query.strip():
-        c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{task_search_query.strip()}%",))
+      st.write("🔍 **Select Party / Doctor (পার্টি বা ডাক্তার সিলেক্ট করুন):**")
+      if all_parties:
+        sel_pt = st.selectbox("Select Party", all_parties, label_visibility="collapsed")
       else:
-        c.execute("SELECT party_name FROM locations ORDER BY party_name ASC LIMIT 15")
-
-      matched_task_parties = [row[0] for row in c.fetchall()]
-
-      if matched_task_parties:
-        sel_pt = st.radio("Select Party (পার্টি সিলেক্ট):", matched_task_parties, key="task_party_radio_list")
-      else:
-        sel_pt = "-- Select (সিলেক্ট) --"
-        st.warning("No party found. (পাওয়া যায়নি।)")
+        sel_pt = None
+        st.warning("No parties available. (কোনো পার্টি নেই।)")
       
       sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents)
 
@@ -1363,7 +1348,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
       submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
 
       if submit_easy_task:
-        if sel_pt == "-- Select (সিলেক্ট) --" or not sel_pt:
+        if not sel_pt:
           st.error("Select a valid party. (পার্টি সিলেক্ট করুন।)")
         else:
           selected_tasks = []
@@ -1424,17 +1409,49 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
           st.success("Task completed! (সম্পন্ন!)")
           st.rerun()
 
-        cols[3].write("Pending (পেন্ডিং)")
+        if st.session_state["user_role"] == "admin":
+          if cols[3].button("🗑️ Delete (ডিলিট)", key=f"del_task_admin_{row['id']}"):
+            c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
+            conn.commit()
+            st.success("Deleted by admin! (ডিলিট হয়েছে!)")
+            st.rerun()
+        else:
+          cols[3].write("Pending (পেন্ডিং)\n\n*(Admin only delete)*")
         st.write("---")
     else:
       st.info("No tasks assigned. (কোনো কাজ নেই।)")
 
-  if task_tab2 is not None:
-    with task_tab2:
-      st.write("#### 📜 Completed Tasks History (Visible to Admin for 7 Days)")
+  with task_tab2:
+    st.write("#### 📊 Agent Date-wise & Party Summary (এজেন্ট ও তারিখ অনুযায়ী কাজের বিবরণ)")
+    
+    agent_summary_df = pd.read_sql_query("""
+        SELECT agent_name, substr(created_at, 1, 10) as task_date, task_type, COUNT(DISTINCT party_name) as party_count, SUM(CAST(due_amount AS REAL)) as total_due
+        FROM task_assignments
+        GROUP BY agent_name, task_date, task_type
+        ORDER BY task_date DESC, agent_name ASC
+    """, conn)
+
+    if not agent_summary_df.empty:
+      st.dataframe(agent_summary_df, use_container_width=True)
+      
+      if st.session_state["user_role"] == "admin":
+        html_agent_sum = generate_html_report("Agent Date-wise Task Summary", agent_summary_df)
+        st.download_button(
+            label="📥 Download Agent Summary Report (PDF/HTML)",
+            data=html_agent_sum,
+            file_name="mediseller_agent_datewise_summary.html",
+            mime="text/html",
+            type="primary"
+        )
+    else:
+      st.info("No summary data available yet.")
+
+  if task_tab3 is not None:
+    with task_tab3:
+      st.write("#### 📜 Completed Tasks History (Auto expires after 48 hours)")
       completed_tasks_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Completed' ORDER BY id DESC", conn)
       if not completed_tasks_df.empty:
-        html_comp_tasks = generate_html_report("Completed Tasks History (Last 7 Days)", completed_tasks_df)
+        html_comp_tasks = generate_html_report("Completed Tasks History", completed_tasks_df)
         st.download_button(
             label="📥 Download Completed Tasks Report (PDF/HTML)",
             data=html_comp_tasks,
@@ -1444,13 +1461,22 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         )
         st.write("---")
         for idx, row in completed_tasks_df.iterrows():
-          cols = st.columns([2, 2, 2])
+          cols = st.columns([2, 2, 2, 1.5])
           cols[0].write(f"Agent: **{row['agent_name']}**\n\nParty: **{row['party_name']}**")
           cols[1].write(f"Work: {row['task_type']}\n\nDue: {row['due_amount']} INR")
           cols[2].write("✅ Completed (সম্পন্ন)")
+          
+          if st.session_state["user_role"] == "admin":
+            if cols[3].button("🗑️ Delete (ডিলিট)", key=f"del_comp_task_{row['id']}"):
+              c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
+              conn.commit()
+              st.success("Deleted! (ডিলিট হয়েছে!)")
+              st.rerun()
+          else:
+            cols[3].write("🔒 Locked")
           st.write("---")
       else:
-        st.info("No completed tasks history in the last 7 days.")
+        st.info("No completed tasks history.")
 
 # =========================================================
 # 6. HOME-TO-HOME AUTO ROUTE & MAP
