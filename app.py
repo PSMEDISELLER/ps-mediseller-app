@@ -539,15 +539,15 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
   selected_entry_tab = st.radio(
       "Select Entry Mode (মোড সিলেক্ট):",
       [
-          "🏠 General Location (সাধারণ লোকেশন)",
-          "👨‍⚕️ Doctor/Party (ডক্টর/পার্টি)"
+          "🏠 With Map Party (উইথ ম্যাপ পার্টি)",
+          "👨‍⚕️ Without Map Party (উইদাউট ম্যাপ পার্টি)"
       ],
       label_visibility="collapsed"
   )
   
   st.write("")
 
-  if "🏠 General Location" in selected_entry_tab:
+  if "With Map Party" in selected_entry_tab:
     with st.form("location_details_form", clear_on_submit=True):
       st.write("#### 1. Enter Party Details (পার্টির বিবরণ)")
       col_f1, col_f2, col_f3 = st.columns(3)
@@ -583,7 +583,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
 
   else:
     with st.form("doctor_details_form", clear_on_submit=True):
-      st.write("#### 2. Doctor/Party Details (ডক্টর/পার্টি বিবরণ)")
+      st.write("#### 2. Without Map Party Details (উইদাউট ম্যাপ পার্টি বিবরণ)")
       col_d1, col_d2, col_d3 = st.columns(3)
       with col_d1:
         doc_name = st.text_input("Name (নাম)", key="input_doc_name")
@@ -592,7 +592,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       with col_d3:
         doc_phone = st.text_input("Phone (ফোন নম্বর)", key="input_doc_phone")
       
-      submitted_doc = st.form_submit_button("💾 Save Doctor/Party (সেভ করুন)", type="primary")
+      submitted_doc = st.form_submit_button("💾 Save Without Map Party (সেভ করুন)", type="primary")
 
     if submitted_doc:
       if doc_name.strip() and doc_phone.strip():
