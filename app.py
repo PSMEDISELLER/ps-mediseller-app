@@ -1527,6 +1527,16 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     if user_role == "admin":
       st.write("#### 📋 Detailed Records (বিস্তারিত রেকর্ড)")
       all_att_df = pd.read_sql_query("SELECT * FROM attendance ORDER BY date DESC, check_time DESC", conn)
+      if not all_att_df.empty:
+        html_all_att_records = generate_html_report("All Attendance Detailed Records", all_att_df)
+        st.download_button(
+            label="📥 Download Detailed Attendance History Report (PDF/HTML)",
+            data=html_all_att_records,
+            file_name="mediseller_all_attendance_records.html",
+            mime="text/html",
+            type="primary"
+        )
+        st.write("---")
     else:
       st.write("#### 📋 Attendance History (ইতিহাস)")
       all_att_df = pd.read_sql_query("SELECT * FROM attendance WHERE username=? ORDER BY date DESC, check_time DESC", conn, params=(current_user,))
@@ -1573,6 +1583,37 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
     all_system_users = c.fetchall()
 
     if all_system_users:
+      live_tracking_data = []
+      for u_name, u_role, f_name, u_phone in all_system_users:
+        c.execute("SELECT lat, lon, last_updated, completed_deliveries, completed_dues FROM agent_live_locations WHERE username=?", (u_name,))
+        agent_data = c.fetchone()
+        disp_agent_name = f_name if f_name else u_name
+        if agent_data and agent_data[0] is not None:
+          lat, lon, last_updated, comp_del, comp_due = agent_data
+          live_tracking_data.append({
+              "Username": u_name,
+              "Full Name": disp_agent_name,
+              "Role": u_role,
+              "Latitude": lat,
+              "Longitude": lon,
+              "Last Updated": last_updated,
+              "Completed Deliveries": comp_del,
+              "Completed Dues": comp_due,
+              "Phone": u_phone if u_phone else "None"
+          })
+
+      if live_tracking_data:
+        live_df = pd.DataFrame(live_tracking_data)
+        html_live_report = generate_html_report("Agent Live Tracking & Stats Report", live_df)
+        st.download_button(
+            label="📥 Download Live Tracking Report (PDF/HTML)",
+            data=html_live_report,
+            file_name="mediseller_live_tracking_report.html",
+            mime="text/html",
+            type="primary"
+        )
+        st.write("---")
+
       for u_name, u_role, f_name, u_phone in all_system_users:
         c.execute("SELECT lat, lon, last_updated, completed_deliveries, completed_dues FROM agent_live_locations WHERE username=?", (u_name,))
         agent_data = c.fetchone()
@@ -1664,6 +1705,18 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
     c.execute("SELECT username, role, fullname, phone, created_at, is_active FROM users")
     agents = c.fetchall()
     st.write(f"Total Users: **{len(agents)}** (মোট ইউজার)")
+
+    users_report_df = pd.read_sql_query("SELECT username, role, fullname, phone, created_at FROM users", conn)
+    if not users_report_df.empty:
+      html_users_report = generate_html_report("System Users & Agents Directory", users_report_df)
+      st.download_button(
+          label="📥 Download Users & Agents Report (PDF/HTML)",
+          data=html_users_report,
+          file_name="mediseller_users_report.html",
+          mime="text/html",
+          type="primary"
+      )
+      st.write("---")
 
     for ag in agents:
       u_name, u_role, f_name, u_phone, c_date, is_act = ag
