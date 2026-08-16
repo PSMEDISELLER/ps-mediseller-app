@@ -1,6 +1,5 @@
 from datetime import datetime
 import sqlite3
-import pytz
 import streamlit as st
 
 # Page configuration
@@ -9,13 +8,9 @@ st.set_page_config(
 )
 
 
-# Helper function for IST time
+# Helper function for time (pytz সরানো হয়েছে)
 def get_ist_time():
-  try:
-    ist = pytz.timezone("Asia/Kolkata")
-    return datetime.now(ist)
-  except Exception:
-    return datetime.now()
+  return datetime.now()
 
 
 # Database Connection & Initialization
@@ -96,11 +91,10 @@ if menu == "Add Location / Party (পার্টি যোগ করুন)":
     p_phone = st.text_input("Phone Number (ফোন নম্বর)", key="map_p_phone")
     p_addr = st.text_input("Address (ঠিকানা)", key="map_p_addr")
 
-    # Initializing map coordinates in session state if not present
     if "selected_lat" not in st.session_state:
-      st.session_state["selected_lat"] = 22.5726  # Default fallback (Lat)
+      st.session_state["selected_lat"] = 22.5726
     if "selected_lon" not in st.session_state:
-      st.session_state["selected_lon"] = 88.3639  # Default fallback (Lon)
+      st.session_state["selected_lon"] = 88.3639
 
     st.info(
         f"Selected Coordinates: Lat: {st.session_state['selected_lat']}, Lon:"
@@ -124,7 +118,6 @@ if menu == "Add Location / Party (পার্টি যোগ করুন)":
           try:
             current_date_str = get_ist_time().strftime("%Y-%m-%d")
 
-            # 1. Save location in locations table
             c.execute(
                 "INSERT INTO locations (party_name, address, party_phone, lat,"
                 " lon) VALUES (?, ?, ?, ?, ?)",
@@ -137,7 +130,6 @@ if menu == "Add Location / Party (পার্টি যোগ করুন)":
                 ),
             )
 
-            # 2. Automatically record visit in daily_work table
             c.execute(
                 "INSERT INTO daily_work (party_name, activity_type,"
                 " work_date) VALUES (?, ?, ?)",
@@ -178,7 +170,6 @@ if menu == "Add Location / Party (পার্টি যোগ করুন)":
           try:
             current_date_str = get_ist_time().strftime("%Y-%m-%d")
 
-            # 1. Save location in locations table
             c.execute(
                 "INSERT INTO locations (party_name, address, party_phone, lat,"
                 " lon) VALUES (?, ?, ?, ?, ?)",
@@ -191,7 +182,6 @@ if menu == "Add Location / Party (পার্টি যোগ করুন)":
                 ),
             )
 
-            # 2. Automatically record visit in daily_work table
             c.execute(
                 "INSERT INTO daily_work (party_name, activity_type,"
                 " work_date) VALUES (?, ?, ?)",
