@@ -875,7 +875,7 @@ elif selected_menu == "🔍 Search & Party Details (অনুসন্ধান 
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
 
-  with st.expander(f"👨‍⚕️ Non-Map Doctors & Party List ({len(doc_df)} items) (ম্যাপবিহীন ডক্টর ও পার্টি তালিকা)", expanded=True):
+  with st.expander(f"👨‍⚕️ Non-Map Doctors & Party List ({len(doc_df)} Entries) (ম্যাপবিহীন ডক্টর ও পার্টি তালিকা)", expanded=True):
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
         cols = st.columns([3, 2, 2, 2, 1.5])
@@ -901,7 +901,7 @@ elif selected_menu == "🔍 Search & Party Details (অনুসন্ধান 
       st.info("No non-Map doctors or parties found. (কোনো ম্যাপবিহীন ডক্টর বা পার্টি পাওয়া যায়নি।)")
 
   st.write("---")
-  st.write(f"#### 📍 Parties & Doctors Added to Map ({len(mapped_df)} items) (ম্যাপে যুক্ত পার্টি ও ডক্টর তালিকা)")
+  st.write(f"#### 📍 Parties & Doctors Added to Map ({len(mapped_df)} Records) (ম্যাপে যুক্ত পার্টি ও ডক্টর তালিকা)")
   if not mapped_df.empty:
     for index, row in mapped_df.iterrows():
       if st.session_state["user_role"] == "admin":
