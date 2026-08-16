@@ -2214,41 +2214,27 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
           }}
         }}
         
-        if (!currentUrl || currentUrl.includes('srcdoc') || currentUrl.startsWith('about:') || currentUrl.includes('null')) {{
+        if (!currentUrl || currentUrl.includes('srcdoc') || currentUrl.startsWith('about:') || currentUrl.includes('null')) {{ 
           currentUrl = document.referrer ? document.referrer.split('?')[0] : (window.location.origin + window.location.pathname);
         }}
-
-        const link = currentUrl + "?login={created_u}";
-        const fullText = `{direct_msg}` + link;
-        document.getElementById("generated_link").value = fullText;
-
+        
+        const fullLink = currentUrl + '?login=' + encodeURIComponent('{created_u}');
+        document.getElementById('generated_link').value = fullLink;
+        
         function copyLink() {{
-          const copyText = document.getElementById("generated_link");
+          const copyText = document.getElementById('generated_link');
           copyText.select();
           copyText.setSelectionRange(0, 99999);
           navigator.clipboard.writeText(copyText.value);
           
-          const status = document.getElementById("copy_status");
-          status.style.display = "inline";
-          setTimeout(() => {{ status.style.display = "none"; }}, 2000);
+          const status = document.getElementById('copy_status');
+          status.style.display = 'inline';
+          setTimeout(() => {{ status.style.display = 'none'; }}, 2000);
         }}
       </script>
       """
-      st.components.v1.html(copy_html, height=160)
-      if st.button("✖️ Close Window (বন্ধ করুন)"):
-        st.session_state.pop("last_created_agent_user", None)
-        st.session_state.pop("last_created_agent_name", None)
-        st.rerun()
+      st.components.v1.html(copy_html, height=140)
+      
+      whatsapp_msg = urllib.parse.quote(direct_msg + "\n" + f"{{fullLink}}")
+      st.markdown(f'<a href="https://wa.me/?text={whatsapp_msg}" target="_blank"><button style="background: #25d366; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">💬 Share via WhatsApp (শেয়ার করুন)</button></a>', unsafe_allow_html=True)
 
-    st.write("---")
-    st.write("### 💾 Database Backup (ডাটাবেস ব্যাকআপ)")
-    
-    if os.path.exists("mediseller_delivery.db"):
-        with open("mediseller_delivery.db", "rb") as f:
-            st.download_button(
-                label="📥 Download Database Backup (.db)",
-                data=f,
-                file_name="mediseller_delivery.db",
-                mime="application/octet-stream",
-                type="primary"
-            )
