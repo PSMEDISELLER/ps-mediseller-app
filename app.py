@@ -316,7 +316,6 @@ div[data-testid="stTextArea"] div p,
     font-weight: bold;
 }
 
-/* Custom Card Styling for Due & Delivery */
 .main-title {
     font-size: 24px;
     font-weight: bold;
@@ -347,7 +346,7 @@ div[data-testid="stTextArea"] div p,
 """, unsafe_allow_html=True)
 
 # =========================================================
-# DATABASE SETUP & 48-HOUR / 7-DAY RETENTION CLEANUP
+# DATABASE SETUP & CLEANUP
 # =========================================================
 DB_FILE = "mediseller_delivery.db"
 
@@ -464,7 +463,6 @@ if c.fetchone()[0] == 0:
 
 current_dt_str = get_ist_time()
 
-# 7-day cleanup for orders
 c.execute("SELECT id, order_date, status FROM orders")
 for row_ord in c.fetchall():
   try:
@@ -474,7 +472,6 @@ for row_ord in c.fetchall():
   except:
     pass
 
-# 48-hour auto cleanup for task assignments
 c.execute("SELECT id, created_at, status FROM task_assignments")
 for row_task in c.fetchall():
   try:
@@ -1443,7 +1440,13 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     st.markdown("### 📋 Current Tasks Grouped by Worker (কর্মী অনুযায়ী বর্তমান কাজ)")
 
     if st.session_state["user_role"] == "admin":
-      tasks_all_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE status='Pending' ORDER BY id DESC", conn)
+      tasks_all_df = pd.read_sql_query("""
+          SELECT t.*, l.address 
+          FROM task_assignments t 
+          LEFT JOIN locations l ON t.party_name = l.party_name 
+          WHERE t.status='Pending' 
+          ORDER BY t.id DESC
+      """, conn)
       if not tasks_all_df.empty:
         grouped_by_worker = {}
         for _, row in tasks_all_df.iterrows():
@@ -1456,7 +1459,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
               "party_name": row['party_name'],
               "type": row['task_type'],
               "due_amount": row['due_amount'],
-              "created_at": row['created_at']
+              "created_at": row['created_at'],
+              "address": row['address'] if pd.notna(row['address']) else ""
           })
 
         for worker_name, worker_tasks in grouped_by_worker.items():
@@ -1465,59 +1469,110 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
           due_count = sum(1 for t in worker_tasks if "Due" in str(t.get("type", "")))
           total_due_amount = sum(float(t.get("due_amount", 0) or 0) for t in worker_tasks)
 
-          with st.expander(f"👤 কর্মী/এজেন্ট: {worker_name} (মোট কাজ: {total_tasks} | ডেলিভারি: {delivery_count} | ডিউ কালেকশন: {due_count} | মোট ডিউ টাকা: {total_due_amount:.2f} INR)", expanded=True):
-            st.markdown(
-                f"👤 **কর্মী/এজেন্ট: {worker_name}** (মোট কাজ: {total_tasks} | ডেলিভারি: {delivery_count} | ডিউ কালেকশন: {due_count} | মোট ডিউ টাকা: {total_due_amount:.2f} INR)"
-            )
+          expander_title = (
+              f"👤 {worker_name} | ডেলিভারি: {delivery_count} | লেকশন: {due_count}"
+              f" | মোট ডিউ: টাকা {total_due_amount}"
+          )
 
-            for row in worker_tasks:
-              p_name = row['party_name']
-              t_date = row['created_at'][:10]
-              
-              st.markdown(f"""
-                  <div class="card">
-                      <div class="party-title">🏪 {p_name}</div>
-                      <div class="card-text"><b>👤 কর্মীর নাম:</b> {row['agent_name']}</div>
-                      <div class="card-text"><b>📌 কাজের ধরন:</b> {row['type']} (Due: {row['due_amount']} INR)</div>
-                      <div class="card-text"><b>📅 তারিখ:</b> {t_date}</div>
-                  </div>
-              """, unsafe_allow_html=True)
+          with st.expander(expander_title, expanded=True):
+            deliveries = [t for t in worker_tasks if "Delivery" in str(t.get("type", ""))]
+            due_collections = [t for t in worker_tasks if "Due" in str(t.get("type", ""))]
 
-              auto_completed = False
-              if gps_lat and gps_lon and p_name in party_coords:
-                p_coords = party_coords[p_name]
-                if p_coords[0] is not None and p_coords[1] is not None:
-                  p_lat, p_lon = p_coords
-                  import math
-                  dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
-                  if dist <= 30:
-                    auto_completed = True
+            if deliveries:
+              st.markdown("##### 📦 ডেলিভারি তালিকা")
+              for t in deliveries:
+                party_name = t.get("party_name", "অজানা পার্টি")
+                address = t.get("address", "")
+                details = t.get("type", "")
 
-              col1, col2 = st.columns(2)
-              with col1:
-                if st.button(f"✅ কাজ সম্পন্ন", key=f"done_{row['id']}", use_container_width=True) or auto_completed:
-                  c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
-                  if "Delivery" in row['type']:
-                    c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-                  if "Due" in row['type']:
-                    c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
-                  conn.commit()
-                  st.success(f"'{p_name}' এর কাজটি সফলভাবে সম্পন্ন হিসেবে সেভ করা হয়েছে!")
-                  st.rerun()
-                  
-              with col2:
-                if st.button(f"🗑️ Delete", key=f"del_task_admin_{row['id']}", use_container_width=True):
-                  c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
-                  conn.commit()
-                  st.success("Deleted by admin! (ডিলিট হয়েছে!)")
-                  st.rerun()
+                map_url = (
+                    f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(address)}"
+                    if address
+                    else "#"
+                )
 
-              st.markdown("---")
+                col1, col2 = st.columns([5, 1])
+                with col1:
+                  st.markdown(f"- **{party_name}** — {details}")
+                with col2:
+                  st.markdown(f"[📍 ডিরেকশন]({map_url})")
+
+                auto_completed = False
+                if gps_lat and gps_lon and party_name in party_coords:
+                  p_coords = party_coords[party_name]
+                  if p_coords[0] is not None and p_coords[1] is not None:
+                    p_lat, p_lon = p_coords
+                    import math
+                    dist = math.sqrt((gps_lat - p_lat)**2 + (gps_lon - p_lon)**2) * 111000
+                    if dist <= 30:
+                      auto_completed = True
+
+                c_col1, c_col2 = st.columns(2)
+                with c_col1:
+                  if st.button(f"✅ কাজ সম্পন্ন ({party_name})", key=f"done_{t['id']}", use_container_width=True) or auto_completed:
+                    c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (t['id'],))
+                    if "Delivery" in str(t['type']):
+                      c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (t['agent_name'],))
+                    if "Due" in str(t['type']):
+                      c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (t['agent_name'],))
+                    conn.commit()
+                    st.success(f"'{party_name}' এর কাজটি সফলভাবে সম্পন্ন হিসেবে সেভ করা হয়েছে!")
+                    st.rerun()
+                with c_col2:
+                  if st.button(f"🗑️ Delete ({party_name})", key=f"del_task_admin_{t['id']}", use_container_width=True):
+                    c.execute("DELETE FROM task_assignments WHERE id=?", (t['id'],))
+                    conn.commit()
+                    st.success("Deleted by admin! (ডিলিট হয়েছে!)")
+                    st.rerun()
+                st.markdown("---")
+
+            if due_collections:
+              st.markdown("##### 💰 ডিউ কালেকশন তালিকা")
+              for t in due_collections:
+                party_name = t.get("party_name", "অজানা পার্টি")
+                due_amount = t.get("due_amount", 0)
+                address = t.get("address", "")
+
+                map_url = (
+                    f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(address)}"
+                    if address
+                    else "#"
+                )
+
+                col1, col2 = st.columns([5, 1])
+                with col1:
+                  st.markdown(f"- **{party_name}** — বকেয়া: টাকা {due_amount}")
+                with col2:
+                  st.markdown(f"[📍 ডিরেকশন]({map_url})")
+
+                c_col1, c_col2 = st.columns(2)
+                with c_col1:
+                  if st.button(f"✅ ডিউ কালেকশন সম্পন্ন ({party_name})", key=f"done_due_{t['id']}", use_container_width=True):
+                    c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (t['id'],))
+                    c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (t['agent_name'],))
+                    conn.commit()
+                    st.success(f"'{party_name}' এর ডিউ কালেকশন সম্পন্ন হয়েছে!")
+                    st.rerun()
+                with c_col2:
+                  if st.button(f"🗑️ Delete ({party_name})", key=f"del_task_due_admin_{t['id']}", use_container_width=True):
+                    c.execute("DELETE FROM task_assignments WHERE id=?", (t['id'],))
+                    conn.commit()
+                    st.success("Deleted by admin! (ডিলিট হয়েছে!)")
+                    st.rerun()
+                st.markdown("---")
+
+            if not deliveries and not due_collections:
+              st.info("এই মুহূর্তে কোনো টাস্ক নেই।")
       else:
         st.info("No pending tasks assigned. (কোনো কাজ নেই।)")
     else:
-      # Staff view for their own tasks
-      tasks_staff_df = pd.read_sql_query("SELECT * FROM task_assignments WHERE agent_name=? AND status='Pending' ORDER BY id DESC", conn, params=(st.session_state["username"],))
+      tasks_staff_df = pd.read_sql_query("""
+          SELECT t.*, l.address 
+          FROM task_assignments t 
+          LEFT JOIN locations l ON t.party_name = l.party_name 
+          WHERE t.agent_name=? AND t.status='Pending' 
+          ORDER BY t.id DESC
+      """, conn, params=(st.session_state["username"],))
       if not tasks_staff_df.empty:
         worker_tasks = []
         for _, row in tasks_staff_df.iterrows():
@@ -1527,7 +1582,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
               "party_name": row['party_name'],
               "type": row['task_type'],
               "due_amount": row['due_amount'],
-              "created_at": row['created_at']
+              "created_at": row['created_at'],
+              "address": row['address'] if pd.notna(row['address']) else ""
           })
         
         worker_name = st.session_state["username"]
@@ -1536,37 +1592,71 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         due_count = sum(1 for t in worker_tasks if "Due" in str(t.get("type", "")))
         total_due_amount = sum(float(t.get("due_amount", 0) or 0) for t in worker_tasks)
 
-        st.markdown(
-            f"👤 **কর্মী/এজেন্ট: {worker_name}** (মোট কাজ: {total_tasks} | ডেলিভারি: {delivery_count} | ডিউ কালেকশন: {due_count} | মোট ডিউ টাকা: {total_due_amount:.2f} INR)"
+        expander_title = (
+            f"👤 {worker_name} | ডেলিভারি: {delivery_count} | লেকশন: {due_count}"
+            f" | মোট ডিউ: টাকা {total_due_amount}"
         )
 
-        for row in worker_tasks:
-          p_name = row['party_name']
-          t_date = row['created_at'][:10]
-          
-          st.markdown(f"""
-              <div class="card">
-                  <div class="party-title">🏪 {p_name}</div>
-                  <div class="card-text"><b>📌 কাজের ধরন:</b> {row['type']} (Due: {row['due_amount']} INR)</div>
-                  <div class="card-text"><b>📅 তারিখ:</b> {t_date}</div>
-              </div>
-          """, unsafe_allow_html=True)
+        with st.expander(expander_title, expanded=True):
+          deliveries = [t for t in worker_tasks if "Delivery" in str(t.get("type", ""))]
+          due_collections = [t for t in worker_tasks if "Due" in str(t.get("type", ""))]
 
-          col1, col2 = st.columns(2)
-          with col1:
-            if st.button(f"✅ কাজ সম্পন্ন", key=f"done_staff_{row['id']}", use_container_width=True):
-              c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (row['id'],))
-              if "Delivery" in row['type']:
-                c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-              if "Due" in row['type']:
-                c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (row['agent_name'],))
-              conn.commit()
-              st.success("কাজ সম্পন্ন করা হয়েছে!")
-              st.rerun()
-          with col2:
-            if st.button(f"⏳ বাকি আছে", key=f"pending_staff_{row['id']}", use_container_width=True):
-              st.warning("কাজটি বাকি রাখা হলো।")
-          st.markdown("---")
+          if deliveries:
+            st.markdown("##### 📦 ডেলিভারি তালিকা")
+            for t in deliveries:
+              party_name = t.get("party_name", "অজানা পার্টি")
+              address = t.get("address", "")
+              details = t.get("type", "")
+
+              map_url = (
+                  f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(address)}"
+                  if address
+                  else "#"
+              )
+
+              col1, col2 = st.columns([5, 1])
+              with col1:
+                st.markdown(f"- **{party_name}** — {details}")
+              with col2:
+                st.markdown(f"[📍 ডিরেকশন]({map_url})")
+
+              if st.button(f"✅ কাজ সম্পন্ন ({party_name})", key=f"done_staff_{t['id']}", use_container_width=True):
+                c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (t['id'],))
+                if "Delivery" in str(t['type']):
+                  c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (t['agent_name'],))
+                if "Due" in str(t['type']):
+                  c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (t['agent_name'],))
+                conn.commit()
+                st.success("কাজ সম্পন্ন করা হয়েছে!")
+                st.rerun()
+              st.markdown("---")
+
+          if due_collections:
+            st.markdown("##### 💰 ডিউ কালেকশন তালিকা")
+            for t in due_collections:
+              party_name = t.get("party_name", "অজানা পার্টি")
+              due_amount = t.get("due_amount", 0)
+              address = t.get("address", "")
+
+              map_url = (
+                  f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(address)}"
+                  if address
+                  else "#"
+              )
+
+              col1, col2 = st.columns([5, 1])
+              with col1:
+                st.markdown(f"- **{party_name}** — বকেয়া: টাকা {due_amount}")
+              with col2:
+                st.markdown(f"[📍 ডিরেকশন]({map_url})")
+
+              if st.button(f"✅ ডিউ কালেকশন সম্পন্ন ({party_name})", key=f"done_staff_due_{t['id']}", use_container_width=True):
+                c.execute("UPDATE task_assignments SET status='Completed' WHERE id=?", (t['id'],))
+                c.execute("UPDATE agent_live_locations SET completed_dues = completed_dues + 1 WHERE username=?", (t['agent_name'],))
+                conn.commit()
+                st.success("ডিউ কালেকশন সম্পন্ন করা হয়েছে!")
+                st.rerun()
+              st.markdown("---")
       else:
         st.info("No pending tasks. (কোনো পেন্ডিং কাজ নেই।)")
 
@@ -2109,4 +2199,3 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
                 f.write(uploaded_db.getbuffer())
             st.success("Database restored! Please refresh. (রিস্টোর হয়েছে!)")
             st.rerun()
-
