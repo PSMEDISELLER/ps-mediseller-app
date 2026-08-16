@@ -505,7 +505,7 @@ menu_options = [
     "📍 Add Location (লোকেশন যোগ)",
     "🔍 Search & Details (অনুসন্ধান ও বিবরণ)",
     "📦 Pending Orders (বাকি অর্ডার)",
-    "📋 Daily Work (দৈনিক কাজ)",
+    "📋 Daily & Monthly Work (দৈনিক ও মাসিক কাজ)",
     "📋 Due & Delivery (বকেয়া ও ডেলিভারি)",
     "🗺️ Route Map (রুট ম্যাপ)",
     "📅 Attendance (উপস্থিতি)",
@@ -965,50 +965,120 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
     st.info("No pending orders. (পেন্ডিং অর্ডার নেই।)")
 
 # =========================================================
-# 4. DAILY WORK
+# 4. DAILY & MONTHLY WORK
 # =========================================================
-elif selected_menu == "📋 Daily Work (দৈনিক কাজ)":
-  st.write("### 📋 Daily Work (ডেইলি ওয়ার্ক)")
+elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাসিক কাজ)":
+  st.write("### 📋 Daily & Monthly Work Report (দৈনিক ও মাসিক কাজের রিপোর্ট)")
 
-  st.write("#### 📅 Visit & Order List (তারিখ অনুযায়ী)")
+  work_tab1, work_tab2 = st.tabs([
+      "📅 Daily Work (দৈনিক কাজ)", 
+      "📊 Monthly Summary & Zero Activity (মাসিক সামারি ও জিরো অ্যাক্টিভিটি)"
+  ])
 
-  work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
-  if not work_df.empty:
-    unique_dates = work_df['work_date'].unique()
-    for d_str in unique_dates:
-      date_records = work_df[work_df['work_date'] == d_str]
-      count_parties = len(date_records)
-      
-      try:
-        formatted_d = datetime.strptime(d_str, "%Y-%m-%d").strftime("%d-%m-%Y")
-      except:
-        formatted_d = d_str
+  with work_tab1:
+    st.write("#### 📅 Visit & Order List (তারিখ অনুযায়ী)")
 
-      with st.expander(f"📅 Date: {formatted_d} (Total: {count_parties})", expanded=True):
-        if st.session_state["user_role"] == "admin":
-          if st.button(f"🗑️ Delete Date Data ({formatted_d}) (সব ডিলিট)", key=f"del_date_{d_str}", type="secondary"):
-            c.execute("DELETE FROM daily_work WHERE work_date=?", (d_str,))
-            conn.commit()
-            st.success("Deleted! (মুছে ফেলা হয়েছে!)")
-            st.rerun()
-          st.write("---")
+    work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
+    if not work_df.empty:
+      unique_dates = work_df['work_date'].unique()
+      for d_str in unique_dates:
+        date_records = work_df[work_df['work_date'] == d_str]
+        count_parties = len(date_records)
+        
+        try:
+          formatted_d = datetime.strptime(d_str, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+          formatted_d = d_str
 
-        for idx, w_row in date_records.iterrows():
-          cols = st.columns([3, 2, 1.5])
-          cols[0].write(f"Party: **{w_row['party_name']}**")
-          cols[1].write(f"Status: `{w_row['activity_type']}`")
-          
+        with st.expander(f"📅 Date: {formatted_d} (Total: {count_parties})", expanded=False):
           if st.session_state["user_role"] == "admin":
-            if cols[2].button("🗑️ Delete (ডিলিট)", key=f"del_dw_{w_row['id']}"):
-              c.execute("DELETE FROM daily_work WHERE id=?", (w_row['id'],))
+            if st.button(f"🗑️ Delete Date Data ({formatted_d}) (সব ডিলিট)", key=f"del_date_{d_str}", type="secondary"):
+              c.execute("DELETE FROM daily_work WHERE work_date=?", (d_str,))
               conn.commit()
-              st.success("Deleted! (ডিলিট হয়েছে!)")
+              st.success("Deleted! (মুছে ফেলা হয়েছে!)")
               st.rerun()
-          else:
-            cols[2].write("🔒 Locked (লকড)")
+            st.write("---")
+
+          for idx, w_row in date_records.iterrows():
+            cols = st.columns([3, 2, 1.5])
+            cols[0].write(f"Party: **{w_row['party_name']}**")
+            cols[1].write(f"Status: `{w_row['activity_type']}`")
+            
+            if st.session_state["user_role"] == "admin":
+              if cols[2].button("🗑️ Delete (ডিলিট)", key=f"del_dw_{w_row['id']}"):
+                c.execute("DELETE FROM daily_work WHERE id=?", (w_row['id'],))
+                conn.commit()
+                st.success("Deleted! (ডিলিট হয়েছে!)")
+                st.rerun()
+            else:
+              cols[2].write("🔒 Locked (লকড)")
+            st.write("---")
+    else:
+      st.info("No records found. (কোনো রেকর্ড নেই।)")
+
+  with work_tab2:
+    st.write("#### 📊 Monthly Doctor/Party Activity Report (মাসিক ডাক্তার ও পার্টি রিপোর্ট)")
+    
+    current_month_default = get_ist_time().strftime("%Y-%m")
+    selected_month = st.text_input("Select Month (YYYY-MM) (মাস নির্বাচন করুন):", value=current_month_default)
+
+    if selected_month.strip():
+      # Fetch all locations (both mapped and unmapped doctors/parties)
+      all_locs_df = pd.read_sql_query("SELECT party_name, address, lat, lon FROM locations ORDER BY party_name ASC", conn)
+      
+      if not all_locs_df.empty:
+        report_data = []
+        
+        for idx, loc_row in all_locs_df.iterrows():
+          p_name = loc_row['party_name']
+          is_mapped = "Mapped (ম্যাপযুক্ত)" if pd.notna(loc_row['lat']) and pd.notna(loc_row['lon']) else "Non-Map (ম্যাপবিহীন)"
+          
+          # Count visits in this month
+          c.execute("""
+            SELECT COUNT(*) FROM daily_work 
+            WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Visit%'
+          """, (p_name, f"{selected_month}%"))
+          v_count = c.fetchone()[0]
+
+          # Count orders in this month
+          c.execute("""
+            SELECT COUNT(*) FROM daily_work 
+            WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Order%'
+          """, (p_name, f"{selected_month}%"))
+          o_count = c.fetchone()[0]
+
+          report_data.append({
+              "Party Name": p_name,
+              "Type": is_mapped,
+              "Total Visits": v_count,
+              "Total Orders": o_count
+          })
+
+        report_summary_df = pd.DataFrame(report_data)
+
+        st.write(f"##### 📋 Complete Activity Summary for `{selected_month}`")
+        st.dataframe(report_summary_df, use_container_width=True)
+
+        # Zero activity filter (No visits and No orders)
+        zero_activity_df = report_summary_df[(report_summary_df["Total Visits"] == 0) & (report_summary_df["Total Orders"] == 0)]
+        
+        st.write(f"⚠️ **Doctors/Parties with ZERO Visits & ZERO Orders ({len(zero_activity_df)}):**")
+        if not zero_activity_df.empty:
+          st.dataframe(zero_activity_df, use_container_width=True)
+        else:
+          st.success("All parties/doctors had at least one visit or order this month! (সব ডাক্তারের ভিজিট বা অর্ডার হয়েছে!)")
+
+        # Admin reset/delete option for the selected month
+        if st.session_state["user_role"] == "admin":
           st.write("---")
-  else:
-    st.info("No records found. (কোনো রেকর্ড নেই।)")
+          st.write("#### ⚙️ Admin Actions for this Month")
+          if st.button(f"🗑️ Delete All Work Records for Month: {selected_month} (এই মাসের সব ডাটা মুছুন)", type="secondary"):
+            c.execute("DELETE FROM daily_work WHERE work_date LIKE ?", (f"{selected_month}%",))
+            conn.commit()
+            st.success(f"All records for {selected_month} deleted successfully! (মুছে ফেলা হয়েছে!)")
+            st.rerun()
+      else:
+        st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
 # 5. DUE CLEAR & DELIVERY PLAN
