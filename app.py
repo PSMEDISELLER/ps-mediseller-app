@@ -214,16 +214,15 @@ div.stExpander details {
     box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6) !important;
     transform: translateY(-2px);
 }
-/* Updated input & search boxes to have white background and dark text for clear visibility */
-input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"] textarea, div[data-baseweb="input"], div[data-baseweb="select"], input[type="text"], input[type="search"], [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea {
-    background-color: #ffffff !important;
-    color: #0f172a !important;
+input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"] textarea, div[data-baseweb="input"], div[data-baseweb="select"] {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
     border: 1px solid #3b82f6 !important;
     border-radius: 8px !important;
 }
 input::placeholder, textarea::placeholder {
-    color: #64748b !important;
-    font-weight: 600 !important;
+    color: #60a5fa !important;
+    font-weight: 700 !important;
 }
 div[data-testid="stTextInput"] small, 
 div[data-testid="stTextArea"] small,
@@ -1486,24 +1485,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
 
   with task_tab2:
     st.markdown("#### 📊 Agent Date-wise & Party Summary (এজেন্ট ও তারিখ অনুযায়ী কাজের বিবরণ)")
-    
-    if st.session_state["user_role"] == "admin":
-      col_ds1, col_ds2 = st.columns(2)
-      with col_ds1:
-        clear_summary_date = st.text_input("Enter Date to Delete Tasks (YYYY-MM-DD)", placeholder="2026-08-18", key="clear_tasks_by_date_input")
-      with col_ds2:
-        st.write("")
-        st.write("")
-        if st.button("🗑️ Delete Summary Tasks by Date (তারিখ অনুযায়ী মুছুন)", type="secondary"):
-          if clear_summary_date.strip():
-            c.execute("DELETE FROM task_assignments WHERE SUBSTR(created_at, 1, 10) = ?", (clear_summary_date.strip(),))
-            conn.commit()
-            st.success(f"Tasks for date {clear_summary_date} deleted successfully! (ডিলিট হয়েছে!)")
-            st.rerun()
-          else:
-            st.error("Please enter a valid date. (তারিখ লিখুন)")
-      st.write("---")
-
     agent_sum_df = pd.read_sql_query("""
         SELECT t.agent_name, u.fullname as agent_fullname, SUBSTR(t.created_at, 1, 10) as task_date, 
                COUNT(t.id) as total_tasks, SUM(CASE WHEN t.status='Completed' THEN 1 ELSE 0 END) as completed_tasks
