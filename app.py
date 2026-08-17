@@ -93,7 +93,8 @@ text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
         <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
             P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant
 permission.<br><br>
-            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
+            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে
+না।)</b>
         </p>
         <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:
 none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px
@@ -109,12 +110,14 @@ function checkAndRequestLocation() {
         alert("Geolocation is not supported by your browser.");
         return;
     }
+    
     navigator.geolocation.getCurrentPosition(
         function(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             localStorage.setItem('ps_user_lat', lat);
             localStorage.setItem('ps_user_lon', lon);
+            
             const overlay = document.getElementById('loc-overlay');
             if (overlay) overlay.style.display = 'none';
         },
@@ -122,6 +125,7 @@ function checkAndRequestLocation() {
             console.warn("Location error:", error.code, error.message);
             const overlay = document.getElementById('loc-overlay');
             if (overlay) overlay.style.display = 'flex';
+            
             const status = document.getElementById('loc-status');
             if (status) {
                 status.style.display = 'block';
@@ -134,7 +138,11 @@ function checkAndRequestLocation() {
                 }
             }
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        }
     );
 }
 function requestLocation() {
@@ -163,6 +171,9 @@ html, body, [class*="css"], p, span, label, div {
 .stApp {
     background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
     color: #ffffff !important;
+}
+[data-testid="stDataFrame"] *, [data-testid="stTable"] *, .dataframe *, table *, th, td {
+    color: #0f172a !important;
 }
 div.stExpander, div[data-testid="stForm"] {
     background: #1e293b !important;
@@ -213,13 +224,79 @@ input::placeholder, textarea::placeholder {
     color: #60a5fa !important;
     font-weight: 700 !important;
 }
-.report-card {
-    background: #1e293b;
-    border: 1px solid #3b82f6;
-    padding: 16px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+div[data-testid="stTextInput"] small, 
+div[data-testid="stTextArea"] small,
+div[data-testid="stTextInput"] div p,
+div[data-testid="stTextArea"] div p,
+.stTextInput small, 
+.stTextArea small {
+    background: rgba(37, 99, 235, 0.25) !important;
+    color: #60a5fa !important;
+    border: 1px solid #3b82f6 !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    display: inline-block !important;
+    margin-top: 6px !important;
+}
+.stRadio > div {
+    background: transparent !important;
+    padding: 0px !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+.stRadio div[role="radiogroup"] label {
+    background: #1e293b !important;
+    border: 1px solid rgba(129, 140, 248, 0.35) !important;
+    border-radius: 12px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+    transition: all 0.3s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+.stRadio div[role="radiogroup"] label:hover {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #60a5fa !important;
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.3) !important;
+    transform: translateY(-2px);
+}
+.stRadio div[role="radiogroup"] label p {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+.stSuccess {
+    background: rgba(16, 185, 129, 0.25) !important;
+    border: 1px solid #10b981 !important;
+    color: #34d399 !important;
+    border-radius: 10px !important;
+}
+.stWarning {
+    background: rgba(245, 158, 11, 0.25) !important;
+    border: 1px solid #f59e0b !important;
+    color: #fbbf24 !important;
+    border-radius: 10px !important;
+}
+.agent-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+.status-active {
+    background-color: #238636;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: bold;
 }
 .main-title {
     font-size: 24px;
@@ -227,6 +304,25 @@ input::placeholder, textarea::placeholder {
     color: #ffffff;
     text-align: center;
     margin-bottom: 20px;
+}
+.card {
+    background-color: #1e1e2f;
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #33334d;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+.party-title {
+    color: #00ffcc;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+.card-text {
+    color: #e0e0e0;
+    font-size: 16px;
+    margin: 4px 0;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -293,8 +389,8 @@ CREATE TABLE IF NOT EXISTS agent_live_locations (
 c.execute("""
 CREATE TABLE IF NOT EXISTS task_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    party_name TEXT NOT NULL,
     agent_name TEXT NOT NULL,
+    party_name TEXT NOT NULL,
     task_type TEXT NOT NULL,
     due_amount TEXT DEFAULT '0',
     sale_amount TEXT DEFAULT '0',
@@ -363,13 +459,21 @@ for row_ord in c.fetchall():
       c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
   except:
     pass
+
+c.execute("SELECT id, created_at, status FROM task_assignments")
+for row_task in c.fetchall():
+  try:
+    t_time = datetime.strptime(row_task[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+    if (current_dt_str - t_time) > timedelta(hours=48):
+      c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
+  except:
+    pass
 conn.commit()
 
 # =========================================================
 # PROFESSIONAL HTML/PDF REPORT GENERATOR HELPER
 # =========================================================
 def generate_html_report(title, df):
-  current_date_str = get_ist_time().strftime('%d-%m-%Y %H:%M:%S')
   html = f"""
   <!DOCTYPE html>
   <html lang="bn">
@@ -400,7 +504,7 @@ border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-al
           <h2>P. S MEDISELLER</h2>
           <p><b>Allopathy & Ayurvedic Wholesaler</b> | Address: Ledagama 1, Amlagora, Garhbeta, Paschim Medinipur</p>
           <p><b>{title}</b></p>
-          <p><b>Report Date & Time:</b> {current_date_str} IST</p>
+          <p>Generated on: {get_ist_time().strftime('%d-%m-%Y %H:%M:%S')} IST</p>
       </div>
       <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF (প্রিন্ট / পিডিএফ)</button>
       {df.to_html(index=False, classes='table', border=0)}
@@ -458,8 +562,10 @@ with col_ht1:
 solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
       <div>
           <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8,
-#818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P. S MEDISELLER</h1>
-          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Allopathy & Ayurvedic Wholesaler | Ph: 8918740325</p>
+#818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P. S
+MEDISELLER</h1>
+          <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Allopathy & Ayurvedic Wholesaler | Ph:
+8918740325</p>
       </div>
   </div>
   """, unsafe_allow_html=True)
@@ -658,7 +764,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
-        st.success("GPS location taken! (নেওয়া হয়েছে!)")
+        st.success("GPS location taken! (নেwa হয়েছে!)")
         st.rerun()
       else:
         st.warning("GPS not found! (নেই!)")
@@ -809,15 +915,12 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
           type="primary"
       )
       st.write("---")
-    
-    # Custom Card Layout instead of default table
     for idx, r_row in report_df.iterrows():
-      st.markdown(f"""
-      <div class="report-card">
-          <p style="margin:0; font-size:16px; color:#38bdf8;"><b>Party:</b> {r_row['party_name']}</p>
-          <p style="margin:4px 0; font-size:14px; color:#e2e8f0;"><b>Activity:</b> {r_row['activity_type']} | <b>Date:</b> {r_row['work_date']}</p>
-      </div>
-      """, unsafe_allow_html=True)
+      cols = st.columns([3, 2, 2])
+      cols[0].write(f"Party: **{r_row['party_name']}**")
+      cols[1].write(f"Activity: `{r_row['activity_type']}`")
+      cols[2].write(f"Date: `{r_row['work_date']}`")
+      st.write("---")
   else:
     st.info("No reports found. (কোনো রিপোর্ট নেই।)")
 
@@ -942,27 +1045,23 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
   with st.expander(f"👨‍⚕️ Non-Map List ({len(doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=True):    
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
-        st.markdown(f"""
-        <div class="report-card">
-            <p style="margin:0; font-size:16px; color:#38bdf8;"><b>{row['party_name']}</b></p>
-            <p style="margin:4px 0; font-size:14px; color:#cbd5e1;">📞 {row['party_phone'] if row['party_phone'] else 'No number'} | 📍 {row['address'] if row['address'] else 'No address'}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        col_act1, col_act2 = st.columns(2)
-        with col_act1:
-          if st.button("📍 Add Map", key=f"map_add_search_{row['id']}"):
-            st.session_state["mapping_party_id"] = row['id']
-            st.session_state["mapping_party_name"] = row['party_name']
-            st.session_state["temp_map_lat"] = st.session_state.get("selected_lat", 22.8620)
-            st.session_state["temp_map_lon"] = st.session_state.get("selected_lon", 87.3320)
+        cols = st.columns([3, 2, 2, 2, 1.5])
+        cols[0].write(f"**{row['party_name']}**")
+        cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
+        cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
+        
+        if cols[3].button("📍 Add Map (ম্যাপ যুক্ত)", key=f"map_add_search_{row['id']}"):
+          st.session_state["mapping_party_id"] = row['id']
+          st.session_state["mapping_party_name"] = row['party_name']
+          st.session_state["temp_map_lat"] = st.session_state.get("selected_lat", 22.8620)
+          st.session_state["temp_map_lon"] = st.session_state.get("selected_lon", 87.3320)
+          st.rerun()
+        if st.session_state["user_role"] == "admin":
+          if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_doc_search_{row['id']}"):
+            c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+            conn.commit()
+            st.success("Deleted! (ডিলিট হয়েছে!)")
             st.rerun()
-        with col_act2:
-          if st.session_state["user_role"] == "admin":
-            if st.button("🗑️ Delete", key=f"del_doc_search_{row['id']}"):
-              c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
-              conn.commit()
-              st.success("Deleted!")
-              st.rerun()
         st.write("---")
     else:
       st.info("No non-map parties found. (ম্যাপবিহীন পার্টি নেই।)")
@@ -971,24 +1070,22 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
   st.write(f"#### 📍 Mapped List ({len(mapped_df)} Records) (ম্যাপযুক্ত তালিকা)")
   if not mapped_df.empty:
     for index, row in mapped_df.iterrows():
-      st.markdown(f"""
-      <div class="report-card">
-          <p style="margin:0; font-size:16px; color:#38bdf8;"><b>{row['party_name']}</b></p>
-          <p style="margin:4px 0; font-size:14px; color:#cbd5e1;">📞 {row['party_phone'] if row['party_phone'] else 'No number'} | 📍 {row['address'] if row['address'] else 'No address'}</p>
-      </div>
-      """, unsafe_allow_html=True)
+      if st.session_state["user_role"] == "admin":
+        cols = st.columns([3, 2, 2, 2, 1.5])
+      else:
+        cols = st.columns([3, 2, 2, 2])
+      cols[0].write(f"**{row['party_name']}**")
+      cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
+      cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
       
       maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
-      col_m1, col_m2 = st.columns(2)
-      with col_m1:
-        st.markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:600; width:100%;">🧭 Direction</button></a>', unsafe_allow_html=True)
-      with col_m2:
-        if st.session_state["user_role"] == "admin":
-          if st.button("🗑️ Delete Party", key=f"del_loc_search_{row['id']}"):
-            c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
-            conn.commit()
-            st.success("Deleted!")
-            st.rerun()
+      cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:600;">🧭 Direction (ডিরেকশন)</button></a>', unsafe_allow_html=True)
+      if st.session_state["user_role"] == "admin":
+        if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_loc_search_{row['id']}"):
+          c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+          conn.commit()
+          st.success("Deleted! (ডিলিট হয়েছে!)")
+          st.rerun()
       st.write("---")
   else:
     st.info("No mapped parties found. (ম্যাপযুক্ত পার্টি নেই।)")
@@ -1022,19 +1119,16 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
     orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
     if not orders_df.empty:
       for index, row in orders_df.iterrows():
-        st.markdown(f"""
-        <div class="report-card">
-            <p style="margin:0; font-size:16px; color:#38bdf8;"><b>Party:</b> {row['party_name']}</p>
-            <p style="margin:4px 0; font-size:14px; color:#e2e8f0;"><b>Details:</b> {row['order_details']}</p>
-            <p style="margin:2px 0; font-size:12px; color:#fbbf24;"><b>Date:</b> {row['order_date']} | <b>Status:</b> Pending</p>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("✔️ Complete Order", key=f"ord_btn_{row['id']}"):
+        cols = st.columns([2, 4, 2, 2])
+        cols[0].write(f"**{row['party_name']}**")
+        cols[1].write(row['order_details'])
+        cols[2].write("⏳ Pending (পেন্ডিং)")
+        if cols[3].button("✔️ Complete (কমপ্লিট)", key=f"ord_btn_{row['id']}"):
           c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
           conn.commit()
           c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
           conn.commit()
-          st.success("Order completed!")
+          st.success("Order completed! (কমপ্লিট করা হয়েছে!)")
           st.rerun()
         st.write("---")
     else:
@@ -1050,29 +1144,29 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
           col_dc1, col_dc2 = st.columns(2)
           with col_dc1:
             st.download_button(
-                label="📥 Download Completed Orders",
+                label="📥 Download Completed Orders Report",
                 data=html_comp_ord,
                 file_name="mediseller_completed_orders_history.html",
                 mime="text/html",
                 type="primary"
             )
           with col_dc2:
-            if st.button("🗑️ Clear All Completed History", type="secondary"):
+            if st.button("🗑️ Clear All Completed Orders History (সব ডিলিট)", type="secondary"):
               c.execute("DELETE FROM orders WHERE status='Completed'")
               conn.commit()
-              st.success("All completed orders history deleted!")
+              st.success("All completed orders history deleted! (মুছে ফেলা হয়েছে!)")
               st.rerun()
           st.write("---")
         for idx, row in completed_ord_df.iterrows():
-          st.markdown(f"""
-          <div class="report-card">
-              <p style="margin:0; font-size:16px; color:#34d399;"><b>Party:</b> {row['party_name']}</p>
-              <p style="margin:4px 0; font-size:14px; color:#e2e8f0;"><b>Details:</b> {row['order_details']}</p>
-              <p style="margin:2px 0; font-size:12px; color:#94a3b8;"><b>Date:</b> {row['order_date']} | <b>Status:</b> Completed</p>
-          </div>
-          """, unsafe_allow_html=True)
           if st.session_state["user_role"] == "admin":
-            if st.button("🗑️ Delete Order", key=f"del_comp_ord_{row['id']}"):
+            cols = st.columns([2, 4, 2, 1.5])
+          else:
+            cols = st.columns([2, 4, 2])
+          cols[0].write(f"**{row['party_name']}**")
+          cols[1].write(row['order_details'])
+          cols[2].write("✅ Completed (সম্পন্ন)")
+          if st.session_state["user_role"] == "admin":
+            if cols[3].button("🗑️ Delete", key=f"del_comp_ord_{row['id']}"):
               c.execute("DELETE FROM orders WHERE id=?", (row['id'],))
               conn.commit()
               st.success("Deleted!")
@@ -1107,51 +1201,53 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
               type="primary"
           )
         with col_dw2:
-          if st.button("🗑️ Clear All Daily Work Records", type="secondary"):
+          if st.button("🗑️ Clear All Daily Work Records (সব কাজ মুছুন)", type="secondary"):
             c.execute("DELETE FROM daily_work")
             conn.commit()
-            st.success("All daily work records deleted successfully!")
+            st.success("All daily work records deleted successfully! (সব মুছে ফেলা হয়েছে!)")
             st.rerun()
         st.write("---")
-    
     work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
     if not work_df.empty:
       unique_dates = work_df['work_date'].unique()
       for d_str in unique_dates:
         date_records = work_df[work_df['work_date'] == d_str]
         count_parties = len(date_records)
+        
         try:
           formatted_d = datetime.strptime(d_str, "%Y-%m-%d").strftime("%d-%m-%Y")
         except:
           formatted_d = d_str
 
-        with st.expander(f"📅 Date: {formatted_d} (Total Records: {count_parties})", expanded=False):
+        with st.expander(f"📅 Date: {formatted_d} (Total: {count_parties})", expanded=False):
           if st.session_state["user_role"] == "admin":
-            if st.button(f"🗑️ Delete Date Data ({formatted_d})", key=f"del_date_{d_str}", type="secondary"):
+            if st.button(f"🗑️ Delete Date Data ({formatted_d}) (সব ডিলিট)", key=f"del_date_{d_str}", type="secondary"):
               c.execute("DELETE FROM daily_work WHERE work_date=?", (d_str,))
               conn.commit()
-              st.success("Deleted!")
+              st.success("Deleted! (মুছে ফেলা হয়েছে!)")
               st.rerun()
             st.write("---")
           for idx, w_row in date_records.iterrows():
-            st.markdown(f"""
-            <div class="report-card">
-                <p style="margin:0; font-size:15px; color:#38bdf8;"><b>Party:</b> {w_row['party_name']}</p>
-                <p style="margin:4px 0; font-size:13px; color:#cbd5e1;"><b>Activity:</b> {w_row['activity_type']} | <b>Date:</b> {w_row['work_date']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            cols = st.columns([3, 2, 1.5])
+            cols[0].write(f"Party: **{w_row['party_name']}**")
+            cols[1].write(f"Status: `{w_row['activity_type']}`")
+            
             if st.session_state["user_role"] == "admin":
-              if st.button("🗑️ Delete", key=f"del_dw_{w_row['id']}"):
+              if cols[2].button("🗑️ Delete (ডিলিট)", key=f"del_dw_{w_row['id']}"):
                 c.execute("DELETE FROM daily_work WHERE id=?", (w_row['id'],))
                 conn.commit()
-                st.success("Deleted!")
+                st.success("Deleted! (ডিলিট হয়েছে!)")
                 st.rerun()
+            else:
+              cols[2].write("🔒 Locked (লকড)")
             st.write("---")
     else:
       st.info("No records found. (কোনো রেকর্ড নেই।)")
 
   with work_tab2:
     st.write("#### 📊 Monthly Doctor/Party Activity Report (মাসিক ডাক্তার ও পার্টি রিপোর্ট)")
+    
+    st.write("🗓️ **Select Year & Month (বছর ও মাস সিলেক্ট করুন):**")
     col_yr, col_mo = st.columns(2)
     with col_yr:
       selected_year = st.selectbox("Select Year (বছর)", [2026, 2025, 2024], index=0)
@@ -1168,16 +1264,24 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
 
     if selected_month.strip():
       all_locs_df = pd.read_sql_query("SELECT party_name, address, lat, lon FROM locations ORDER BY party_name ASC", conn)
+      
       if not all_locs_df.empty:
         report_data = []
+        
         for idx, loc_row in all_locs_df.iterrows():
           p_name = loc_row['party_name']
-          is_mapped = "Mapped" if pd.notna(loc_row['lat']) and pd.notna(loc_row['lon']) else "Non-Map"
+          is_mapped = "Mapped (ম্যাপযুক্ত)" if pd.notna(loc_row['lat']) and pd.notna(loc_row['lon']) else "Non-Map (ম্যাপবিহীন)"
           
-          c.execute("SELECT COUNT(*) FROM daily_work WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Visit%'", (p_name, f"{selected_month}%"))
+          c.execute("""
+            SELECT COUNT(*) FROM daily_work 
+            WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Visit%'
+          """, (p_name, f"{selected_month}%"))
           v_count = c.fetchone()[0]
 
-          c.execute("SELECT COUNT(*) FROM daily_work WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Order%'", (p_name, f"{selected_month}%"))
+          c.execute("""
+            SELECT COUNT(*) FROM daily_work 
+            WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Order%'
+          """, (p_name, f"{selected_month}%"))
           o_count = c.fetchone()[0]
 
           report_data.append({
@@ -1205,38 +1309,27 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
             if st.button(f"🗑️ Delete All Work Records for Month: {selected_month}", type="secondary"):
               c.execute("DELETE FROM daily_work WHERE work_date LIKE ?", (f"{selected_month}%",))
               conn.commit()
-              st.success(f"All records for {selected_month} deleted successfully!")
+              st.success(f"All records for {selected_month} deleted successfully! (মুছে ফেলা হয়েছে!)")
               st.rerun()
           st.write("---")
 
-        # Custom Card view instead of default dataframe table
-        for idx, r_row in report_summary_df.iterrows():
-          st.markdown(f"""
-          <div class="report-card">
-              <p style="margin:0; font-size:16px; color:#38bdf8;"><b>Party:</b> {r_row['Party Name']} ({r_row['Type']})</p>
-              <p style="margin:4px 0; font-size:14px; color:#cbd5e1;">📍 Visits: <b>{r_row['Total Visits']}</b> | 🛒 Orders: <b>{r_row['Total Orders']}</b></p>
-          </div>
-          """, unsafe_allow_html=True)
+        st.dataframe(report_summary_df, use_container_width=True)
 
         zero_activity_df = report_summary_df[(report_summary_df["Total Visits"] == 0) & (report_summary_df["Total Orders"] == 0)]
+        
         st.write(f"⚠️ **Doctors/Parties with ZERO Visits & ZERO Orders ({len(zero_activity_df)}):**")
         if not zero_activity_df.empty:
-          for idx, z_row in zero_activity_df.iterrows():
-            st.markdown(f"""
-            <div style="background:#451a03; border:1px solid #f59e0b; padding:12px; border-radius:10px; margin-bottom:8px;">
-                <p style="margin:0; font-size:15px; color:#fbbf24;"><b>Zero Activity Party:</b> {z_row['Party Name']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+          st.dataframe(zero_activity_df, use_container_width=True)
         else:
-          st.success("All parties/doctors had at least one visit or order this month!")
+          st.success("All parties/doctors had at least one visit or order this month! (সব ডাক্তারের ভিজিট বা অর্ডার হয়েছে!)")
       else:
-        st.info("No parties/doctors found in database.")
+        st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
 # 5. DUE CLEAR, DELIVERY PLAN & AGENT GROUPED CARDS VIEW
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
-  st.markdown('<div class="main-title">📋 ডেলিভারি ও ডিউ রিপোর্ট ও এডিট (কর্মী ও অ্যাডমিন মোড)</div>', unsafe_allow_html=True)
+  st.markdown('<div class="main-title">📋 ডেলিভারি ও ডিউ প্ল্যান (কর্মী সহায়ক মোড)</div>', unsafe_allow_html=True)
   
   c.execute("SELECT username, fullname FROM users")
   users_data = c.fetchall()
@@ -1245,19 +1338,19 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
 
   c.execute("SELECT party_name, lat, lon FROM locations ORDER BY party_name ASC")
   loc_data = c.fetchall()
+  party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
   all_parties = [r[0] for r in loc_data]
 
-  task_tab1, task_tab2, task_tab3, task_tab4 = st.tabs([
+  task_tab1, task_tab2, task_tab3 = st.tabs([
       "🎯 Active Tasks (চলমান কাজ)", 
-      "📅 Present Day Report (আজকের রিপোর্ট)",
-      "📊 Agent Date-wise Summary (সামারি)",
-      "📜 Completed Tasks History & Edit (সম্পন্ন কাজ ও এডিট)"
+      "📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
+      "📜 Completed Tasks History (সম্পন্ন কাজ)"
   ])
 
   with task_tab1:
     if st.session_state["user_role"] == "admin":
       full_tasks_df = pd.read_sql_query("""
-          SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address 
+          SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.status, t.created_at, l.address 
           FROM task_assignments t 
           LEFT JOIN users u ON t.agent_name = u.username 
           LEFT JOIN locations l ON t.party_name = l.party_name 
@@ -1271,7 +1364,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         
         html_tasks_report = generate_html_report("Active Tasks & Deliveries Report", export_tasks_df)
         st.download_button(
-            label="📥 Download Active Tasks Report (PDF/HTML)",
+            label="📥 Download Tasks Report (PDF/HTML)",
             data=html_tasks_report,
             file_name="mediseller_due_delivery_report.html",
             mime="text/html",
@@ -1318,7 +1411,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         chk_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)")
       with col_chk2:
         chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)")
-      d_amount = st.text_input("Due Amount / Target Amount (ডিউ বা টার্গেট টাকা)", "0")
+      d_amount = st.text_input("Due Amount (ডিউ টাকা)", "0")
       submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
       if submit_easy_task:
         if not sel_pt.strip():
@@ -1331,9 +1424,10 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
             selected_tasks.append("Due Collection (ডিউ কালেকশন)")
           if selected_tasks:
             t_type_str = " & ".join(selected_tasks)
+            current_date_str = get_ist_time().strftime("%Y-%m-%d")
             c.execute(
-                "INSERT INTO task_assignments (party_name, agent_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (sel_pt.strip(), sel_ag, t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+                "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (sel_ag, sel_pt.strip(), t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
             )
             conn.commit()
             st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
@@ -1342,7 +1436,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
             st.error("Please select at least one task type (Delivery or Due Collection).")
     st.write("---")
 
-    st.write("#### 📋 Active Pending Tasks (কর্মী অনুযায়ী কাজ)")
+    st.write("#### 📋 Active Pending Tasks (কর্মচারী অনুযায়ী কাজ)")
+    
     pending_tasks_df = pd.read_sql_query("""
         SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.created_at, l.address, l.party_phone
         FROM task_assignments t
@@ -1360,22 +1455,18 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         
         with st.expander(f"👤 Agent: {ag_disp_name} ({len(ag_rows)} Pending Tasks)", expanded=True):
           for idx, row in ag_rows.iterrows():
-            st.markdown(f"""
-            <div class="report-card">
-                <p style="margin:0; font-size:16px; color:#38bdf8;"><b>Party:</b> {row['party_name']}</p>
-                <p style="margin:4px 0; font-size:14px; color:#e2e8f0;"><b>Task:</b> {row['task_type']} | <b>Amount:</b> ₹{row['due_amount']}</p>
-                <p style="margin:2px 0; font-size:12px; color:#94a3b8;"><b>Address:</b> {row['address']} | <b>Phone:</b> {row['party_phone']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"**Party:** `{row['party_name']}` | **Task:** `{row['task_type']}` | **Assigned Due:** ₹`{row['due_amount']}`")
+            if pd.notna(row['address']) and row['address']:
+              st.markdown(f"📍 Address: {row['address']} {(' | Ph: ' + str(row['party_phone'])) if pd.notna(row['party_phone']) else ''}")
             
             with st.form(key=f"complete_task_form_{row['id']}"):
               col_f1, col_f2 = st.columns(2)
               with col_f1:
-                sale_input = st.text_input("Total Sale Amount (সেল টাকা)", value="0", key=f"sale_amt_{row['id']}")
+                sale_input = st.text_input("Total Sale Amount (কত টাকা সেল ছিল)", value="0", key=f"sale_amt_{row['id']}")
               with col_f2:
-                payment_input = st.text_input("Payment Collected / Collection (কালেকশন টাকা)", value=str(row['due_amount']), key=f"pay_amt_{row['id']}")
+                payment_input = st.text_input("Payment Collected (কত টাকা পেমেন্ট দিয়েছে)", value=str(row['due_amount']), key=f"pay_amt_{row['id']}")
               
-              submit_complete = st.form_submit_button("✔️ Complete Task (সম্পন্ন করুন)", type="primary")
+              submit_complete = st.form_submit_button("✔️ Complete Task (সম্পন্ন বলে ক্লিক করুন)", type="primary")
               if submit_complete:
                 c.execute(
                     "UPDATE task_assignments SET status='Completed', sale_amount=?, payment_collected_actual=? WHERE id=?",
@@ -1386,49 +1477,13 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
                     (row['agent_name'],)
                 )
                 conn.commit()
-                st.success("Task marked as completed successfully!")
+                st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
                 st.rerun()
             st.write("---")
     else:
       st.info("No active pending tasks. (কোনো পেন্ডিং টাস্ক নেই।)")
 
   with task_tab2:
-    st.markdown("#### 📅 Present Day Report (আজকের ডেলিভারি ও ডিউ রিপোর্ট)")
-    today_date_prefix = get_ist_time().strftime("%Y-%m-%d")
-    st.write(f"Today Date: `{today_date_prefix}`")
-
-    today_tasks_df = pd.read_sql_query("""
-        SELECT t.id, t.party_name, u.fullname as agent_fullname, t.agent_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at
-        FROM task_assignments t
-        LEFT JOIN users u ON t.agent_name = u.username
-        WHERE t.created_at LIKE ?
-        ORDER BY t.created_at DESC
-    """, conn, params=(f"{today_date_prefix}%",))
-
-    if not today_tasks_df.empty:
-      html_today_rep = generate_html_report(f"Present Day Report - {today_date_prefix}", today_tasks_df[['party_name', 'agent_name', 'task_type', 'due_amount', 'sale_amount', 'payment_collected_actual', 'status', 'created_at']])
-      st.download_button(
-          label="📥 Download Today's Report (PDF/HTML)",
-          data=html_today_rep,
-          file_name=f"mediseller_present_day_report_{today_date_prefix}.html",
-          mime="text/html",
-          type="primary"
-      )
-      st.write("---")
-
-      for idx, row in today_tasks_df.iterrows():
-        status_color = "#34d399" if row['status'] == 'Completed' else "#fbbf24"
-        st.markdown(f"""
-        <div class="report-card">
-            <p style="margin:0; font-size:16px; color:#38bdf8;"><b>Party:</b> {row['party_name']} | <b>Agent:</b> {row['agent_fullname'] if pd.notna(row['agent_fullname']) else row['agent_name']}</p>
-            <p style="margin:4px 0; font-size:14px; color:#e2e8f0;"><b>Task:</b> {row['task_type']} | <b>Sale:</b> ₹{row['sale_amount']} | <b>Collection:</b> ₹{row['payment_collected_actual']}</p>
-            <p style="margin:2px 0; font-size:12px; color:{status_color};"><b>Status:</b> {row['status']} | <b>Time:</b> {row['created_at']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-      st.info("No records found for today. (আজকের কোনো রিপোর্ট নেই।)")
-
-  with task_tab3:
     st.markdown("#### 📊 Agent Date-wise & Party Summary (এজেন্ট ও তারিখ অনুযায়ী কাজের বিবরণ)")
     agent_sum_df = pd.read_sql_query("""
         SELECT t.agent_name, u.fullname as agent_fullname, SUBSTR(t.created_at, 1, 10) as task_date, 
@@ -1439,18 +1494,10 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         ORDER BY task_date DESC
     """, conn)
     if not agent_sum_df.empty:
-      for idx, row in agent_sum_df.iterrows():
-        ag_name = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name']
-        st.markdown(f"""
-        <div class="report-card">
-            <p style="margin:0; font-size:16px; color:#38bdf8;"><b>Agent:</b> {ag_name} | <b>Date:</b> {row['task_date']}</p>
-            <p style="margin:4px 0; font-size:14px; color:#cbd5e1;">Total Tasks: <b>{row['total_tasks']}</b> | Completed: <b>{row['completed_tasks']}</b></p>
-        </div>
-        """, unsafe_allow_html=True)
-      
       disp_sum_df = agent_sum_df.copy()
       disp_sum_df['agent_name'] = disp_sum_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
       disp_sum_df = disp_sum_df[['agent_name', 'task_date', 'total_tasks', 'completed_tasks']]
+      st.dataframe(disp_sum_df, use_container_width=True)
       
       html_agent_sum = generate_html_report("Agent Date-wise Summary Report", disp_sum_df)
       st.download_button(
@@ -1463,8 +1510,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
     else:
       st.info("No summary data found.")
 
-  with task_tab4:
-    st.markdown("#### 📜 Completed Tasks History & Admin Edit (সম্পন্ন কাজ ও এডিট)")
+  with task_tab3:
+    st.markdown("#### 📜 Completed Tasks History")
     comp_tasks_df = pd.read_sql_query("""
         SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.created_at
         FROM task_assignments t
@@ -1472,7 +1519,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         WHERE t.status='Completed'
         ORDER BY t.created_at DESC
     """, conn)
-    
     if not comp_tasks_df.empty:
       disp_comp_df = comp_tasks_df.copy()
       disp_comp_df['agent_name'] = disp_comp_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
@@ -1493,41 +1539,23 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
           if st.button("🗑️ Clear All Completed Tasks History", type="secondary"):
             c.execute("DELETE FROM task_assignments WHERE status='Completed'")
             conn.commit()
-            st.success("All completed tasks history deleted!")
+            st.success("All completed tasks history deleted! (মুছে ফেলা হয়েছে!)")
             st.rerun()
         st.write("---")
 
-      for idx, row in comp_tasks_df.iterrows():
-        ag_title = row['agent_fullname'] if pd.notna(row['agent_fullname']) else row['agent_name']
-        st.markdown(f"""
-        <div class="report-card">
-            <p style="margin:0; font-size:16px; color:#34d399;"><b>Party:</b> {row['party_name']} | <b>Agent:</b> {ag_title}</p>
-            <p style="margin:4px 0; font-size:14px; color:#e2e8f0;"><b>Task:</b> {row['task_type']} | <b>Sale:</b> ₹{row['sale_amount']} | <b>Collection:</b> ₹{row['payment_collected_actual']}</p>
-            <p style="margin:2px 0; font-size:12px; color:#94a3b8;"><b>Date:</b> {row['created_at']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if st.session_state["user_role"] == "admin":
-          with st.expander(f"✏️ Edit Report / Task ID: {row['id']} ({row['party_name']})"):
-            with st.form(key=f"admin_edit_task_form_{row['id']}"):
-              edit_party = st.text_input("Party Name (পার্টির নাম)", value=row['party_name'], key=f"edit_p_{row['id']}")
-              edit_type = st.text_input("Task Type (কাজের ধরণ)", value=row['task_type'], key=f"edit_t_{row['id']}")
-              edit_sale = st.text_input("Sale Amount (সেল টাকা)", value=row['sale_amount'], key=f"edit_s_{row['id']}")
-              edit_coll = st.text_input("Collection Amount (কালেকশন টাকা)", value=row['payment_collected_actual'], key=f"edit_c_{row['id']}")
-              
-              sub_edit = st.form_submit_button("💾 Update Report (আপডেট করুন)", type="primary")
-              if sub_edit:
-                c.execute("UPDATE task_assignments SET party_name=?, task_type=?, sale_amount=?, payment_collected_actual=? WHERE id=?", (edit_party, edit_type, edit_sale, edit_coll, row['id']))
-                conn.commit()
-                st.success("Report updated successfully! (আপডেট হয়েছে!)")
-                st.rerun()
-          
-          if st.button("🗑️ Delete Task", key=f"del_comp_task_{row['id']}"):
+      st.dataframe(disp_comp_df, use_container_width=True)
+      
+      if st.session_state["user_role"] == "admin":
+        st.write("#### 🗑️ Delete Specific Completed Task")
+        for idx, row in comp_tasks_df.iterrows():
+          c_cols = st.columns([3, 2, 1])
+          c_cols[0].write(f"Party: **{row['party_name']}** | Agent: `{row['agent_fullname'] if pd.notna(row['agent_fullname']) else row['agent_name']}`")
+          c_cols[1].write(f"Date: `{row['created_at']}`")
+          if c_cols[2].button("🗑️ Delete", key=f"del_comp_task_{row['id']}"):
             c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
             conn.commit()
             st.success("Deleted!")
             st.rerun()
-        st.write("---")
     else:
       st.info("No completed tasks history found.")
 
@@ -1604,29 +1632,22 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
             (st.session_state["username"], today_str, check_time_str, "Present")
         )
         conn.commit()
-        st.success("Attendance recorded successfully!")
+        st.success("Attendance recorded successfully! (উপস্থিতি সফলভাবে নেওয়া হয়েছে!)")
       except sqlite3.IntegrityError:
-        st.warning("Attendance already recorded for today!")
+        st.warning("Attendance already recorded for today! (আজকে ইতিমধ্যে উপস্থিতি নেওয়া হয়েছে!)")
 
   st.write("---")
   st.write("#### 📋 Attendance History (উপস্থিতির ইতিহাস)")
   att_df = pd.read_sql_query("SELECT a.username, u.fullname, a.date, a.check_time, a.status FROM attendance a LEFT JOIN users u ON a.username = u.username ORDER BY a.date DESC, a.check_time DESC", conn)
   if not att_df.empty:
     if st.session_state["user_role"] == "admin":
-      if st.button("🗑️ Clear All Attendance History", type="secondary"):
+      if st.button("🗑️ Clear All Attendance History (সব উপস্থিতি মুছুন)", type="secondary"):
         c.execute("DELETE FROM attendance")
         conn.commit()
         st.success("All attendance history deleted!")
         st.rerun()
       st.write("---")
-    
-    for idx, row in att_df.iterrows():
-      st.markdown(f"""
-      <div class="report-card">
-          <p style="margin:0; font-size:15px; color:#38bdf8;"><b>User:</b> {row['fullname'] if pd.notna(row['fullname']) else row['username']}</p>
-          <p style="margin:4px 0; font-size:13px; color:#cbd5e1;">Status: <b>{row['status']}</b> | Time: {row['check_time']} | Date: {row['date']}</p>
-      </div>
-      """, unsafe_allow_html=True)
+    st.dataframe(att_df, use_container_width=True)
   else:
     st.info("No attendance records found.")
 
@@ -1671,15 +1692,8 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
     folium.LayerControl().add_to(tracking_map)
     st_folium(tracking_map, width="100%", height=450, key="live_tracking_map_display")
 
-    st.write("#### 📋 Agent Summary List")
-    for idx, row in agents_loc_df.iterrows():
-      disp_name = row['fullname'] if pd.notna(row['fullname']) and row['fullname'] else row['username']
-      st.markdown(f"""
-      <div class="report-card">
-          <p style="margin:0; font-size:16px; color:#38bdf8;"><b>Agent:</b> {disp_name}</p>
-          <p style="margin:4px 0; font-size:14px; color:#cbd5e1;">Deliveries: <b>{row['completed_deliveries']}</b> | Last Updated: {row['last_updated']}</p>
-      </div>
-      """, unsafe_allow_html=True)
+    st.write("#### 📋 Agent Summary Table")
+    st.dataframe(agents_loc_df, use_container_width=True)
   else:
     st.info("No active agent location data found.")
 
@@ -1710,23 +1724,17 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
               (new_uname.strip(), new_pass.strip(), new_role, new_fullname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
           )
           conn.commit()
-          st.success(f"User `{new_uname}` created successfully!")
+          st.success(f"User `{new_uname}` created successfully! (সফলভাবে তৈরি হয়েছে!)")
           st.rerun()
         except sqlite3.IntegrityError:
-          st.error("Username already exists!")
+          st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
       else:
-        st.error("Username and Password are required.")
+        st.error("Username and Password are required. (ইউজারনেম ও পাসওয়ার্ড আবশ্যক।)")
 
   st.write("---")
   st.write("#### 📋 Existing Users List")
   users_list_df = pd.read_sql_query("SELECT username, role, fullname, phone, created_at FROM users", conn)
-  for idx, row in users_list_df.iterrows():
-    st.markdown(f"""
-    <div class="report-card">
-        <p style="margin:0; font-size:16px; color:#38bdf8;"><b>User:</b> {row['fullname'] if pd.notna(row['fullname']) else row['username']} (`{row['role']}`)</p>
-        <p style="margin:4px 0; font-size:14px; color:#cbd5e1;">Username: {row['username']} | Phone: {row['phone']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+  st.dataframe(users_list_df, use_container_width=True)
 
   st.write("---")
   st.write("#### ⚠️ Master Database Deletion / Reset Controls (মাস্টার কন্ট্রোল)")
@@ -1738,9 +1746,8 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
       st.success("All locations deleted successfully!")
       st.rerun()
   with col_rst2:
-    if st.button("🗑️ Delete All Orders", type="secondary"):
+    if st.button("🗑️ Delete All Pending & Completed Orders", type="secondary"):
       c.execute("DELETE FROM orders")
       conn.commit()
       st.success("All orders deleted successfully!")
       st.rerun()
-
