@@ -1294,10 +1294,10 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
-# 5. DUE CLEAR, DELIVERY PLAN & AGENT GROUPED CARDS VIEW (BOX SELECTION UPDATED)
+# 5. DUE CLEAR, DELIVERY PLAN & AGENT GROUPED CARDS VIEW (SLIDING TABS UPDATED)
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
-  st.markdown('<div class="main-title">📋 ডেলিভারি ও ডিউ প্ল্যান (কর্মী সহায়ক মোড)</div>', unsafe_allow_html=True)
+  st.markdown('<div class="main-title">Delivery & Due Plan (ডেলিভারি ও ডিউ প্ল্যান)</div>', unsafe_allow_html=True)
   
   c.execute("SELECT username, fullname FROM users")
   users_data = c.fetchall()
@@ -1309,13 +1309,13 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
   all_parties = [r[0] for r in loc_data]
 
-  # Box Selection Radio for Section Views (Requirement 2)
+  # Sliding Tabs / Select Tabs for Section Views (Requirement Updated)
   selected_task_section = st.radio(
       "Select Section (সেকশন সিলেক্ট করুন):",
       [
-          "🎯 Active Tasks (চলমান কাজ)",
-          "📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
-          "📜 Completed Tasks History (সম্পন্ন কাজ)"
+          "Active Tasks (চলমান কাজ)",
+          "Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
+          "Completed Tasks History (সম্পন্ন কাজ)"
       ],
       horizontal=True,
       label_visibility="collapsed"
@@ -1386,7 +1386,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
     with st.form("easy_assign_form"):
       st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
       
-      # Requirement 1: Allow ANY user (Admin or Staff) to select agent
       current_logged_user = st.session_state["username"]
       sel_ag = st.selectbox(
           "Select Agent (এজেন্ট সিলেক্ট করুন)", 
@@ -1470,7 +1469,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
                 st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
                 st.rerun()
             
-            # Admin can also edit/delete pending tasks if needed
             if st.session_state["user_role"] == "admin":
               if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_pend_task_{row['id']}"):
                 c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
@@ -1486,7 +1484,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   # 5.2 AGENT DATE-WISE SUMMARY SECTION
   # ---------------------------------------------------------
   elif "Agent Date-wise Summary" in selected_task_section:
-    st.markdown("#### 📊 Agent Date-wise & Party Summary (এজেন্ট ও তারিখ অনুযায়ী কাজের বিবরণ)")
+    st.markdown("#### Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
     agent_sum_df = pd.read_sql_query("""
         SELECT t.agent_name, u.fullname as agent_fullname, SUBSTR(t.created_at, 1, 10) as task_date,
                COUNT(t.id) as total_tasks, SUM(CASE WHEN t.status='Completed' THEN 1 ELSE 0 END) as completed_tasks
@@ -1542,7 +1540,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   # 5.3 COMPLETED TASKS HISTORY SECTION
   # ---------------------------------------------------------
   elif "Completed Tasks History" in selected_task_section:
-    st.markdown("#### 📜 Completed Tasks History (সম্পন্ন কাজ)")
+    st.markdown("#### Completed Tasks History (সম্পন্ন কাজ)")
     completed_tasks_df = pd.read_sql_query("""
         SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.created_at, l.address
         FROM task_assignments t
