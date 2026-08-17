@@ -1513,19 +1513,9 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
     if not completed_tasks_df.empty:
       if st.session_state["user_role"] == "admin":
         export_comp_df = completed_tasks_df.copy()
-        # Rename columns and map agent name clearly for the PDF report
-        export_comp_df['Agent Name'] = export_comp_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
-        export_comp_df['Party Name'] = export_comp_df['party_name']
-        export_comp_df['Task Type'] = export_comp_df['task_type']
-        export_comp_df['Due Amount (₹)'] = export_comp_df['due_amount']
-        export_comp_df['Sale Amount (₹)'] = export_comp_df['sale_amount']
-        export_comp_df['Collection Amount (₹)'] = export_comp_df['payment_collected_actual']
-        export_comp_df['Completed Date'] = export_comp_df['created_at']
-        
-        # Select specific columns to display in the exported table
-        export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Due Amount (₹)', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Completed Date']]
-        
-        html_comp_tasks = generate_html_report("Completed Tasks History", export_comp_df_final)
+        export_comp_df['agent_name'] = export_comp_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
+        export_comp_df = export_comp_df[['agent_name', 'party_name', 'task_type', 'due_amount', 'sale_amount', 'payment_collected_actual', 'created_at', 'address']]
+        html_comp_tasks = generate_html_report("Completed Tasks History", export_comp_df)
         col_tc1, col_tc2 = st.columns(2)
         with col_tc1:
           st.download_button(
