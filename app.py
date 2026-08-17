@@ -1715,88 +1715,61 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
             [r['lat'], r['lon']],
             popup=folium.Popup(popup_txt, max_width=250),
             tooltip=name,
-            icon=folium.Icon(color="green", icon="walking", prefix="fa")
+            icon=folium.Icon(color="green", icon="user", prefix="fa")
         ).add_to(l_map)
-      folium.LayerControl().add_to(l_map)
-      st_folium(l_map, width="100%", height=450, key="live_tracking_map")
-    
-    st.write("#### Agent Status Summary:")
-    for idx, r in live_df.iterrows():
-      name = r['fullname'] if pd.notna(r['fullname']) else r['username']
-      st.markdown(f"""
-      <div class="card">
-          <p class="party-title">👤 {name} (`{r['username']}`)</p>
-          <p class="card-text">🕒 Last Active: <b>{r['last_updated']}</b></p>
-          <p class="card-text">✅ Completed Tasks / Deliveries: <b style="color: #34d399;">{r['completed_deliveries']}</b></p>
-      </div>
-      """, unsafe_allow_html=True)
+      st_folium(l_map, width="100%", height=450, key="live_tracking_map_view")
+    else:
+      st.info("No active live GPS locations found for agents.")
   else:
-    st.info("No live agent location data available.")
+    st.info("No agent live tracking data available.")
 
 # =========================================================
 # 9. ADMIN: SETTINGS & AGENTS MANAGEMENT
 # =========================================================
 elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
-  st.write("### ⚙️ Settings & Agents Management (কর্মী ও সেটিংস)")
-  set_tab1, set_tab2 = st.tabs(["👥 Manage Agents (কর্মী যোগ ও মুছুন)", "🔑 Admin Password (পাসওয়ার্ড পরিবর্তন)"])
-  with set_tab1:
-    st.write("#### Add New Staff / Agent (নতুন কর্মী যোগ করুন)")
-    with st.form("add_agent_form", clear_on_submit=True):
-      new_uname = st.text_input("Username (ইউজারনেম, যেমন: agent2)")
-      new_pass = st.text_input("Password (পাসওয়ার্ড)", type="password")
-      new_fname = st.text_input("Full Name (পুরো নাম)")
-      new_phone = st.text_input("Phone Number (ফোন নম্বর)")
-      submit_new_ag = st.form_submit_button("➕ Add Agent (যোগ করুন)", type="primary")
-      if submit_new_ag:
-        if new_uname.strip() and new_pass.strip() and new_fname.strip():
-          try:
-            c.execute(
-                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
-            )
-            conn.commit()
-            st.success("Agent added successfully! (কর্মী যোগ করা হয়েছে!)")
-            st.rerun()
-          except sqlite3.IntegrityError:
-            st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
-        else:
-          st.error("Please fill all required fields.")
+  st.write("### ⚙️ Admin Settings & Staff Management (স্টাফ ম্যানেজমেন্ট)")
+  
+  with st.form("add_new_agent_form", clear_on_submit=True):
+    st.write("#### ➕ Add New Delivery Staff / Agent (নতুন স্টাফ যোগ করুন)")
+    new_username = st.text_input("Username (ইউজারনেম, যেমন: agent2)")
+    new_password = st.text_input("Password (পাসওয়ার্ড)", type="password")
+    new_fullname = st.text_input("Full Name (পূর্ণ নাম)")
+    new_phone = st.text_input("Phone Number (ফোন নম্বর)")
+    submit_new_agent = st.form_submit_button("💾 Save Staff (সেভ করুন)", type="primary")
 
-    st.write("---")
-    st.write("#### Existing Agents List (কর্মীদের তালিকা)")
-    agents_df = pd.read_sql_query("SELECT username, fullname, phone, role, created_at FROM users WHERE role='staff'", conn)
-    if not agents_df.empty:
-      for idx, row in agents_df.iterrows():
-        cols = st.columns([2, 2, 2, 1.5])
-        cols[0].write(f"**{row['fullname']}** (`{row['username']}`)")
-        cols[1].write(row['phone'] if row['phone'] else "No phone")
-        cols[2].write(row['created_at'])
-        if cols[3].button("🗑️ Delete", key=f"del_agent_{row['username']}"):
+    if submit_new_agent:
+      if new_username.strip() and new_password.strip():
+        try:
+          c.execute(
+              "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              (new_username.strip(), new_password.strip(), "staff", new_fullname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
+          )
+          conn.commit()
+          st.success(f"Staff '{new_username}' added successfully! (স্টাফ যোগ করা হয়েছে!)")
+          st.rerun()
+        except sqlite3.IntegrityError:
+          st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
+      else:
+        st.error("Username and password are required. (ইউজারনেম ও পাসওয়ার্ড আবশ্যক।)")
+
+  st.write("---")
+  st.write("#### 📋 Registered Staff List (রেজিস্টার্ড স্টাফ তালিকা)")
+  staff_df = pd.read_sql_query("SELECT username, fullname, phone, role, created_at FROM users", conn)
+  if not staff_df.empty:
+    for idx, row in staff_df.iterrows():
+      cols = st.columns([2, 2, 2, 1.5, 1.5])
+      cols[0].write(f"**{row['username']}**")
+      cols[1].write(row['fullname'] if pd.notna(row['fullname']) else "N/A")
+      cols[2].write(row['phone'] if pd.notna(row['phone']) else "N/A")
+      cols[3].write(f"`{row['role']}`")
+      if row['username'] != 'admin':
+        if cols[4].button("🗑️ Delete", key=f"del_staff_{row['username']}"):
           c.execute("DELETE FROM users WHERE username=?", (row['username'],))
           conn.commit()
-          st.success("Agent deleted successfully!")
+          st.success("Staff deleted! (ডিলিট হয়েছে!)")
           st.rerun()
-        st.write("---")
-    else:
-      st.info("No delivery staff registered yet.")
-
-  with set_tab2:
-    st.write("#### Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
-    with st.form("change_admin_pass_form"):
-      old_p = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_p1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
-      new_p2 = st.text_input("Confirm New Password (আবার নতুন পাসওয়ার্ড দিন)", type="password")
-      submit_ch_pass = st.form_submit_button("🔄 Update Password (আপডেট করুন)", type="primary")
-      if submit_ch_pass:
-        c.execute("SELECT password FROM users WHERE username='admin'")
-        adm_db_pass = c.fetchone()[0]
-        if old_p == adm_db_pass:
-          if new_p1.strip() and new_p1 == new_p2:
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1.strip(),))
-            conn.commit()
-            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
-          else:
-            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
-        else:
-          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
-
+      else:
+        cols[4].write("🔒 Protected")
+      st.write("---")
+  else:
+    st.info("No staff users found.")
