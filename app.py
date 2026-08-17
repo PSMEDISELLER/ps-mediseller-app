@@ -23,11 +23,24 @@ st.set_page_config(
 )
 
 # =========================================================
-# IST TIME HELPER
+# IST TIME & DATE FORMAT HELPERS
 # =========================================================
 def get_ist_time():
     ist_offset = timezone(timedelta(hours=5, minutes=30))
     return datetime.now(ist_offset)
+
+def format_date_display(date_str):
+    if not date_str:
+        return ""
+    try:
+        cleaned = str(date_str).strip()
+        if " " in cleaned:
+            dt = datetime.strptime(cleaned.split(" ")[0], "%Y-%m-%d")
+        else:
+            dt = datetime.strptime(cleaned, "%Y-%m-%d")
+        return dt.strftime("%d.%m.%y")
+    except:
+        return date_str
 
 # =========================================================
 # ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION
@@ -497,7 +510,7 @@ border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-al
           <h2>P. S MEDISELLER</h2>
           <p><b>Allopathy & Ayurvedic Wholesaler</b> | Address: Ledagama 1, Amlagora, Garhbeta, Paschim Medinipur</p>
           <p><b>{title}</b></p>
-          <p>Generated on: {get_ist_time().strftime('%d-%m-%Y %H:%M:%S')} IST</p>
+          <p>Generated on: {get_ist_time().strftime('%d.%m.%y %H:%M:%S')} IST</p>
       </div>
       <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF (প্রিন্ট / পিডিএফ)</button>
       {df.to_html(index=False, classes='table', border=0)}
@@ -901,7 +914,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       cols = st.columns([3, 2, 2])
       cols[0].write(f"Party: **{r_row['Party Name']}**")
       cols[1].write(f"Activity: `{r_row['Activity Type']}`")
-      cols[2].write(f"Date: `{r_row['Work Date']}`")
+      cols[2].write(f"Date: `{format_date_display(r_row['Work Date'])}`")
       st.write("---")
   else:
     st.info("No reports found. (কোনো রিপোর্ট নেই।)")
@@ -1187,11 +1200,8 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
       for d_str in unique_dates:
         date_records = work_df[work_df['work_date'] == d_str]
         count_parties = len(date_records)
-       
-        try:          
-          formatted_d = datetime.strptime(d_str, "%Y-%m-%d").strftime("%d-%m-%Y")
-        except:
-          formatted_d = d_str
+        formatted_d = format_date_display(d_str)
+
         with st.expander(f"📅 Date: {formatted_d} (Total: {count_parties})", expanded=False):
           if st.session_state["user_role"] == "admin":
             if st.button(f"🗑️ Delete Date Data ({formatted_d}) (সব ডিলিট)", key=f"del_date_{d_str}", type="secondary"):
@@ -1282,6 +1292,9 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
               st.success(f"All records for {selected_month} deleted successfully! (মুছে ফেলা হয়েছে!)")
               st.rerun()
           st.write("---")
+        else:
+          st.markdown("<p style='color: #60a5fa; font-size: 13px;'><i>Note: Monthly report downloads and management are restricted to admins only. Agents can only view their summary above.</i></p>", unsafe_allow_html=True)
+
         st.dataframe(report_summary_df, use_container_width=True)
         zero_activity_df = report_summary_df[(report_summary_df["Total Visits"] == 0) & (report_summary_df["Total Orders"] == 0)]
        
@@ -1294,7 +1307,7 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
-# 5. DUE CLEAR, DELIVERY PLAN & AGENT GROUPED CARDS VIEW (SLIDING TABS UPDATED)
+# 5. DUE CLEAR, DELIVERY PLAN & AGENT GROUPED CARDS VIEW
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
   st.markdown('<div class="main-title">Delivery & Due Plan (ডেলিভারি ও ডিউ প্ল্যান)</div>', unsafe_allow_html=True)
@@ -1309,16 +1322,12 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
   all_parties = [r[0] for r in loc_data]
 
-  # Sliding Tabs / Select Tabs for Section Views (Updated as requested to sliding tabs)
   task_tab1, task_tab2, task_tab3 = st.tabs([
       "Active Tasks (চলমান কাজ)",
       "Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
       "Completed Tasks History (সম্পন্ন কাজ)"
   ])
 
-  # ---------------------------------------------------------
-  # 5.1 ACTIVE TASKS SECTION
-  # ---------------------------------------------------------
   with task_tab1:
     if st.session_state["user_role"] == "admin":
       full_tasks_df = pd.read_sql_query("""
@@ -1337,7 +1346,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         export_tasks_df['Sale Amount (₹)'] = export_tasks_df['sale_amount']
         export_tasks_df['Collection Amount (₹)'] = export_tasks_df['payment_collected_actual']
         export_tasks_df['Due Amount (₹)'] = export_tasks_df['due_amount']
-        export_tasks_df['Assigned Date'] = export_tasks_df['created_at']
+        export_tasks_df['Assigned Date'] = export_tasks_df['created_at'].apply(lambda x: format_date_display(x))
         export_tasks_df['Address'] = export_tasks_df['address']
         
         export_tasks_df_final = export_tasks_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Due Amount (₹)', 'Assigned Date', 'Address']]
@@ -1474,9 +1483,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
     else:      
       st.info("No active pending tasks. (কোনো পেন্ডিং টাস্ক নেই।)")
 
-  # ---------------------------------------------------------
-  # 5.2 AGENT DATE-WISE SUMMARY SECTION
-  # ---------------------------------------------------------
   with task_tab2:
     st.markdown("#### Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
     agent_sum_df = pd.read_sql_query("""
@@ -1491,7 +1497,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
       if st.session_state["user_role"] == "admin":
         export_sum_df = agent_sum_df.copy()
         export_sum_df['Agent Name'] = export_sum_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
-        export_sum_df['Date'] = export_sum_df['task_date']
+        export_sum_df['Date'] = export_sum_df['task_date'].apply(lambda x: format_date_display(x))
         export_sum_df['Total Tasks'] = export_sum_df['total_tasks']
         export_sum_df['Completed Tasks'] = export_sum_df['completed_tasks']
         
@@ -1508,7 +1514,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
 
       for idx, row in agent_sum_df.iterrows():
         ag_disp = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name']
-        t_date = row['task_date']
+        t_date = format_date_display(row['task_date'])
         tot = row['total_tasks']
         comp = row['completed_tasks']
 
@@ -1521,8 +1527,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         """, unsafe_allow_html=True)
 
         if st.session_state["user_role"] == "admin":
-          if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{row['agent_name']}_{t_date}"):
-            c.execute("DELETE FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], t_date))
+          if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{row['agent_name']}_{row['task_date']}"):
+            c.execute("DELETE FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], row['task_date']))
             conn.commit()
             st.success("Deleted successfully! (ডিলিট হয়েছে!)")
             st.rerun()
@@ -1530,9 +1536,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
     else:
       st.info("No summary records found.")
 
-  # ---------------------------------------------------------
-  # 5.3 COMPLETED TASKS HISTORY SECTION
-  # ---------------------------------------------------------
   with task_tab3:
     st.markdown("#### Completed Tasks History (সম্পন্ন কাজ)")
     completed_tasks_df = pd.read_sql_query("""
@@ -1552,7 +1555,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         export_comp_df['Due Amount (₹)'] = export_comp_df['due_amount']
         export_comp_df['Sale Amount (₹)'] = export_comp_df['sale_amount']
         export_comp_df['Collection Amount (₹)'] = export_comp_df['payment_collected_actual']
-        export_comp_df['Completed Date'] = export_comp_df['created_at']
+        export_comp_df['Completed Date'] = export_comp_df['created_at'].apply(lambda x: format_date_display(x))
         
         export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Due Amount (₹)', 'Completed Date']]
         
@@ -1635,25 +1638,26 @@ elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
     st.info("No mapped locations available to show on route map. (ম্যাপযুক্ত কোনো লোকেশন নেই।)")
 
 # =========================================================
-# 7. ATTENDANCE (UPDATED WITH DAILY & MONTHLY/AGENT FILTER TABS)
+# 7. ATTENDANCE (UPDATED AS REQUESTED)
 # =========================================================
 elif selected_menu == "📅 Attendance (উপস্থিতি)":
   st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
   
-  c.execute("SELECT username, fullname FROM users")
+  c.execute("SELECT username, fullname, role FROM users")
   att_users_data = c.fetchall()
   agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in att_users_data}
 
   att_tab1, att_tab2 = st.tabs([
       "📅 Daily Attendance (আজকের উপস্থিতি ও চেক-ইন)",
-      "📊 Monthly & Filtered Attendance Report (মাসিক ও কর্মী অনুযায়ী রিপোর্ট)"
+      "📊 Monthly & Agent Attendance Report (মাসিক ও কর্মী উপস্থিতি রিপোর্ট)"
   ])
 
   with att_tab1:
     st.write("#### 📝 Today's Check-in")
     today_date_str = get_ist_time().strftime("%Y-%m-%d")
+    today_display_str = get_ist_time().strftime("%d.%m.%y")
     with st.form("attendance_form"):
-      st.write(f"Today Date: **{today_date_str}**")
+      st.write(f"Today Date: **{today_display_str}**")
       agent_for_att = st.session_state["username"]
       st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
       submit_att = st.form_submit_button("✅ Give Attendance / Check-in (উপস্থিতি দিন)", type="primary")
@@ -1680,54 +1684,83 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         ORDER BY a.check_time DESC
     """, conn, params=(today_date_str,))
     if not today_att_df.empty:
+      # Format Date column for display
+      today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
       st.dataframe(today_att_df, use_container_width=True)
     else:
       st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
 
   with att_tab2:
-    st.write("#### 📊 Attendance History & Agent Filter Report (কর্মী ও তারিখ অনুযায়ী রিপোর্ট)")
-    
-    agent_options = ["All Agents (সব কর্মী)"] + [r[0] for r in att_users_data]
-    agent_labels = {r[0]: (r[1] if r[1] else r[0]) for r in att_users_data}
-    agent_labels["All Agents (সব কর্মী)"] = "All Agents (সব কর্মী)"
-    
-    selected_att_agent = st.selectbox(
-        "Filter by Agent (কর্মী সিলেক্ট করুন)",
-        agent_options,
-        format_func=lambda x: agent_labels.get(x, x),
-        key="att_agent_filter_selectbox"
-    )
-    
-    if selected_att_agent == "All Agents (সব কর্মী)":
-      att_query_df = pd.read_sql_query("""
+    current_role = st.session_state["user_role"]
+    current_user = st.session_state["username"]
+
+    if current_role == "admin":
+      st.write("#### 📊 Agent Attendance Summary & Date-wise Details")
+      st.write("নিচে সব এজেন্টের নামের তালিকা দেওয়া হলো। যেকোনো এজেন্টে ক্লিক বা সিলেক্ট করলে তার পুরো মাসের তারিখ অনুযায়ী উপস্থিতি দেখতে পাবেন:")
+
+      # Get all staff agents
+      c.execute("SELECT username, fullname FROM users WHERE role='staff'")
+      staff_list = c.fetchall()
+
+      if staff_list:
+        for s_user, s_fname in staff_list:
+          display_name = s_fname if s_fname else s_user
+          
+          # Count total attendance for this agent
+          c.execute("SELECT COUNT(*) FROM attendance WHERE username=?", (s_user,))
+          total_att_count = c.fetchone()[0]
+
+          with st.expander(f"👤 Agent: {display_name} (`{s_user}`) — Total Attendance: {total_att_count}", expanded=False):
+            # Fetch date-wise attendance for this agent
+            agent_att_df = pd.read_sql_query("""
+                SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status'
+                FROM attendance
+                WHERE username = ?
+                ORDER BY date DESC, check_time DESC
+            """, conn, params=(s_user,))
+
+            if not agent_att_df.empty:
+              agent_att_df['Date'] = agent_att_df['Date'].apply(lambda x: format_date_display(x))
+              st.dataframe(agent_att_df, use_container_width=True)
+            else:
+              st.info(f"No attendance records found for {display_name}.")
+      else:
+        st.info("No delivery staff agents found.")
+
+      st.write("---")
+      # Admin download complete attendance report
+      all_att_report_df = pd.read_sql_query("""
           SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
           FROM attendance a
           LEFT JOIN users u ON a.username = u.username
           ORDER BY a.date DESC, a.check_time DESC
       """, conn)
+      if not all_att_report_df.empty:
+        all_att_report_df['Date'] = all_att_report_df['Date'].apply(lambda x: format_date_display(x))
+        html_all_att = generate_html_report("Complete Attendance Report", all_att_report_df)
+        st.download_button(
+            label="📥 Download Complete Attendance Report (PDF/HTML)",
+            data=html_all_att,
+            file_name="mediseller_complete_attendance_report.html",
+            mime="text/html",
+            type="primary"
+        )
     else:
-      att_query_df = pd.read_sql_query("""
-          SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
-          FROM attendance a
-          LEFT JOIN users u ON a.username = u.username
-          WHERE a.username = ?
-          ORDER BY a.date DESC, a.check_time DESC
-      """, conn, params=(selected_att_agent,))
-      
-    if not att_query_df.empty:
-      report_title = f"Attendance Report - {agent_labels.get(selected_att_agent, selected_att_agent)}" if selected_att_agent != "All Agents (সব কর্মী)" else "Complete Attendance Report"
-      html_att_rep = generate_html_report(report_title, att_query_df)
-      st.download_button(
-          label="📥 Download Attendance Report (PDF/HTML)",
-          data=html_att_rep,
-          file_name=f"mediseller_attendance_report_{selected_att_agent}.html",
-          mime="text/html",
-          type="primary"
-      )
-      st.write("---")
-      st.dataframe(att_query_df, use_container_width=True)
-    else:
-      st.info("No attendance records found for the selected filter.")
+      # Staff / Agent View: Can only see their own attendance report, cannot download
+      st.write("#### 📊 Your Monthly Attendance Report")
+      staff_att_df = pd.read_sql_query("""
+          SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status'
+          FROM attendance
+          WHERE username = ?
+          ORDER BY date DESC, check_time DESC
+      """, conn, params=(current_user,))
+
+      if not staff_att_df.empty:
+        staff_att_df['Date'] = staff_att_df['Date'].apply(lambda x: format_date_display(x))
+        st.dataframe(staff_att_df, use_container_width=True)
+      else:
+        st.info("You have no attendance records yet.")
+      st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)
 
 # =========================================================
 # 8. ADMIN: LIVE TRACKING
@@ -1813,7 +1846,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         cols = st.columns([2, 2, 2, 1.5])
         cols[0].write(f"**{row['fullname']}** (`{row['username']}`)")
         cols[1].write(row['phone'] if row['phone'] else "No phone")
-        cols[2].write(row['created_at'])
+        cols[2].write(format_date_display(row['created_at']))
         if cols[3].button("🗑️ Delete", key=f"del_agent_{row['username']}"):
           c.execute("DELETE FROM users WHERE username=?", (row['username'],))
           conn.commit()
@@ -1842,4 +1875,3 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
             st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
         else:
           st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
-
