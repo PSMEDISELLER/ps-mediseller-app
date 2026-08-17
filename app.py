@@ -1309,23 +1309,17 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
   all_parties = [r[0] for r in loc_data]
 
-  # Sliding Tabs / Select Tabs for Section Views (Requirement Updated)
-  selected_task_section = st.radio(
-      "Select Section (সেকশন সিলেক্ট করুন):",
-      [
-          "Active Tasks (চলমান কাজ)",
-          "Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
-          "Completed Tasks History (সম্পন্ন কাজ)"
-      ],
-      horizontal=True,
-      label_visibility="collapsed"
-  )
-  st.write("---")
+  # Sliding Tabs / Select Tabs for Section Views (Updated as requested to sliding tabs)
+  task_tab1, task_tab2, task_tab3 = st.tabs([
+      "Active Tasks (চলমান কাজ)",
+      "Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
+      "Completed Tasks History (সম্পন্ন কাজ)"
+  ])
 
   # ---------------------------------------------------------
   # 5.1 ACTIVE TASKS SECTION
   # ---------------------------------------------------------
-  if "Active Tasks" in selected_task_section:
+  with task_tab1:
     if st.session_state["user_role"] == "admin":
       full_tasks_df = pd.read_sql_query("""
           SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address
@@ -1483,7 +1477,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   # ---------------------------------------------------------
   # 5.2 AGENT DATE-WISE SUMMARY SECTION
   # ---------------------------------------------------------
-  elif "Agent Date-wise Summary" in selected_task_section:
+  with task_tab2:
     st.markdown("#### Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
     agent_sum_df = pd.read_sql_query("""
         SELECT t.agent_name, u.fullname as agent_fullname, SUBSTR(t.created_at, 1, 10) as task_date,
@@ -1539,7 +1533,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   # ---------------------------------------------------------
   # 5.3 COMPLETED TASKS HISTORY SECTION
   # ---------------------------------------------------------
-  elif "Completed Tasks History" in selected_task_section:
+  with task_tab3:
     st.markdown("#### Completed Tasks History (সম্পন্ন কাজ)")
     completed_tasks_df = pd.read_sql_query("""
         SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.created_at, l.address
@@ -1641,50 +1635,99 @@ elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
     st.info("No mapped locations available to show on route map. (ম্যাপযুক্ত কোনো লোকেশন নেই।)")
 
 # =========================================================
-# 7. ATTENDANCE
+# 7. ATTENDANCE (UPDATED WITH DAILY & MONTHLY/AGENT FILTER TABS)
 # =========================================================
 elif selected_menu == "📅 Attendance (উপস্থিতি)":
-  st.write("### 📅 Daily Attendance (দৈনিক উপস্থিতি)")
-  today_date_str = get_ist_time().strftime("%Y-%m-%d")
-  with st.form("attendance_form"):
-    st.write(f"Today Date: **{today_date_str}**")
-    agent_for_att = st.session_state["username"]
-    st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
-    submit_att = st.form_submit_button("✅ Give Attendance / Check-in (উপস্থিতি দিন)", type="primary")
-    if submit_att:
-      try:
-        check_time_str = get_ist_time().strftime("%H:%M:%S")
-        c.execute(
-            "INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
-            (agent_for_att, today_date_str, check_time_str, "Present")
-        )
-        conn.commit()
-        st.success("Attendance recorded successfully! (উপস্থিতি নথিভুক্ত হয়েছে!)")
-      except sqlite3.IntegrityError:
-        st.warning("Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)")
+  st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
+  
+  c.execute("SELECT username, fullname FROM users")
+  att_users_data = c.fetchall()
+  agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in att_users_data}
 
-  st.write("---")
-  st.write("#### 📋 Attendance History (উপস্থিতি ইতিহাস)")
-  att_df = pd.read_sql_query("""
-      SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
-      FROM attendance a
-      LEFT JOIN users u ON a.username = u.username
-      ORDER BY a.date DESC, a.check_time DESC
-  """, conn)
-  if not att_df.empty:
-    if st.session_state["user_role"] == "admin":
-      html_att = generate_html_report("Attendance History Report", att_df)
+  att_tab1, att_tab2 = st.tabs([
+      "📅 Daily Attendance (আজকের উপস্থিতি ও চেক-ইন)",
+      "📊 Monthly & Filtered Attendance Report (মাসিক ও কর্মী অনুযায়ী রিপোর্ট)"
+  ])
+
+  with att_tab1:
+    st.write("#### 📝 Today's Check-in")
+    today_date_str = get_ist_time().strftime("%Y-%m-%d")
+    with st.form("attendance_form"):
+      st.write(f"Today Date: **{today_date_str}**")
+      agent_for_att = st.session_state["username"]
+      st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
+      submit_att = st.form_submit_button("✅ Give Attendance / Check-in (উপস্থিতি দিন)", type="primary")
+      if submit_att:
+        try:
+          check_time_str = get_ist_time().strftime("%H:%M:%S")
+          c.execute(
+              "INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
+              (agent_for_att, today_date_str, check_time_str, "Present")
+          )
+          conn.commit()
+          st.success("Attendance recorded successfully! (উপস্থিতি নথিভুক্ত হয়েছে!)")
+          st.rerun()
+        except sqlite3.IntegrityError:
+          st.warning("Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)")
+
+    st.write("---")
+    st.write("#### 📋 Today's Attendance List (আজকের উপস্থিতি তালিকা - সবাই দেখবে)")
+    today_att_df = pd.read_sql_query("""
+        SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
+        FROM attendance a
+        LEFT JOIN users u ON a.username = u.username
+        WHERE a.date = ?
+        ORDER BY a.check_time DESC
+    """, conn, params=(today_date_str,))
+    if not today_att_df.empty:
+      st.dataframe(today_att_df, use_container_width=True)
+    else:
+      st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
+
+  with att_tab2:
+    st.write("#### 📊 Attendance History & Agent Filter Report (কর্মী ও তারিখ অনুযায়ী রিপোর্ট)")
+    
+    agent_options = ["All Agents (সব কর্মী)"] + [r[0] for r in att_users_data]
+    agent_labels = {r[0]: (r[1] if r[1] else r[0]) for r in att_users_data}
+    agent_labels["All Agents (সব কর্মী)"] = "All Agents (সব কর্মী)"
+    
+    selected_att_agent = st.selectbox(
+        "Filter by Agent (কর্মী সিলেক্ট করুন)",
+        agent_options,
+        format_func=lambda x: agent_labels.get(x, x),
+        key="att_agent_filter_selectbox"
+    )
+    
+    if selected_att_agent == "All Agents (সব কর্মী)":
+      att_query_df = pd.read_sql_query("""
+          SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
+          FROM attendance a
+          LEFT JOIN users u ON a.username = u.username
+          ORDER BY a.date DESC, a.check_time DESC
+      """, conn)
+    else:
+      att_query_df = pd.read_sql_query("""
+          SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
+          FROM attendance a
+          LEFT JOIN users u ON a.username = u.username
+          WHERE a.username = ?
+          ORDER BY a.date DESC, a.check_time DESC
+      """, conn, params=(selected_att_agent,))
+      
+    if not att_query_df.empty:
+      report_title = f"Attendance Report - {agent_labels.get(selected_att_agent, selected_att_agent)}" if selected_att_agent != "All Agents (সব কর্মী)" else "Complete Attendance Report"
+      html_att_rep = generate_html_report(report_title, att_query_df)
       st.download_button(
-          label="📥 Download Attendance Report",
-          data=html_att,
-          file_name="mediseller_attendance_report.html",
+          label="📥 Download Attendance Report (PDF/HTML)",
+          data=html_att_rep,
+          file_name=f"mediseller_attendance_report_{selected_att_agent}.html",
           mime="text/html",
           type="primary"
       )
       st.write("---")
-    st.dataframe(att_df, use_container_width=True)
-  else:
-    st.info("No attendance records found.")
+      st.dataframe(att_query_df, use_container_width=True)
+    else:
+      st.info("No attendance records found for the selected filter.")
 
 # =========================================================
 # 8. ADMIN: LIVE TRACKING
@@ -1715,61 +1758,88 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
             [r['lat'], r['lon']],
             popup=folium.Popup(popup_txt, max_width=250),
             tooltip=name,
-            icon=folium.Icon(color="green", icon="user", prefix="fa")
+            icon=folium.Icon(color="green", icon="walking", prefix="fa")
         ).add_to(l_map)
-      st_folium(l_map, width="100%", height=450, key="live_tracking_map_view")
-    else:
-      st.info("No active live GPS locations found for agents.")
+      folium.LayerControl().add_to(l_map)
+      st_folium(l_map, width="100%", height=450, key="live_tracking_map")
+    
+    st.write("#### Agent Status Summary:")
+    for idx, r in live_df.iterrows():
+      name = r['fullname'] if pd.notna(r['fullname']) else r['username']
+      st.markdown(f"""
+      <div class="card">
+          <p class="party-title">👤 {name} (`{r['username']}`)</p>
+          <p class="card-text">🕒 Last Active: <b>{r['last_updated']}</b></p>
+          <p class="card-text">✅ Completed Tasks / Deliveries: <b style="color: #34d399;">{r['completed_deliveries']}</b></p>
+      </div>
+      """, unsafe_allow_html=True)
   else:
-    st.info("No agent live tracking data available.")
+    st.info("No live agent location data available.")
 
 # =========================================================
 # 9. ADMIN: SETTINGS & AGENTS MANAGEMENT
 # =========================================================
 elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
-  st.write("### ⚙️ Admin Settings & Staff Management (স্টাফ ম্যানেজমেন্ট)")
-  
-  with st.form("add_new_agent_form", clear_on_submit=True):
-    st.write("#### ➕ Add New Delivery Staff / Agent (নতুন স্টাফ যোগ করুন)")
-    new_username = st.text_input("Username (ইউজারনেম, যেমন: agent2)")
-    new_password = st.text_input("Password (পাসওয়ার্ড)", type="password")
-    new_fullname = st.text_input("Full Name (পূর্ণ নাম)")
-    new_phone = st.text_input("Phone Number (ফোন নম্বর)")
-    submit_new_agent = st.form_submit_button("💾 Save Staff (সেভ করুন)", type="primary")
+  st.write("### ⚙️ Settings & Agents Management (কর্মী ও সেটিংস)")
+  set_tab1, set_tab2 = st.tabs(["👥 Manage Agents (কর্মী যোগ ও মুছুন)", "🔑 Admin Password (পাসওয়ার্ড পরিবর্তন)"])
+  with set_tab1:
+    st.write("#### Add New Staff / Agent (নতুন কর্মী যোগ করুন)")
+    with st.form("add_agent_form", clear_on_submit=True):
+      new_uname = st.text_input("Username (ইউজারনেম, যেমন: agent2)")
+      new_pass = st.text_input("Password (পাসওয়ার্ড)", type="password")
+      new_fname = st.text_input("Full Name (পুরো নাম)")
+      new_phone = st.text_input("Phone Number (ফোন নম্বর)")
+      submit_new_ag = st.form_submit_button("➕ Add Agent (যোগ করুন)", type="primary")
+      if submit_new_ag:
+        if new_uname.strip() and new_pass.strip() and new_fname.strip():
+          try:
+            c.execute(
+                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
+            )
+            conn.commit()
+            st.success("Agent added successfully! (কর্মী যোগ করা হয়েছে!)")
+            st.rerun()
+          except sqlite3.IntegrityError:
+            st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
+        else:
+          st.error("Please fill all required fields.")
 
-    if submit_new_agent:
-      if new_username.strip() and new_password.strip():
-        try:
-          c.execute(
-              "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-              (new_username.strip(), new_password.strip(), "staff", new_fullname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
-          )
-          conn.commit()
-          st.success(f"Staff '{new_username}' added successfully! (স্টাফ যোগ করা হয়েছে!)")
-          st.rerun()
-        except sqlite3.IntegrityError:
-          st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
-      else:
-        st.error("Username and password are required. (ইউজারনেম ও পাসওয়ার্ড আবশ্যক।)")
-
-  st.write("---")
-  st.write("#### 📋 Registered Staff List (রেজিস্টার্ড স্টাফ তালিকা)")
-  staff_df = pd.read_sql_query("SELECT username, fullname, phone, role, created_at FROM users", conn)
-  if not staff_df.empty:
-    for idx, row in staff_df.iterrows():
-      cols = st.columns([2, 2, 2, 1.5, 1.5])
-      cols[0].write(f"**{row['username']}**")
-      cols[1].write(row['fullname'] if pd.notna(row['fullname']) else "N/A")
-      cols[2].write(row['phone'] if pd.notna(row['phone']) else "N/A")
-      cols[3].write(f"`{row['role']}`")
-      if row['username'] != 'admin':
-        if cols[4].button("🗑️ Delete", key=f"del_staff_{row['username']}"):
+    st.write("---")
+    st.write("#### Existing Agents List (কর্মীদের তালিকা)")
+    agents_df = pd.read_sql_query("SELECT username, fullname, phone, role, created_at FROM users WHERE role='staff'", conn)
+    if not agents_df.empty:
+      for idx, row in agents_df.iterrows():
+        cols = st.columns([2, 2, 2, 1.5])
+        cols[0].write(f"**{row['fullname']}** (`{row['username']}`)")
+        cols[1].write(row['phone'] if row['phone'] else "No phone")
+        cols[2].write(row['created_at'])
+        if cols[3].button("🗑️ Delete", key=f"del_agent_{row['username']}"):
           c.execute("DELETE FROM users WHERE username=?", (row['username'],))
           conn.commit()
-          st.success("Staff deleted! (ডিলিট হয়েছে!)")
+          st.success("Agent deleted successfully!")
           st.rerun()
-      else:
-        cols[4].write("🔒 Protected")
-      st.write("---")
-  else:
-    st.info("No staff users found.")
+        st.write("---")
+    else:
+      st.info("No delivery staff registered yet.")
+
+  with set_tab2:
+    st.write("#### Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    with st.form("change_admin_pass_form"):
+      old_p = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_p1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
+      new_p2 = st.text_input("Confirm New Password (আবার নতুন পাসওয়ার্ড দিন)", type="password")
+      submit_ch_pass = st.form_submit_button("🔄 Update Password (আপডেট করুন)", type="primary")
+      if submit_ch_pass:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        adm_db_pass = c.fetchone()[0]
+        if old_p == adm_db_pass:
+          if new_p1.strip() and new_p1 == new_p2:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1.strip(),))
+            conn.commit()
+            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
+          else:
+            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
+        else:
+          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
+
