@@ -1347,65 +1347,69 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
         )
         st.write("---")
 
-    if st.session_state["user_role"] == "admin":
-      st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-      task_search_text = st.text_input("Search Party for Task", placeholder="Type name, address or keyword...", key="task_party_search_text_input", label_visibility="collapsed")
-      
-      if task_search_text.strip():
-        q_term = f"%{task_search_text.strip()}%"
-        c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
-        filtered_task_parties = [r[0] for r in c.fetchall()]
-      else:
-        filtered_task_parties = all_parties
+    st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
+    task_search_text = st.text_input("Search Party for Task", placeholder="Type name, address or keyword...", key="task_party_search_text_input", label_visibility="collapsed")
+    
+    if task_search_text.strip():
+      q_term = f"%{task_search_text.strip()}%"
+      c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
+      filtered_task_parties = [r[0] for r in c.fetchall()]
+    else:
+      filtered_task_parties = all_parties
 
-      if task_search_text.strip() and filtered_task_parties:
-        st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_task_parties)} found): Select below</p>", unsafe_allow_html=True)
-        sel_pt = st.radio(
-            "Matching Task Parties",
-            filtered_task_parties[:10],
-            key="task_floating_suggestions_radio",
-            label_visibility="collapsed"
-        )    
+    if task_search_text.strip() and filtered_task_parties:
+      st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>💡 Suggestions ({len(filtered_task_parties)} found): Select below</p>", unsafe_allow_html=True)
+      sel_pt = st.radio(
+          "Matching Task Parties",
+          filtered_task_parties[:10],
+          key="task_floating_suggestions_radio",
+          label_visibility="collapsed"
+      )    
+    else:
+      if filtered_task_parties:
+        sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
       else:
-        if filtered_task_parties:
-          sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
-        else:
-          st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
-          sel_pt = ""
+        st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
+        sel_pt = ""
 
-      with st.form("easy_assign_form"):
-        st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
+    with st.form("easy_assign_form"):
+      st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
+      if st.session_state["user_role"] == "admin":
         sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents, format_func=lambda x: agent_name_map.get(x, x))
-        st.write("**Work Type (কাজের ধরণ):**")
-        col_chk1, col_chk2 = st.columns(2)
-        with col_chk1:
-          chk_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)")
-        with col_chk2:
-          chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)")
-        d_amount = st.text_input("Due Amount (ডিউ টাকা)", "0")
-        submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
-        if submit_easy_task:
-          if not sel_pt.strip():
-            st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
+      else:
+        sel_ag = st.session_state["username"]
+        st.markdown(f"Agent: **{agent_name_map.get(sel_ag, sel_ag)}**")
+
+      st.write("**Work Type (কাজের ধরণ):**")
+      col_chk1, col_chk2 = st.columns(2)
+      with col_chk1:
+        chk_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)")
+      with col_chk2:
+        chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)")
+      d_amount = st.text_input("Due Amount (ডিউ টাকা)", "0")
+      submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
+      if submit_easy_task:
+        if not sel_pt.strip():
+          st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
+        else:
+          selected_tasks = []
+          if chk_delivery:
+            selected_tasks.append("Delivery (ডেলিভারি)")
+          if chk_due:
+            selected_tasks.append("Due Collection (ডিউ কালেকশন)")
+          if selected_tasks:
+            t_type_str = " & ".join(selected_tasks)
+            current_date_str = get_ist_time().strftime("%Y-%m-%d")
+            c.execute(
+                "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (sel_ag, sel_pt.strip(), t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+            )
+            conn.commit()
+            st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
+            st.rerun()
           else:
-            selected_tasks = []
-            if chk_delivery:
-              selected_tasks.append("Delivery (ডেলিভারি)")
-            if chk_due:
-              selected_tasks.append("Due Collection (ডিউ কালেকশন)")
-            if selected_tasks:
-              t_type_str = " & ".join(selected_tasks)
-              current_date_str = get_ist_time().strftime("%Y-%m-%d")
-              c.execute(
-                  "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                  (sel_ag, sel_pt.strip(), t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
-              )
-              conn.commit()
-              st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
-              st.rerun()
-            else:
-              st.error("Please select at least one task type (Delivery or Due Collection).")
-      st.write("---")
+            st.error("Please select at least one task type (Delivery or Due Collection).")
+    st.write("---")
 
     st.write("#### 📋 Active Pending Tasks (কর্মচারী অনুযায়ী কাজ)")
     
@@ -1676,3 +1680,4 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
   st.write("#### 📋 Existing Users List")
   users_list_df = pd.read_sql_query("SELECT username, role, fullname, phone, created_at FROM users", conn)
   st.dataframe(users_list_df, use_container_width=True)
+
