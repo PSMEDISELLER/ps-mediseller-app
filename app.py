@@ -1317,7 +1317,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   with task_tab1:
     if st.session_state["user_role"] == "admin":
       full_tasks_df = pd.read_sql_query("""
-          SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.status, t.created_at, l.address
+          SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address
           FROM task_assignments t
           LEFT JOIN users u ON t.agent_name = u.username
           LEFT JOIN locations l ON t.party_name = l.party_name
@@ -1329,11 +1329,13 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         export_tasks_df['Agent Name'] = export_tasks_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
         export_tasks_df['Party Name'] = export_tasks_df['party_name']
         export_tasks_df['Task Type'] = export_tasks_df['task_type']
+        export_tasks_df['Sale Amount (₹)'] = export_tasks_df['sale_amount']
+        export_tasks_df['Collection Amount (₹)'] = export_tasks_df['payment_collected_actual']
         export_tasks_df['Due Amount (₹)'] = export_tasks_df['due_amount']
         export_tasks_df['Assigned Date'] = export_tasks_df['created_at']
         export_tasks_df['Address'] = export_tasks_df['address']
         
-        export_tasks_df_final = export_tasks_df[['Agent Name', 'Party Name', 'Task Type', 'Due Amount (₹)', 'Assigned Date', 'Address']]
+        export_tasks_df_final = export_tasks_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Due Amount (₹)', 'Assigned Date', 'Address']]
        
         html_tasks_report = generate_html_report("Active Tasks & Deliveries Report", export_tasks_df_final)
         st.download_button(
@@ -1531,7 +1533,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         export_comp_df['Collection Amount (₹)'] = export_comp_df['payment_collected_actual']
         export_comp_df['Completed Date'] = export_comp_df['created_at']
         
-        export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Due Amount (₹)', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Completed Date']]
+        export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Due Amount (₹)', 'Completed Date']]
         
         html_comp_tasks = generate_html_report("Completed Tasks History", export_comp_df_final)
         col_tc1, col_tc2 = st.columns(2)
@@ -1770,3 +1772,4 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
             st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
         else:
           st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
+
