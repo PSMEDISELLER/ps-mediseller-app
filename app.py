@@ -714,7 +714,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
         show=True
     )
     street_layer.add_to(advanced_map)
-    satellite_layer = .TileLayer if hasattr(folium, 'TileLayer') else None # Safe guard
+    
     satellite_layer = folium.TileLayer(
         tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
         attr="Google Maps Satellite",
@@ -724,6 +724,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
         show=False
     )
     satellite_layer.add_to(advanced_map)
+    
     folium.Marker(
         [st.session_state["selected_lat"], st.session_state["selected_lon"]],
         popup="<b>Selected Point (নির্বাচিত পয়েন্ট)</b>",
@@ -1352,7 +1353,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
                 </div>
                 """, unsafe_allow_html=True)
                 
-                col_ act1, col_act2 = st.columns(2)
+                col_act1, col_act2 = st.columns(2)
                 with col_act1:
                     if pd.notna(row['lat']) and pd.notna(row['lon']):
                         maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
