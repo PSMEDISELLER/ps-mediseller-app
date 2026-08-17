@@ -764,7 +764,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
-        st.success("GPS location taken! (নেওয়া হয়েছে!)")
+        st.success("GPS location taken! (নেwa হয়েছে!)")
         st.rerun()
       else:
         st.warning("GPS not found! (নেই!)")
@@ -1139,20 +1139,38 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
       st.write("#### 📜 Completed Orders History")
       completed_ord_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Completed' ORDER BY order_date DESC", conn)
       if not completed_ord_df.empty:
-        html_comp_ord = generate_html_report("Completed Orders History", completed_ord_df)
-        st.download_button(
-            label="📥 Download Completed Orders Report (PDF/HTML)",
-            data=html_comp_ord,
-            file_name="mediseller_completed_orders_history.html",
-            mime="text/html",
-            type="primary"
-        )
-        st.write("---")
+        if st.session_state["user_role"] == "admin":
+          html_comp_ord = generate_html_report("Completed Orders History", completed_ord_df)
+          col_dc1, col_dc2 = st.columns(2)
+          with col_dc1:
+            st.download_button(
+                label="📥 Download Completed Orders Report",
+                data=html_comp_ord,
+                file_name="mediseller_completed_orders_history.html",
+                mime="text/html",
+                type="primary"
+            )
+          with col_dc2:
+            if st.button("🗑️ Clear All Completed Orders History (সব ডিলিট)", type="secondary"):
+              c.execute("DELETE FROM orders WHERE status='Completed'")
+              conn.commit()
+              st.success("All completed orders history deleted! (মুছে ফেলা হয়েছে!)")
+              st.rerun()
+          st.write("---")
         for idx, row in completed_ord_df.iterrows():
-          cols = st.columns([2, 4, 2])
+          if st.session_state["user_role"] == "admin":
+            cols = st.columns([2, 4, 2, 1.5])
+          else:
+            cols = st.columns([2, 4, 2])
           cols[0].write(f"**{row['party_name']}**")
           cols[1].write(row['order_details'])
           cols[2].write("✅ Completed (সম্পন্ন)")
+          if st.session_state["user_role"] == "admin":
+            if cols[3].button("🗑️ Delete", key=f"del_comp_ord_{row['id']}"):
+              c.execute("DELETE FROM orders WHERE id=?", (row['id'],))
+              conn.commit()
+              st.success("Deleted!")
+              st.rerun()
           st.write("---")
       else:
         st.info("No completed orders history.")
@@ -1173,13 +1191,21 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
       full_dw_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
       if not full_dw_df.empty:
         html_dw_report = generate_html_report("Daily Work Report", full_dw_df)
-        st.download_button(
-            label="📥 Download Daily Work Report (PDF/HTML)",
-            data=html_dw_report,
-            file_name="mediseller_daily_work_report.html",
-            mime="text/html",
-            type="primary"
-        )
+        col_dw1, col_dw2 = st.columns(2)
+        with col_dw1:
+          st.download_button(
+              label="📥 Download Daily Work Report (PDF/HTML)",
+              data=html_dw_report,
+              file_name="mediseller_daily_work_report.html",
+              mime="text/html",
+              type="primary"
+          )
+        with col_dw2:
+          if st.button("🗑️ Clear All Daily Work Records (সব কাজ মুছুন)", type="secondary"):
+            c.execute("DELETE FROM daily_work")
+            conn.commit()
+            st.success("All daily work records deleted successfully! (সব মুছে ফেলা হয়েছে!)")
+            st.rerun()
         st.write("---")
     work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
     if not work_df.empty:
@@ -1270,13 +1296,21 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         
         if st.session_state["user_role"] == "admin":
           html_summary = generate_html_report(f"Monthly Summary - {selected_month}", report_summary_df)
-          st.download_button(
-              label="📥 Download Monthly Summary Report (PDF/HTML)",
-              data=html_summary,
-              file_name=f"mediseller_monthly_summary_{selected_month}.html",
-              mime="text/html",
-              type="primary"
-          )
+          col_ms1, col_ms2 = st.columns(2)
+          with col_ms1:
+            st.download_button(
+                label="📥 Download Monthly Summary Report",
+                data=html_summary,
+                file_name=f"mediseller_monthly_summary_{selected_month}.html",
+                mime="text/html",
+                type="primary"
+            )
+          with col_ms2:
+            if st.button(f"🗑️ Delete All Work Records for Month: {selected_month}", type="secondary"):
+              c.execute("DELETE FROM daily_work WHERE work_date LIKE ?", (f"{selected_month}%",))
+              conn.commit()
+              st.success(f"All records for {selected_month} deleted successfully! (মুছে ফেলা হয়েছে!)")
+              st.rerun()
           st.write("---")
 
         st.dataframe(report_summary_df, use_container_width=True)
@@ -1288,15 +1322,6 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
           st.dataframe(zero_activity_df, use_container_width=True)
         else:
           st.success("All parties/doctors had at least one visit or order this month! (সব ডাক্তারের ভিজিট বা অর্ডার হয়েছে!)")
-
-        if st.session_state["user_role"] == "admin":
-          st.write("---")
-          st.write("#### ⚙️ Admin Actions for this Month")
-          if st.button(f"🗑️ Delete All Work Records for Month: {selected_month} (এই মাসের সব ডাটা মুছুন)", type="secondary"):
-            c.execute("DELETE FROM daily_work WHERE work_date LIKE ?", (f"{selected_month}%",))
-            conn.commit()
-            st.success(f"All records for {selected_month} deleted successfully! (মুছে ফেলা হয়েছে!)")
-            st.rerun()
       else:
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
@@ -1498,16 +1523,39 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভ�
       disp_comp_df = comp_tasks_df.copy()
       disp_comp_df['agent_name'] = disp_comp_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
       disp_comp_df = disp_comp_df[['agent_name', 'party_name', 'task_type', 'due_amount', 'sale_amount', 'payment_collected_actual', 'created_at']]
+      
+      if st.session_state["user_role"] == "admin":
+        html_comp_tasks = generate_html_report("Completed Tasks History Report", disp_comp_df)
+        col_ct1, col_ct2 = st.columns(2)
+        with col_ct1:
+          st.download_button(
+              label="📥 Download Completed Tasks Report",
+              data=html_comp_tasks,
+              file_name="mediseller_completed_tasks_history.html",
+              mime="text/html",
+              type="primary"
+          )
+        with col_ct2:
+          if st.button("🗑️ Clear All Completed Tasks History", type="secondary"):
+            c.execute("DELETE FROM task_assignments WHERE status='Completed'")
+            conn.commit()
+            st.success("All completed tasks history deleted! (মুছে ফেলা হয়েছে!)")
+            st.rerun()
+        st.write("---")
+
       st.dataframe(disp_comp_df, use_container_width=True)
       
-      html_comp_tasks = generate_html_report("Completed Tasks History Report", disp_comp_df)
-      st.download_button(
-          label="📥 Download Completed Tasks Report (PDF/HTML)",
-          data=html_comp_tasks,
-          file_name="mediseller_completed_tasks_history.html",
-          mime="text/html",
-          type="primary"
-      )
+      if st.session_state["user_role"] == "admin":
+        st.write("#### 🗑️ Delete Specific Completed Task")
+        for idx, row in comp_tasks_df.iterrows():
+          c_cols = st.columns([3, 2, 1])
+          c_cols[0].write(f"Party: **{row['party_name']}** | Agent: `{row['agent_fullname'] if pd.notna(row['agent_fullname']) else row['agent_name']}`")
+          c_cols[1].write(f"Date: `{row['created_at']}`")
+          if c_cols[2].button("🗑️ Delete", key=f"del_comp_task_{row['id']}"):
+            c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
+            conn.commit()
+            st.success("Deleted!")
+            st.rerun()
     else:
       st.info("No completed tasks history found.")
 
@@ -1592,6 +1640,13 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
   st.write("#### 📋 Attendance History (উপস্থিতির ইতিহাস)")
   att_df = pd.read_sql_query("SELECT a.username, u.fullname, a.date, a.check_time, a.status FROM attendance a LEFT JOIN users u ON a.username = u.username ORDER BY a.date DESC, a.check_time DESC", conn)
   if not att_df.empty:
+    if st.session_state["user_role"] == "admin":
+      if st.button("🗑️ Clear All Attendance History (সব উপস্থিতি মুছুন)", type="secondary"):
+        c.execute("DELETE FROM attendance")
+        conn.commit()
+        st.success("All attendance history deleted!")
+        st.rerun()
+      st.write("---")
     st.dataframe(att_df, use_container_width=True)
   else:
     st.info("No attendance records found.")
@@ -1681,3 +1736,18 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
   users_list_df = pd.read_sql_query("SELECT username, role, fullname, phone, created_at FROM users", conn)
   st.dataframe(users_list_df, use_container_width=True)
 
+  st.write("---")
+  st.write("#### ⚠️ Master Database Deletion / Reset Controls (মাস্টার কন্ট্রোল)")
+  col_rst1, col_rst2 = st.columns(2)
+  with col_rst1:
+    if st.button("🗑️ Delete All Locations / Parties", type="secondary"):
+      c.execute("DELETE FROM locations")
+      conn.commit()
+      st.success("All locations deleted successfully!")
+      st.rerun()
+  with col_rst2:
+    if st.button("🗑️ Delete All Pending & Completed Orders", type="secondary"):
+      c.execute("DELETE FROM orders")
+      conn.commit()
+      st.success("All orders deleted successfully!")
+      st.rerun()
