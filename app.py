@@ -1294,10 +1294,11 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         st.info("No parties/doctors found in database. (কোনো পার্টি নেই।)")
 
 # =========================================================
-# 5. DUE CLEAR, DELIVERY PLAN & AGENT GROUPED CARDS VIEW
+# 5. DUE CLEAR, DELIVERY PLAN & AGENT GROUPED CARDS VIEW (BOX SELECTION UPDATED)
 # =========================================================
 elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলিভারি)":
   st.markdown('<div class="main-title">📋 ডেলিভারি ও ডিউ প্ল্যান (কর্মী সহায়ক মোড)</div>', unsafe_allow_html=True)
+  
   c.execute("SELECT username, fullname FROM users")
   users_data = c.fetchall()
   all_agents = [r[0] for r in users_data]
@@ -1308,13 +1309,23 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
   all_parties = [r[0] for r in loc_data]
 
-  task_tab1, task_tab2, task_tab3 = st.tabs([
-      "🎯 Active Tasks (চলমান কাজ)",
-      "📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
-      "📜 Completed Tasks History (সম্পন্ন কাজ)"
-  ])
+  # Box Selection Radio for Section Views (Requirement 2)
+  selected_task_section = st.radio(
+      "Select Section (সেকশন সিলেক্ট করুন):",
+      [
+          "🎯 Active Tasks (চলমান কাজ)",
+          "📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
+          "📜 Completed Tasks History (সম্পন্ন কাজ)"
+      ],
+      horizontal=True,
+      label_visibility="collapsed"
+  )
+  st.write("---")
 
-  with task_tab1:
+  # ---------------------------------------------------------
+  # 5.1 ACTIVE TASKS SECTION
+  # ---------------------------------------------------------
+  if "Active Tasks" in selected_task_section:
     if st.session_state["user_role"] == "admin":
       full_tasks_df = pd.read_sql_query("""
           SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address
@@ -1374,11 +1385,15 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
 
     with st.form("easy_assign_form"):
       st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
-      if st.session_state["user_role"] == "admin":
-        sel_ag = st.selectbox("Select Agent (এজেন্ট সিলেক্ট)", all_agents, format_func=lambda x: agent_name_map.get(x, x))
-      else:
-        sel_ag = st.session_state["username"]
-        st.markdown(f"Agent: **{agent_name_map.get(sel_ag, sel_ag)}**")
+      
+      # Requirement 1: Allow ANY user (Admin or Staff) to select agent
+      current_logged_user = st.session_state["username"]
+      sel_ag = st.selectbox(
+          "Select Agent (এজেন্ট সিলেক্ট করুন)", 
+          all_agents, 
+          index=all_agents.index(current_logged_user) if current_logged_user in all_agents else 0,
+          format_func=lambda x: agent_name_map.get(x, x)
+      )
 
       st.write("**Work Type (কাজের ধরণ):**")
       col_chk1, col_chk2 = st.columns(2)
@@ -1401,7 +1416,6 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
             selected_tasks.append("Due Collection (ডিউ কালেকশন)")
           if selected_tasks:
             t_type_str = " & ".join(selected_tasks)
-            current_date_str = get_ist_time().strftime("%Y-%m-%d")
             c.execute(
                 "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (sel_ag, sel_pt.strip(), t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
@@ -1455,11 +1469,23 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
                 conn.commit()
                 st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
                 st.rerun()
+            
+            # Admin can also edit/delete pending tasks if needed
+            if st.session_state["user_role"] == "admin":
+              if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_pend_task_{row['id']}"):
+                c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
+                conn.commit()
+                st.success("Task deleted!")
+                st.rerun()
+
             st.write("---")
     else:      
       st.info("No active pending tasks. (কোনো পেন্ডিং টাস্ক নেই।)")
 
-  with task_tab2:
+  # ---------------------------------------------------------
+  # 5.2 AGENT DATE-WISE SUMMARY SECTION
+  # ---------------------------------------------------------
+  elif "Agent Date-wise Summary" in selected_task_section:
     st.markdown("#### 📊 Agent Date-wise & Party Summary (এজেন্ট ও তারিখ অনুযায়ী কাজের বিবরণ)")
     agent_sum_df = pd.read_sql_query("""
         SELECT t.agent_name, u.fullname as agent_fullname, SUBSTR(t.created_at, 1, 10) as task_date,
@@ -1512,7 +1538,10 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
     else:
       st.info("No summary records found.")
 
-  with task_tab3:
+  # ---------------------------------------------------------
+  # 5.3 COMPLETED TASKS HISTORY SECTION
+  # ---------------------------------------------------------
+  elif "Completed Tasks History" in selected_task_section:
     st.markdown("#### 📜 Completed Tasks History (সম্পন্ন কাজ)")
     completed_tasks_df = pd.read_sql_query("""
         SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.created_at, l.address
