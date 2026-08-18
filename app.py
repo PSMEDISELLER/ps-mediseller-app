@@ -409,8 +409,7 @@ CREATE TABLE IF NOT EXISTS task_assignments (
 """)
 c.execute("""
 CREATE TABLE IF NOT EXISTS attendance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
     date TEXT NOT NULL,
     check_time TEXT NOT NULL,
     status TEXT DEFAULT 'Present',
@@ -1639,7 +1638,7 @@ elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
     st.info("No mapped locations available to show on route map. (ম্যাপযুক্ত কোনো লোকেশন নেই।)")
 
 # =========================================================
-# 7. ATTENDANCE
+# 7. ATTENDANCE (UPDATED AS REQUESTED)
 # =========================================================
 elif selected_menu == "📅 Attendance (উপস্থিতি)":
   st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
@@ -1685,6 +1684,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         ORDER BY a.check_time DESC
     """, conn, params=(today_date_str,))
     if not today_att_df.empty:
+      # Format Date column for display
       today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
       st.dataframe(today_att_df, use_container_width=True)
     else:
@@ -1698,6 +1698,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
       st.write("#### 📊 Agent Attendance Summary & Date-wise Details")
       st.write("নিচে সব এজেন্টের নামের তালিকা দেওয়া হলো। যেকোনো এজেন্টে ক্লিক বা সিলেক্ট করলে তার পুরো মাসের তারিখ অনুযায়ী উপস্থিতি দেখতে পাবেন:")
 
+      # Get all staff agents
       c.execute("SELECT username, fullname FROM users WHERE role='staff'")
       staff_list = c.fetchall()
 
@@ -1705,10 +1706,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         for s_user, s_fname in staff_list:
           display_name = s_fname if s_fname else s_user
           
+          # Count total attendance for this agent
           c.execute("SELECT COUNT(*) FROM attendance WHERE username=?", (s_user,))
           total_att_count = c.fetchone()[0]
 
           with st.expander(f"👤 Agent: {display_name} (`{s_user}`) — Total Attendance: {total_att_count}", expanded=False):
+            # Fetch date-wise attendance for this agent
             agent_att_df = pd.read_sql_query("""
                 SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status'
                 FROM attendance
@@ -1725,6 +1728,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         st.info("No delivery staff agents found.")
 
       st.write("---")
+      # Admin download complete attendance report
       all_att_report_df = pd.read_sql_query("""
           SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
           FROM attendance a
@@ -1742,6 +1746,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
             type="primary"
         )
     else:
+      # Staff / Agent View: Can only see their own attendance report, cannot download
       st.write("#### 📊 Your Monthly Attendance Report")
       staff_att_df = pd.read_sql_query("""
           SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status'
@@ -1870,4 +1875,3 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
             st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
         else:
           st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
-
