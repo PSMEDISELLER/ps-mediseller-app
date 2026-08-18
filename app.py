@@ -503,6 +503,12 @@ if reg_user and reg_pass:
     conn.commit()
   st.session_state["username"] = reg_user
   st.session_state["user_role"] = "staff"
+  # Automatically store in localStorage so PWA app shortcut remembers logged-in agent session permanently
+  st.markdown(f"""
+  <script>
+      localStorage.setItem('ps_mediseller_user', '{reg_user}');
+  </script>
+  """, unsafe_allow_html=True)
   st.success(f"Agent account registered & logged in successfully! Welcome, {reg_name or reg_user}!")
   st.query_params.clear()
   st.rerun()
@@ -1857,13 +1863,30 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
       gen_btn = st.form_submit_button("✨ Generate Invite Link (লিংক তৈরি করুন)", type="primary")
       if gen_btn:
         if inv_fname.strip() and inv_uname.strip() and inv_pass.strip():
-          base_url = "https://psmediseller.streamlit.app" # or current host
-          invite_url = f"/?reg_user={urllib.parse.quote(inv_uname.strip())}&reg_pass={urllib.parse.quote(inv_pass.strip())}&reg_name={urllib.parse.quote(inv_fname.strip())}&reg_phone={urllib.parse.quote(inv_phone.strip())}"
-          st.success("✅ Invite Link Generated Successfully! Copy below:")
-          st.code(invite_url, language="text")
-          st.markdown(f"**WhatsApp Share Text:**<br>`P.S Mediseller অ্যাপে যোগ দিতে নিচের লিংকে ক্লিক করুন: {invite_url}`", unsafe_allow_html=True)
+          st.session_state["generated_invite"] = {
+              "uname": inv_uname.strip(),
+              "pass": inv_pass.strip(),
+              "name": inv_fname.strip(),
+              "phone": inv_phone.strip()
+          }
         else:
           st.error("Please fill Name, Username and Password.")
+
+    if st.session_state.get("generated_invite"):
+      gi = st.session_state["generated_invite"]
+      base_url = "https://psmediseller.streamlit.app"
+      invite_url = f"{base_url}/?reg_user={urllib.parse.quote(gi['uname'])}&reg_pass={urllib.parse.quote(gi['pass'])}&reg_name={urllib.parse.quote(gi['name'])}&reg_phone={urllib.parse.quote(gi['phone'])}"
+      
+      st.success("✅ Invite Link Generated Successfully! Tap or copy below:")
+      st.markdown(f"""
+      <div style="background: #0f172a; border: 2px solid #3b82f6; border-radius: 10px; padding: 15px; margin-top: 10px;">
+          <p style="margin: 0 0 8px 0; color: #60a5fa !important; font-weight: 600; font-size: 14px;">🔗 Direct Touchable Link (টাচ করে খুলুন):</p>
+          <a href="{invite_url}" target="_blank" style="color: #38bdf8; font-weight: bold; word-break: break-all; font-size: 15px; text-decoration: underline;">{invite_url}</a>
+          <br><br>
+          <p style="margin: 0 0 4px 0; color: #cbd5e1 !important; font-size: 13px;"><b>WhatsApp Share Text (হোয়াটসঅ্যাপে পাঠান):</b></p>
+          <p style="background: #1e293b; padding: 10px; border-radius: 6px; color: #f8fafc; font-size: 13px; word-break: break-all; margin: 0;">P.S Mediseller অ্যাপে যোগ দিতে নিচের লিংকে ক্লিক করুন:<br>{invite_url}</p>
+      </div>
+      """, unsafe_allow_html=True)
 
     st.write("---")
     st.write("#### 👥 Total Registered Agents List (সকল নিবন্ধিত কর্মী)")
