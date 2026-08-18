@@ -1850,7 +1850,7 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
     st.info("No live agent location data available yet.")
 
 # =========================================================
-# 9. ADMIN: SETTINGS & AGENTS MANAGEMENT (UPDATED FEATURE-RICH)
+# 9. ADMIN: SETTINGS & AGENTS MANAGEMENT (UPDATED & FIXED)
 # =========================================================
 elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
   st.write("### ⚙️ Settings & Agents Management (কর্মী ও সেটিংস)")
@@ -1887,13 +1887,19 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
 
   # TAB 1: MANAGE AGENTS & SHAREABLE JOIN LINK
   with set_tab1:
-    st.write("#### 🔗 Agent Shareable Join Link (এজেন্ট যুক্ত করার লিংক)")
-    # Get current host URL dynamically or create standard app link
-    current_url = streamlit_js_eval(js_expressions="window.location.origin + window.location.pathname", key="get_current_window_url")
-    join_link = f"{current_url}?join=true" if current_url else "https://your-app-url.streamlit.app/?join=true"
+    st.write("#### 🔗 Agent Shareable Join Link (এজেন্ট যুক্ত করার লিঙ্ক)")
+    
+    # Safe & clean URL fetcher fixing the blank iframe screen bug
+    eval_parent_url = streamlit_js_eval(js_expressions="window.parent.location.origin + window.parent.location.pathname", key="get_parent_window_url_clean")
+    if eval_parent_url and "component" not in eval_parent_url:
+        clean_base_url = eval_parent_url.rstrip("/")
+    else:
+        clean_base_url = "https://ps-mediseller-app-gcanjbehuut7h9rzk4xzfg.streamlit.app"
+        
+    join_link = f"{clean_base_url}/?join=true"
     
     st.code(join_link, language="text")
-    st.info("💡 এই লিঙ্কটি আপনি আপনার এজেন্টদের হোয়াটসঅ্যাপে বা মেসেজে শেয়ার করতে পারেন। তারা এই লিঙ্কে গিয়ে রেজিস্ট্রেশন করলে তাদের নাম নিচে যুক্ত হয়ে যাবে এবং আপনি চাইলে তাদের নাম বা তথ্য এখান থেকে সম্পাদন (Edit) করতে পারবেন।")
+    st.info("💡 এই লিঙ্কটি আপনি আপনার নতুন এজেন্টদের হোয়াটসঅ্যাপ বা মেসেজে কপি করে শেয়ার করবেন। তাঁরা এই লিঙ্ক খুললে সরাসরি নাম, ফোন নম্বর ও পাসওয়ার্ড দিয়ে একাউন্ট তৈরি করতে পারবে এবং সাথে সাথে নিচের লিস্টে যুক্ত হবে।")
 
     st.write("---")
     st.write("#### ➕ Add New Staff / Agent Manually")
