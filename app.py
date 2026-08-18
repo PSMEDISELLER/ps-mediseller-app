@@ -1684,7 +1684,6 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         ORDER BY a.check_time DESC
     """, conn, params=(today_date_str,))
     if not today_att_df.empty:
-      # Format Date column for display
       today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
       st.dataframe(today_att_df, use_container_width=True)
     else:
@@ -1698,7 +1697,6 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
       st.write("#### 📊 Agent Attendance Summary & Date-wise Details")
       st.write("নিচে সব এজেন্টের নামের তালিকা দেওয়া হলো। যেকোনো এজেন্টে ক্লিক বা সিলেক্ট করলে তার পুরো মাসের তারিখ অনুযায়ী উপস্থিতি দেখতে পাবেন:")
 
-      # Get all staff agents
       c.execute("SELECT username, fullname FROM users WHERE role='staff'")
       staff_list = c.fetchall()
 
@@ -1706,12 +1704,10 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         for s_user, s_fname in staff_list:
           display_name = s_fname if s_fname else s_user
           
-          # Count total attendance for this agent
           c.execute("SELECT COUNT(*) FROM attendance WHERE username=?", (s_user,))
           total_att_count = c.fetchone()[0]
 
           with st.expander(f"👤 Agent: {display_name} (`{s_user}`) — Total Attendance: {total_att_count}", expanded=False):
-            # Fetch date-wise attendance for this agent
             agent_att_df = pd.read_sql_query("""
                 SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status'
                 FROM attendance
@@ -1728,7 +1724,6 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
         st.info("No delivery staff agents found.")
 
       st.write("---")
-      # Admin download complete attendance report
       all_att_report_df = pd.read_sql_query("""
           SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
           FROM attendance a
@@ -1746,7 +1741,6 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
             type="primary"
         )
     else:
-      # Staff / Agent View: Can only see their own attendance report, cannot download
       st.write("#### 📊 Your Monthly Attendance Report")
       staff_att_df = pd.read_sql_query("""
           SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status'
@@ -1763,51 +1757,70 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
       st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)
 
 # =========================================================
-# 8. ADMIN: LIVE TRACKING
+# 8. ADMIN: LIVE TRACKING (CUSTOM REDESIGNED)
 # =========================================================
 elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state["user_role"] == "admin":
   st.write("### 📊 Live Agent Tracking (লাইভ এজেন্ট ট্র্যাকিং)")
+  st.markdown("<p style='color: #38bdf8; font-size: 13px;'><i>💡 Note: This page automatically refreshes every 10 seconds to show the latest background GPS pings from all active agents.</i></p>", unsafe_allow_html=True)
+
+  # Auto-refresh every 10 seconds using a lightweight JS script
+  st.components.v1.html("""
+  <script>
+  setTimeout(function(){
+      window.location.reload();
+  }, 10000);
+  </script>
+  """, height=0)
+
   live_df = pd.read_sql_query("""
-      SELECT a.username, u.fullname, a.lat, a.lon, a.last_updated, a.completed_deliveries
+      SELECT a.username, u.fullname, u.phone, a.lat, a.lon, a.last_updated, a.completed_deliveries
       FROM agent_live_locations a
       LEFT JOIN users u ON a.username = u.username
   """, conn)
+
   if not live_df.empty:
-    valid_live = live_df[live_df['lat'].notna() & live_df['lon'].notna()]
-    if not valid_live.empty:
-      avg_lat = valid_live['lat'].mean()
-      avg_lon = valid_live['lon'].mean()
-      l_map = folium.Map(location=[avg_lat, avg_lon], zoom_start=13, tiles=None)
-      folium.TileLayer(
-          tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-          attr="Google Maps Street",
-          name="Street View",
-          show=True
-      ).add_to(l_map)
-      for idx, r in valid_live.iterrows():
-        name = r['fullname'] if pd.notna(r['fullname']) else r['username']
-        popup_txt = f"<b>{name}</b><br>Updated: {r['last_updated']}<br>Completed Tasks: {r['completed_deliveries']}"
-        folium.Marker(
-            [r['lat'], r['lon']],
-            popup=folium.Popup(popup_txt, max_width=250),
-            tooltip=name,
-            icon=folium.Icon(color="green", icon="walking", prefix="fa")
-        ).add_to(l_map)
-      folium.LayerControl().add_to(l_map)
-      st_folium(l_map, width="100%", height=450, key="live_tracking_map")
-    
-    st.write("#### Agent Status Summary:")
     for idx, r in live_df.iterrows():
-      name = r['fullname'] if pd.notna(r['fullname']) else r['username']
-      st.markdown(f"""
-      <div class="card">
-          <p class="party-title">👤 {name} (`{r['username']}`)</p>
-          <p class="card-text">🕒 Last Active: <b>{r['last_updated']}</b></p>
-          <p class="card-text">✅ Completed Tasks / Deliveries: <b style="color: #34d399;">{r['completed_deliveries']}</b></p>
-      </div>
-      """, unsafe_allow_html=True)
+      name = r['fullname'] if pd.notna(r['fullname']) and r['fullname'] else r['username']
+      username = r['username']
+      phone = r['phone'] if pd.notna(r['phone']) else "N/A"
+      lat = r['lat']
+      lon = r['lon']
+      last_up = r['last_updated']
+      completed = r['completed_deliveries']
+
+      # Calculate time elapsed since last update
+      time_ago_str = "Never"
+      if pd.notna(last_up):
+        try:
+          up_dt = datetime.strptime(str(last_up), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+          diff_sec = (get_ist_time() - up_dt).total_seconds()
+          if diff_sec < 60:
+            time_ago_str = f"{int(diff_sec)} seconds ago"
+          elif diff_sec < 3600:
+            time_ago_str = f"{int(diff_sec // 60)} minutes ago"
+          else:
+            time_ago_str = f"{int(diff_sec // 3600)} hours ago"
+        except:
+          time_ago_str = str(last_up)
+
+      with st.expander(f"👤 Agent: {name} (`{username}`) — Last Active: {time_ago_str}", expanded=False):
+        st.markdown(f"""
+        - **Full Name:** {name}
+        - **Username:** `{username}`
+        - **Phone:** {phone}
+        - **Completed Tasks:** <b style="color: #34d399;">{completed}</b>
+        - **Last Updated Time:** `{last_up if pd.notna(last_up) else 'No update yet'}` ({time_ago_str})
+        - **Last Known Coordinates:** `{lat}, {lon}`
+        """, unsafe_allow_html=True)
+
+        if pd.notna(lat) and pd.notna(lon):
+          google_maps_track_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+          st.markdown(f'<a href="{google_maps_track_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:600; font-size:15px; margin-top:10px; box-shadow: 0 4px 12px rgba(16,185,129,0.4);">🗺️ Track Agent on Google Maps (গুগল ম্যাপে ট্র্যাক করুন)</button></a>', unsafe_allow_html=True)
+        else:
+          st.warning("GPS coordinates not yet available for this agent.")
+        st.write("---")
   else:
-    st.info("No live agent location data available.")
+    st.info("No live agent location data available yet.")
 
 # =========================================================
 # 9. ADMIN: SETTINGS & AGENTS MANAGEMENT
