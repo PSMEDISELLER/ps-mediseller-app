@@ -293,45 +293,12 @@ div[data-testid="stTextArea"] div p,
     color: #fbbf24 !important;
     border-radius: 10px !important;
 }
-.agent-card {
-    background: #161b22;
-    border: 1px solid #30363d;
-    padding: 20px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-}
-.status-active {
-    background-color: #238636;
-    color: white;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-weight: bold;
-}
 .main-title {
     font-size: 24px;
     font-weight: bold;
     color: #ffffff;
     text-align: center;
     margin-bottom: 20px;
-}
-.card {
-    background-color: #1e1e2f;
-    padding: 18px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-    border: 1px solid #33334d;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-.party-title {
-    color: #00ffcc;
-    font-size: 20px;
-    font-weight: bold;
-    margin-bottom: 8px;
-}
-.card-text {
-    color: #e0e0e0;
-    font-size: 16px;
-    margin: 4px 0;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -416,6 +383,16 @@ CREATE TABLE IF NOT EXISTS attendance (
     UNIQUE(username, date)
 )
 """)
+c.execute("""
+CREATE TABLE IF NOT EXISTS trash_bin (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_table TEXT,
+    record_id INTEGER,
+    title TEXT,
+    details TEXT,
+    deleted_at TEXT
+)
+""")
 
 c.execute("PRAGMA table_info(locations)")
 existing_cols_loc = [row[1] for row in c.fetchall()]
@@ -455,26 +432,6 @@ if c.fetchone()[0] == 0:
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
             ("delivery", "user123", "staff", "Delivery Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
   conn.commit()
-
-current_dt_str = get_ist_time()
-c.execute("SELECT id, order_date, status FROM orders")
-for row_ord in c.fetchall():
-  try:    
-    o_time = datetime.strptime(row_ord[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-    if (current_dt_str - o_time) > timedelta(days=7):
-      c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
-  except:
-    pass
-
-c.execute("SELECT id, created_at, status FROM task_assignments")
-for row_task in c.fetchall():
-  try:
-    t_time = datetime.strptime(row_task[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-    if (current_dt_str - t_time) > timedelta(hours=48):
-      c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
-  except:
-    pass
-conn.commit()
 
 # =========================================================
 # PROFESSIONAL HTML/PDF REPORT GENERATOR HELPER
@@ -529,6 +486,27 @@ if "user_role" not in st.session_state:
   st.session_state["user_role"] = "staff"
 
 query_params = st.query_params
+
+# Handle Agent registration invite token if present in URL
+reg_user = query_params.get("reg_user", None)
+reg_pass = query_params.get("reg_pass", None)
+reg_name = query_params.get("reg_name", None)
+reg_phone = query_params.get("reg_phone", None)
+
+if reg_user and reg_pass:
+  c.execute("SELECT username FROM users WHERE username=?", (reg_user,))
+  if not c.fetchone():
+    c.execute(
+        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (reg_user, reg_pass, "staff", reg_name or reg_user, reg_phone or "", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
+    )
+    conn.commit()
+  st.session_state["username"] = reg_user
+  st.session_state["user_role"] = "staff"
+  st.success(f"Agent account registered & logged in successfully! Welcome, {reg_name or reg_user}!")
+  st.query_params.clear()
+  st.rerun()
+
 login_user = query_params.get("login", None)
 saved_user_js = streamlit_js_eval(js_expressions="localStorage.getItem('ps_mediseller_user')", key="get_saved_user_storage")
 target_login = None
@@ -920,7 +898,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
     st.info("No reports found. (কোনো রিপোর্ট নেই।)")
 
 # =========================================================
-# 2. SEARCH PARTY DETAILS & ADMIN DELETE OPTION
+# 2. SEARCH PARTY DETAILS & ADMIN DELETE OPTION (WITH TRASH BIN)
 # =========================================================
 elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও বিবরণ)":
   st.write("### 🔍 Search & Party Management (সার্চ ও ম্যানেজমেন্ট)")
@@ -1005,7 +983,7 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
     st.markdown("---")    
     st.stop()
 
-  st.write("🔍 **Search Party/Doctor (পার্টি খুঁজুনজু):**")
+  st.write("🔍 **Search Party/Doctor (পার্টি খুঁজুন):**")
   master_search_query = st.text_input("Search", placeholder="Type name, address or keyword and press enter...", key="master_search_input_box", label_visibility="collapsed")
   if master_search_query.strip():
     q_term = f"%{master_search_query.strip()}%"
@@ -1046,9 +1024,11 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
           st.rerun()
         if st.session_state["user_role"] == "admin":
           if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_doc_search_{row['id']}"):
+            c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                      ("locations", row['id'], row['party_name'], f"Address: {row['address']}, Phone: {row['party_phone']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
             c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
             conn.commit()
-            st.success("Deleted! (ডিলিট হয়েছে!)")
+            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
             st.rerun()
         st.write("---")
     else:
@@ -1070,9 +1050,11 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
       cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:600;">🧭 Direction (ডিরেকশন)</button></a>', unsafe_allow_html=True)
       if st.session_state["user_role"] == "admin":
         if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_loc_search_{row['id']}"):
+          c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                    ("locations", row['id'], row['party_name'], f"Address: {row['address']}, Phone: {row['party_phone']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
           c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
           conn.commit()
-          st.success("Deleted! (ডিলিট হয়েছে!)")
+          st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
           st.rerun()
       st.write("---")
   else:
@@ -1125,10 +1107,11 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
   if ord_tab2 is not None:
     with ord_tab2:
       st.write("#### 📜 Completed Orders History")
-      completed_ord_df = pd.read_sql_query("SELECT party_name AS 'Party Name', order_details AS 'Order Details', order_date AS 'Order Date' FROM orders WHERE status='Completed' ORDER BY order_date DESC", conn)
+      completed_ord_df = pd.read_sql_query("SELECT id, party_name, order_details, order_date FROM orders WHERE status='Completed' ORDER BY order_date DESC", conn)
       if not completed_ord_df.empty:
         if st.session_state["user_role"] == "admin":
-          html_comp_ord = generate_html_report("Completed Orders History", completed_ord_df)
+          exp_df = completed_ord_df.rename(columns={"party_name": "Party Name", "order_details": "Order Details", "order_date": "Order Date"})[["Party Name", "Order Details", "Order Date"]]
+          html_comp_ord = generate_html_report("Completed Orders History", exp_df)
           col_dc1, col_dc2 = st.columns(2)
           with col_dc1:
             st.download_button(
@@ -1140,9 +1123,12 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
             )
           with col_dc2:
             if st.button("🗑️ Clear All Completed Orders History (সব ডিলিট)", type="secondary"):
+              for r_id, p_n, o_det in completed_ord_df[['id', 'party_name', 'order_details']].values:
+                c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                          ("orders", r_id, p_n, f"Details: {o_det}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
               c.execute("DELETE FROM orders WHERE status='Completed'")
               conn.commit()
-              st.success("All completed orders history deleted! (মুছে ফেলা হয়েছে!)")
+              st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
               st.rerun()
           st.write("---")
         for idx, row in completed_ord_df.iterrows():
@@ -1150,14 +1136,16 @@ elif selected_menu == "📦 Pending Orders (বাকি অর্ডার)":
             cols = st.columns([2, 4, 2, 1.5])
           else:
             cols = st.columns([2, 4, 2])
-          cols[0].write(f"**{row['Party Name']}**")
-          cols[1].write(row['Order Details'])
+          cols[0].write(f"**{row['party_name']}**")
+          cols[1].write(row['order_details'])
           cols[2].write("✅ Completed (সম্পন্ন)")
           if st.session_state["user_role"] == "admin":
-            if cols[3].button("🗑️ Delete", key=f"del_comp_ord_{row.get('id', idx)}"):
-              c.execute("DELETE FROM orders WHERE id=?", (row.get('id', idx),))
+            if cols[3].button("🗑️ Delete", key=f"del_comp_ord_{row['id']}"):
+              c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                        ("orders", row['id'], row['party_name'], f"Details: {row['order_details']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
+              c.execute("DELETE FROM orders WHERE id=?", (row['id'],))
               conn.commit()
-              st.success("Deleted!")
+              st.success("Moved to Recycle Bin!")
               st.rerun()
           st.write("---")
       else:
@@ -1189,9 +1177,13 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
           )
         with col_dw2:
           if st.button("🗑️ Clear All Daily Work Records (সব কাজ মুছুন)", type="secondary"):
+            c.execute("SELECT id, party_name, activity_type, work_date FROM daily_work")
+            for r_id, p_n, a_t, w_d in c.fetchall():
+              c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                        ("daily_work", r_id, p_n, f"Activity: {a_t}, Date: {w_d}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
             c.execute("DELETE FROM daily_work")
             conn.commit()
-            st.success("All daily work records deleted successfully! (সব মুছে ফেলা হয়েছে!)")
+            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
             st.rerun()
         st.write("---")
     work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
@@ -1205,9 +1197,12 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
         with st.expander(f"📅 Date: {formatted_d} (Total: {count_parties})", expanded=False):
           if st.session_state["user_role"] == "admin":
             if st.button(f"🗑️ Delete Date Data ({formatted_d}) (সব ডিলিট)", key=f"del_date_{d_str}", type="secondary"):
+              for idx, w_r in date_records.iterrows():
+                c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                          ("daily_work", w_r['id'], w_r['party_name'], f"Activity: {w_r['activity_type']}, Date: {w_r['work_date']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
               c.execute("DELETE FROM daily_work WHERE work_date=?", (d_str,))
               conn.commit()
-              st.success("Deleted! (মুছে ফেলা হয়েছে!)")
+              st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
               st.rerun()
             st.write("---")
           for idx, w_row in date_records.iterrows():
@@ -1217,9 +1212,11 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
            
             if st.session_state["user_role"] == "admin":
               if cols[2].button("🗑️ Delete (ডিলিট)", key=f"del_dw_{w_row['id']}"):
+                c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                          ("daily_work", w_row['id'], w_row['party_name'], f"Activity: {w_row['activity_type']}, Date: {w_row['work_date']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
                 c.execute("DELETE FROM daily_work WHERE id=?", (w_row['id'],))
                 conn.commit()
-                st.success("Deleted! (ডিলিট হয়েছে!)")
+                st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                 st.rerun()
             else:
               cols[2].write("🔒 Locked (লকড)")
@@ -1287,9 +1284,13 @@ elif selected_menu == "📋 Daily & Monthly Work (দৈনিক ও মাস�
             )
           with col_ms2:
             if st.button(f"🗑️ Delete All Work Records for Month: {selected_month}", type="secondary"):
+              c.execute("SELECT id, party_name, activity_type, work_date FROM daily_work WHERE work_date LIKE ?", (f"{selected_month}%",))
+              for r_id, p_n, a_t, w_d in c.fetchall():
+                c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                          ("daily_work", r_id, p_n, f"Activity: {a_t}, Date: {w_d}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
               c.execute("DELETE FROM daily_work WHERE work_date LIKE ?", (f"{selected_month}%",))
               conn.commit()
-              st.success(f"All records for {selected_month} deleted successfully! (মুছে ফেলা হয়েছে!)")
+              st.success(f"Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
               st.rerun()
           st.write("---")
         else:
@@ -1474,9 +1475,11 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
             
             if st.session_state["user_role"] == "admin":
               if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_pend_task_{row['id']}"):
+                c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                          ("task_assignments", row['id'], row['party_name'], f"Task: {row['task_type']}, Due: {row['due_amount']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
                 c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
                 conn.commit()
-                st.success("Task deleted!")
+                st.success("Moved to Recycle Bin!")
                 st.rerun()
 
             st.write("---")
@@ -1528,9 +1531,13 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
 
         if st.session_state["user_role"] == "admin":
           if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{row['agent_name']}_{row['task_date']}"):
+            c.execute("SELECT id, party_name, task_type FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], row['task_date']))
+            for t_id, tp_n, tt_t in c.fetchall():
+              c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                        ("task_assignments", t_id, tp_n, f"Task: {tt_t}, Date: {row['task_date']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
             c.execute("DELETE FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], row['task_date']))
             conn.commit()
-            st.success("Deleted successfully! (ডিলিট হয়েছে!)")
+            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
             st.rerun()
         st.write("---")
     else:
@@ -1571,9 +1578,12 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
           )
         with col_tc2:
           if st.button("🗑️ Clear All Completed Tasks History", type="secondary"):
+            for row_id, p_name, t_t in completed_tasks_df[['id', 'party_name', 'task_type']].values:
+              c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                        ("task_assignments", row_id, p_name, f"Completed Task: {t_t}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
             c.execute("DELETE FROM task_assignments WHERE status='Completed'")
             conn.commit()
-            st.success("All completed tasks history deleted!")
+            st.success("Moved to Recycle Bin!")
             st.rerun()
         st.write("---")
       for idx, row in completed_tasks_df.iterrows():
@@ -1582,9 +1592,11 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         st.markdown(f"📦 Sale: ₹`{row['sale_amount']}` | 💰 Collected: ₹`{row['payment_collected_actual']}` | ⏳ Due: ₹`{row['due_amount']}`")
         if st.session_state["user_role"] == "admin":
           if st.button("🗑️ Delete Task Record", key=f"del_comp_task_{row['id']}"):
+            c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                      ("task_assignments", row['id'], row['party_name'], f"Completed Task: {row['task_type']}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
             c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
             conn.commit()
-            st.success("Deleted!")
+            st.success("Moved to Recycle Bin!")
             st.rerun()
         st.write("---")
     else:
@@ -1638,7 +1650,7 @@ elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
     st.info("No mapped locations available to show on route map. (ম্যাপযুক্ত কোনো লোকেশন নেই।)")
 
 # =========================================================
-# 7. ATTENDANCE (UPDATED AS REQUESTED)
+# 7. ATTENDANCE
 # =========================================================
 elif selected_menu == "📅 Attendance (উপস্থিতি)":
   st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
@@ -1757,13 +1769,12 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
       st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)
 
 # =========================================================
-# 8. ADMIN: LIVE TRACKING (CUSTOM REDESIGNED)
+# 8. ADMIN: LIVE TRACKING
 # =========================================================
 elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state["user_role"] == "admin":
   st.write("### 📊 Live Agent Tracking (লাইভ এজেন্ট ট্র্যাকিং)")
   st.markdown("<p style='color: #38bdf8; font-size: 13px;'><i>💡 Note: This page automatically refreshes every 10 seconds to show the latest background GPS pings from all active agents.</i></p>", unsafe_allow_html=True)
 
-  # Auto-refresh every 10 seconds using a lightweight JS script
   st.components.v1.html("""
   <script>
   setTimeout(function(){
@@ -1788,7 +1799,6 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
       last_up = r['last_updated']
       completed = r['completed_deliveries']
 
-      # Calculate time elapsed since last update
       time_ago_str = "Never"
       if pd.notna(last_up):
         try:
@@ -1823,54 +1833,120 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
     st.info("No live agent location data available yet.")
 
 # =========================================================
-# 9. ADMIN: SETTINGS & AGENTS MANAGEMENT
+# 9. ADMIN: SETTINGS, AGENT INVITE LINK & RECYCLE BIN
 # =========================================================
 elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
-  st.write("### ⚙️ Settings & Agents Management (কর্মী ও সেটিংস)")
-  set_tab1, set_tab2 = st.tabs(["👥 Manage Agents (কর্মী যোগ ও মুছুন)", "🔑 Admin Password (পাসওয়ার্ড পরিবর্তন)"])
+  st.write("### ⚙️ Settings & Agents Management (কর্মী, ব্যাকআপ ও রিসাইকেল বিন)")
+  set_tab1, set_tab2, set_tab3, set_tab4 = st.tabs([
+      "👥 Agent Invite Link & Management (কর্মী ও লিংক)",
+      "🗄️ Database Backup & Restore (ডাটাবেস)",
+      "🗑️ Recycle Bin (রিসাইকেল বিন)",
+      "🔑 Admin Password (পাসওয়ার্ড)"
+  ])
+
   with set_tab1:
-    st.write("#### Add New Staff / Agent (নতুন কর্মী যোগ করুন)")
-    with st.form("add_agent_form", clear_on_submit=True):
-      new_uname = st.text_input("Username (ইউজারনেম, যেমন: agent2)")
-      new_pass = st.text_input("Password (পাসওয়ার্ড)", type="password")
-      new_fname = st.text_input("Full Name (পুরো নাম)")
-      new_phone = st.text_input("Phone Number (ফোন নম্বর)")
-      submit_new_ag = st.form_submit_button("➕ Add Agent (যোগ করুন)", type="primary")
-      if submit_new_ag:
-        if new_uname.strip() and new_pass.strip() and new_fname.strip():
-          try:
-            c.execute(
-                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
-            )
-            conn.commit()
-            st.success("Agent added successfully! (কর্মী যোগ করা হয়েছে!)")
-            st.rerun()
-          except sqlite3.IntegrityError:
-            st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
+    st.write("#### 🔗 Generate Agent Registration Link (এজেন্ট যোগ করার লিংক জেনারেট)")
+    st.markdown("এজেন্টের নাম ও ফোন নম্বর দিয়ে একটি ইনভাইটেশন লিংক জেনারেট করুন। ওই লিংকে ক্লিক করে এজেন্ট অ্যাপে ঢুকলেই তার অ্যাকাউন্ট স্বয়ংক্রিয়ভাবে তৈরি হয়ে যাবে এবং সরাসরি সে পেজ পেয়ে যাবে।")
+    
+    with st.form("agent_invite_form"):
+      inv_fname = st.text_input("Agent Full Name (এজেন্টের পুরো নাম)")
+      inv_uname = st.text_input("Username / ID (ইউজারনেম, যেমন: agent3)")
+      inv_phone = st.text_input("Phone Number (ফোন নম্বর)")
+      inv_pass = st.text_input("Password (পাসওয়ার্ড)", type="password", value="user123")
+      
+      gen_btn = st.form_submit_button("✨ Generate Invite Link (লিংক তৈরি করুন)", type="primary")
+      if gen_btn:
+        if inv_fname.strip() and inv_uname.strip() and inv_pass.strip():
+          base_url = "https://psmediseller.streamlit.app" # or current host
+          invite_url = f"/?reg_user={urllib.parse.quote(inv_uname.strip())}&reg_pass={urllib.parse.quote(inv_pass.strip())}&reg_name={urllib.parse.quote(inv_fname.strip())}&reg_phone={urllib.parse.quote(inv_phone.strip())}"
+          st.success("✅ Invite Link Generated Successfully! Copy below:")
+          st.code(invite_url, language="text")
+          st.markdown(f"**WhatsApp Share Text:**<br>`P.S Mediseller অ্যাপে যোগ দিতে নিচের লিংকে ক্লিক করুন: {invite_url}`", unsafe_allow_html=True)
         else:
-          st.error("Please fill all required fields.")
+          st.error("Please fill Name, Username and Password.")
 
     st.write("---")
-    st.write("#### Existing Agents List (কর্মীদের তালিকা)")
-    agents_df = pd.read_sql_query("SELECT username, fullname, phone, role, created_at FROM users WHERE role='staff'", conn)
-    if not agents_df.empty:
-      for idx, row in agents_df.iterrows():
+    st.write("#### 👥 Total Registered Agents List (সকল নিবন্ধিত কর্মী)")
+    c.execute("SELECT username, fullname, phone, role, created_at FROM users WHERE role='staff'")
+    agents_df = c.fetchall()
+    
+    if agents_df:
+      st.markdown(f"**Total Staff Count:** `{len(agents_df)}`")
+      for ag in agents_df:
+        u_name, f_name, ph, role, c_at = ag
         cols = st.columns([2, 2, 2, 1.5])
-        cols[0].write(f"**{row['fullname']}** (`{row['username']}`)")
-        cols[1].write(row['phone'] if row['phone'] else "No phone")
-        cols[2].write(format_date_display(row['created_at']))
-        if cols[3].button("🗑️ Delete", key=f"del_agent_{row['username']}"):
-          c.execute("DELETE FROM users WHERE username=?", (row['username'],))
+        cols[0].write(f"**{f_name or u_name}** (`{u_name}`)")
+        cols[1].write(ph if ph else "No phone")
+        cols[2].write(format_date_display(c_at))
+        if cols[3].button("🗑️ Delete Agent", key=f"del_ag_setting_{u_name}"):
+          c.execute("INSERT INTO trash_bin (source_table, record_id, title, details, deleted_at) VALUES (?, ?, ?, ?, ?)",
+                    ("users", 0, u_name, f"Fullname: {f_name}, Phone: {ph}", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
+          c.execute("DELETE FROM users WHERE username=?", (u_name,))
           conn.commit()
-          st.success("Agent deleted successfully!")
+          st.success(f"Agent {u_name} deleted! (কর্মী মুছে ফেলা হয়েছে। পুনরায় যোগ করতে নতুন লিংক দিন)")
           st.rerun()
         st.write("---")
     else:
-      st.info("No delivery staff registered yet.")
+      st.info("No delivery staff agents registered yet.")
 
   with set_tab2:
-    st.write("#### Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    st.write("#### 🗄️ Database Backup & Restore (ডাটাবেস ডাউনলোড ও আপলোড)")
+    st.markdown("আপনার সমস্ত ডাটা (পার্টি, অর্ডার, টাস্ক, উপস্থিতি ইত্যাদি) নিরাপদে ব্যাকআপ রাখতে বা অন্য ডিভাইসে নিতে ডাটাবেস ডাউনলোড বা আপলোড করুন।")
+
+    if os.path.exists(DB_FILE):
+      with open(DB_FILE, "rb") as f:
+        db_bytes = f.read()
+      st.download_button(
+          label="📥 Download Database Backup (.db file)",
+          data=db_bytes,
+          file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
+          mime="application/octet-stream",
+          type="primary"
+      )
+    
+    st.write("---")
+    uploaded_db = st.file_uploader("📤 Restore Database (পূর্বের ডাটাবেস ফাইল আপলোড করুন)", type=["db"])
+    if uploaded_db is not None:
+      if st.button("⚠️ Confirm Database Restore (আপলোড করা ডাটা দিয়ে রিস্টোর করুন)", type="secondary"):
+        with open(DB_FILE, "wb") as f:
+          f.write(uploaded_db.getbuffer())
+        st.success("Database restored successfully! Reloading app...")
+        st.rerun()
+
+  with set_tab3:
+    st.write("#### 🗑️ Recycle Bin / Trash (রিসাইকেল বিন)")
+    st.markdown("ডিলিট করা সমস্ত আইটেম এখানে জমা থাকে। আপনি চাইলে রিস্টোর করতে পারেন অথবা স্থায়ীভাবে মুছে ফেলতে পারেন।")
+
+    trash_df = pd.read_sql_query("SELECT id, source_table, record_id, title, details, deleted_at FROM trash_bin ORDER BY id DESC", conn)
+    if not trash_df.empty:
+      if st.button("🔥 Empty Recycle Bin Permanently (সব স্থায়ীভাবে মুছুন)", type="secondary"):
+        c.execute("DELETE FROM trash_bin")
+        conn.commit()
+        st.success("Recycle bin emptied!")
+        st.rerun()
+      st.write("---")
+
+      for idx, trow in trash_df.iterrows():
+        t_id = trow['id']
+        s_tbl = trow['source_table']
+        r_id = trow['record_id']
+        title = trow['title']
+        details = trow['details']
+        del_at = format_date_display(trow['deleted_at'])
+
+        cols = st.columns([3, 2, 1.5])
+        cols[0].write(f"**[{s_tbl.upper()}] {title}**<br><span style='font-size:12px; color:#94a3b8;'>{details}</span>", unsafe_allow_html=True)
+        cols[1].write(f"Deleted: `{del_at}`")
+        if cols[2].button("🗑️ Delete Forever", key=f"perm_del_{t_id}"):
+          c.execute("DELETE FROM trash_bin WHERE id=?", (t_id,))
+          conn.commit()
+          st.rerun()
+        st.write("---")
+    else:
+      st.info("Recycle bin is empty. (রিসাইকেল বিন খালি আছে।)")
+
+  with set_tab4:
+    st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
     with st.form("change_admin_pass_form"):
       old_p = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
       new_p1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
@@ -1888,3 +1964,4 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
             st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
         else:
           st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
+
