@@ -1954,36 +1954,29 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         title = trow['title']
         details = trow['details']
         
-        cols = st.columns([3, 2, 1.5])
+        cols = st.columns([3, 3, 2])
         cols[0].write(f"**{title}** (`{s_tbl}`)")
         cols[1].write(details if details else "No details")
-        if cols[2].button("🗑️ Delete Permanently", key=f"del_perm_trash_{t_id}"):
+        if cols[2].button("🗑️ Delete Forever", key=f"del_trash_{t_id}"):
           c.execute("DELETE FROM trash_bin WHERE id=?", (t_id,))
           conn.commit()
-          st.success("Deleted permanently!")
+          st.success("Item deleted permanently!")
           st.rerun()
         st.write("---")
     else:
-      st.info("Recycle bin is empty. (রিসাইকেল বিন খালি আছে।)")
+      st.info("Recycle bin is empty. (রিসাইকেল বিন খালি।)")
 
   with set_tab4:
     st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
-    with st.form("admin_pass_change_form"):
-      old_p = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_p = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
-      conf_p = st.text_input("Confirm New Password (কনফার্ম পাসওয়ার্ড)", type="password")
-      ch_btn = st.form_submit_button("Update Password (পাসওয়ার্ড আপডেট)", type="primary")
-      if ch_btn:
-        c.execute("SELECT password FROM users WHERE username='admin'")
-        adm_row_pwd = c.fetchone()
-        adm_db_pass = adm_row_pwd[0] if adm_row_pwd else ""
-        if old_p == adm_db_pass:
-          if new_p.strip() and new_p == conf_p:
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p.strip(),))
-            conn.commit()
-            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!)")
-          else:
-            st.error("New passwords do not match or are empty! (নতুন পাসওয়ার্ড মিলছে না!)")
+    with st.form("change_admin_password_form"):
+      new_adm_pass = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
+      confirm_adm_pass = st.text_input("Confirm New Password (কনফার্ম পাসওয়ার্ড)", type="password")
+      sub_pass = st.form_submit_button("Update Password (পাসওয়ার্ড আপডেট)", type="primary")
+      if sub_pass:
+        if new_adm_pass and new_adm_pass == confirm_adm_pass:
+          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_adm_pass,))
+          conn.commit()
+          st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
         else:
-          st.error("Current password is incorrect! (বর্তমান পাসওয়ার্ড ভুল!)")
+          st.error("Passwords do not match or empty! (পাসওয়ার্ড মেলেনি!)")
 
