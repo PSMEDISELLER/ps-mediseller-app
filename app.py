@@ -383,7 +383,6 @@ CREATE TABLE IF NOT EXISTS attendance (
     UNIQUE(username, date)
 )
 """)
-# RECYCLE BIN TABLE FOR SOFT DELETES
 c.execute("""
 CREATE TABLE IF NOT EXISTS recycle_bin (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -611,6 +610,32 @@ current_fullname = curr_user_row[0] if curr_user_row and curr_user_row[0] else s
 col_u1, _ = st.columns([3, 1])
 with col_u1:
   st.write(f"👤 User: **{current_fullname}** (`{st.session_state['user_role']}`)")
+
+# =========================================================
+# DISMISSIBLE 1-HOUR NOTIFICATION SYSTEM
+# =========================================================
+c.execute("SELECT COUNT(*) FROM orders WHERE status='Pending'")
+pending_ord_count = c.fetchone()[0]
+
+c.execute("SELECT COUNT(*) FROM task_assignments WHERE status='Pending'")
+pending_task_count = c.fetchone()[0]
+
+total_pending_items = pending_ord_count + pending_task_count
+
+show_notif = True
+if "notif_dismissed_time" in st.session_state:
+    time_diff = (get_ist_time() - st.session_state["notif_dismissed_time"]).total_seconds()
+    if time_diff < 3600: # 1 hour = 3600 seconds
+        show_notif = False
+
+if show_notif and total_pending_items > 0:
+    col_n1, col_n2 = st.columns([5, 1])
+    with col_n1:
+        st.warning("🔔 **নোটিফিকেশন:** আপনার অর্ডার পেন্ডিং বা ডিউ পেন্ডিং রয়েছে। **পেন্ডিং Order খাতায় তুলতে বাকি!**")
+    with col_n2:
+        if st.button("❌ সরান", key="dismiss_notif_bar_btn"):
+            st.session_state["notif_dismissed_time"] = get_ist_time()
+            st.rerun()
 
 if st.session_state.get("show_admin_login", False):
   with st.form("admin_login_popup_form"):
