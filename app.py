@@ -519,7 +519,7 @@ query_params = st.query_params
 if query_params.get("join") == "true":
     st.markdown("## 🤝 Join P. S MEDISELLER Team (এজেন্ট নতুন একাউন্ট)")
     st.write("এখানে আপনার সঠিক নাম, ফোন নম্বর এবং পাসওয়ার্ড প্রদান করে যোগ দিন:")
-    with st.form("agent_public_join_form"):
+    with st.form("agent_public_join_form", clear_on_submit=True):
         j_fname = st.text_input("Full Name (আপনার নাম)")
         j_uname = st.text_input("Username (ইউজারনেম, যেমন: rahul12)")
         j_phone = st.text_input("Phone Number (ফোন নম্বর)")
@@ -871,7 +871,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
       selected_order_party_native = ""
 
-  with st.form("order_visit_entry_form"):
+  with st.form("order_visit_entry_form", clear_on_submit=True):
     ord_details = st.text_area("Order Details (অর্ডার বিবরণ)")
    
     col_ob1, col_ob2 = st.columns(2)
@@ -1411,7 +1411,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
         sel_pt = ""
 
-    with st.form("easy_assign_form"):
+    with st.form("easy_assign_form", clear_on_submit=True):
       st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
       
       current_logged_user = st.session_state["username"]
@@ -1476,7 +1476,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
             if pd.notna(row['address']) and row['address']:
               st.markdown(f"📍 Address: {row['address']} {(' | Ph: ' + str(row['party_phone'])) if pd.notna(row['party_phone']) else ''}")
            
-            with st.form(key=f"complete_task_form_{row['id']}"):
+            with st.form(key=f"complete_task_form_{row['id']}", clear_on_submit=True):
               col_f1, col_f2 = st.columns(2)
               with col_f1:
                 sale_input = st.text_input("Total Sale Amount (কত টাকা সেল ছিল)", value="0", key=f"sale_amt_{row['id']}")
@@ -1685,7 +1685,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     st.write("#### 📝 Today's Check-in")
     today_date_str = get_ist_time().strftime("%Y-%m-%d")
     today_display_str = get_ist_time().strftime("%d.%m.%y")
-    with st.form("attendance_form"):
+    with st.form("attendance_form", clear_on_submit=True):
       st.write(f"Today Date: **{today_display_str}**")
       agent_for_att = st.session_state["username"]
       st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
@@ -1930,7 +1930,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
     if not agents_df.empty:
       for idx, row in agents_df.iterrows():
         with st.expander(f"👤 {row['fullname']} (`{row['username']}`) - Ph: {row['phone'] or 'N/A'}"):
-          with st.form(f"edit_agent_form_{row['username']}"):
+          with st.form(f"edit_agent_form_{row['username']}", clear_on_submit=False):
             st.write("✏️ **Edit Agent Details (তথ্য পরিবর্তন করুন)**")
             edit_fname = st.text_input("Full Name", value=row['fullname'] or "")
             edit_phone = st.text_input("Phone Number", value=row['phone'] or "")
@@ -2043,7 +2043,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
   # TAB 4: ADMIN PASSWORD
   with set_tab4:
     st.write("#### Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
-    with st.form("change_admin_pass_form"):
+    with st.form("change_admin_pass_form", clear_on_submit=True):
       old_p = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
       new_p1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
       new_p2 = st.text_input("Confirm New Password (আবার নতুন পাসওয়ার্ড দিন)", type="password")
