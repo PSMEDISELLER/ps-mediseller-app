@@ -647,7 +647,6 @@ menu_options = [
     "📦 Pending Orders (বাকি অর্ডার)",
     "📋 Daily & Monthly Work (দৈনিক ও মাসিক কাজ)",
     "📋 Due & Delivery (বকেয়া ও ডেলিভারি)",
-    "Route Map (রুট ম্যাপ)",
     "📅 Attendance (উপস্থিতি)",
 ]
 if st.session_state["user_role"] == "admin":
@@ -1362,37 +1361,36 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
         selected_task_party = ""
 
-    if st.session_state["user_role"] == "admin":
-      with st.form("assign_task_form"):
-        st.write("#### ➕ Assign New Task to Agent (এজেন্টকে নতুন কাজ দিন)")
-        col_as1, col_as2 = st.columns(2)
-        with col_as1:
-          assigned_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন)", all_agents, format_func=lambda x: agent_name_map.get(x, x))
-        with col_as2:
-          task_type_sel = st.selectbox("Task Type (কাজের ধরণ)", ["Delivery & Due Collection (ডেলিভারি ও বকেয়া কালেকশন)", "Only Delivery (শুধু ডেলিভারি)", "Only Due Collection (শুধু বকেয়া কালেকশন)", "Payment Collection (পেমেন্ট কালেকশন)"])
-        
-        col_as3, col_as4, col_as5 = st.columns(3)
-        with col_as3:
-          sale_amt_input = st.text_input("Sale Amount (₹) (সেল অ্যামাউন্ট)", "0")
-        with col_as4:
-          due_amt_input = st.text_input("Due Amount (₹) (বকেয়া অ্যামাউন্ট)", "0")
-        with col_as5:
-          col_dummy = st.columns(1)[0]
-          col_dummy.write("")
+    with st.form("assign_task_form"):
+      st.write("#### ➕ Assign New Task to Agent (এজেন্টকে নতুন কাজ দিন)")
+      col_as1, col_as2 = st.columns(2)
+      with col_as1:
+        assigned_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন)", all_agents, format_func=lambda x: agent_name_map.get(x, x))
+      with col_as2:
+        task_type_sel = st.selectbox("Task Type (কাজের ধরণ)", ["Delivery & Due Collection (ডেলিভারি ও বকেয়া কালেকশন)", "Only Delivery (শুধু ডেলিভারি)", "Only Due Collection (শুধু বকেয়া কালেকশন)", "Payment Collection (পেমেন্ট কালেকশন)"])
+      
+      col_as3, col_as4, col_as5 = st.columns(3)
+      with col_as3:
+        sale_amt_input = st.text_input("Sale Amount (₹) (সেল অ্যামাউন্ট)", "0")
+      with col_as4:
+        due_amt_input = st.text_input("Due Amount (₹) (বকেয়া অ্যামাউন্ট)", "0")
+      with col_as5:
+        col_dummy = st.columns(1)[0]
+        col_dummy.write("")
 
-        submitted_task = st.form_submit_button("🚀 Assign Task (টাস্ক অ্যাসাইন করুন)", type="primary")
-        if submitted_task:
-          if not selected_task_party.strip():
-            st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
-          else:
-            current_date_str = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
-            c.execute("""
-                INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, status, created_at)
-                VALUES (?, ?, ?, ?, ?, 'Pending', ?)
-            """, (assigned_agent, selected_task_party.strip(), task_type_sel, due_amt_input, sale_amt_input, current_date_str))
-            conn.commit()
-            st.success("Task assigned successfully! (টাস্ক অ্যাসাইন করা হয়েছে!)")
-            st.rerun()
+      submitted_task = st.form_submit_button("🚀 Assign Task (টাস্ক অ্যাসাইন করুন)", type="primary")
+      if submitted_task:
+        if not selected_task_party.strip():
+          st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
+        else:
+          current_date_str = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
+          c.execute("""
+              INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, status, created_at)
+              VALUES (?, ?, ?, ?, ?, 'Pending', ?)
+          """, (assigned_agent, selected_task_party.strip(), task_type_sel, due_amt_input, sale_amt_input, current_date_str))
+          conn.commit()
+          st.success("Task assigned successfully! (টাস্ক অ্যাসাইন করা হয়েছে!)")
+          st.rerun()
 
     st.write("---")
     st.write("#### 📋 Active Tasks List (চলমান টাস্কসমূহ)")
@@ -1496,54 +1494,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
       st.info("No completed tasks found. (কোনো সম্পন্ন কাজ নেই।)")
 
 # =========================================================
-# 6. ROUTE MAP VIEW
-# =========================================================
-elif selected_menu == "Route Map (রুট ম্যাপ)":
-  st.write("### 🧭 Route Map & Live Navigation (রুট ম্যাপ)")
-  st.write("View all mapped parties and your current location for delivery routing.")
-  
-  route_map = folium.Map(
-      location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
-      zoom_start=14,
-      tiles=None
-  )
-  folium.TileLayer(
-      tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-      attr="Google Maps Street",
-      name="Street View",
-      show=True
-  ).add_to(route_map)
-  folium.TileLayer(
-      tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-      attr="Google Maps Satellite",
-      name="Satellite View",
-      show=False
-  ).add_to(route_map)
-
-  if gps_lat and gps_lon:
-    folium.Marker(
-        [gps_lat, gps_lon],
-        popup="<b>Your Live Location (আপনার অবস্থান)</b>",
-        icon=folium.Icon(color="blue", icon="user", prefix="fa")
-    ).add_to(route_map)
-
-  c.execute("SELECT party_name, address, party_phone, lat, lon FROM locations WHERE lat IS NOT NULL AND lon IS NOT NULL")
-  all_mapped_locs = c.fetchall()
-  for m_loc in all_mapped_locs:
-    p_n, p_a, p_ph, p_lat, p_lon = m_loc
-    popup_html = f"<b>{p_n}</b><br>Ph: {p_ph}<br>Addr: {p_a}"
-    folium.Marker(
-        [p_lat, p_lon],
-        popup=popup_html,
-        tooltip=p_n,
-        icon=folium.Icon(color="red", icon="medkit", prefix="fa")
-    ).add_to(route_map)
-
-  folium.LayerControl().add_to(route_map)
-  st_folium(route_map, width="100%", height=500, key="main_route_map_view")
-
-# =========================================================
-# 7. ATTENDANCE VIEW
+# 6. ATTENDANCE VIEW
 # =========================================================
 elif selected_menu == "📅 Attendance (উপস্থিতি)":
   st.write("### 📅 Daily Attendance (দৈনিক উপস্থিতি)")
@@ -1573,7 +1524,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
     st.info("No attendance records found. (কোনো উপস্থিতি রেকর্ড নেই।)")
 
 # =========================================================
-# 8. ADMIN SETTINGS & LIVE TRACKING
+# 7. ADMIN SETTINGS & LIVE TRACKING
 # =========================================================
 elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state["user_role"] == "admin":
   st.write("### 📊 Agent Live Tracking & Status (লাইভ ট্র্যাকিং)")
