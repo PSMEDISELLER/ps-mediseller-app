@@ -487,7 +487,6 @@ if "user_role" not in st.session_state:
 
 query_params = st.query_params
 
-# Handle Agent registration invite token if present in URL
 reg_user = query_params.get("reg_user", None)
 reg_pass = query_params.get("reg_pass", None)
 reg_name = query_params.get("reg_name", None)
@@ -1937,7 +1936,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
 
   with set_tab3:
     st.write("#### 🗑️ Recycle Bin / Trash (রিসাইকেল বিন)")
-    st.markdown("ডিলিট করা সমস্ত আইটেম এখানে জমা থাকে। আপনি চাইলে রিস্টোর করতে পারেন অথবা স্থায়ীভাবে মুছে ফেলতে পারেন।")
+    st.markdown("ডিলিট করা সমস্ত আইটেম এখানে জমা থাকে। আপনি চাইলে স্থায়ীভাবে মুছে ফেলতে পারেন।")
 
     trash_df = pd.read_sql_query("SELECT id, source_table, record_id, title, details, deleted_at FROM trash_bin ORDER BY id DESC", conn)
     if not trash_df.empty:
@@ -1954,35 +1953,36 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         r_id = trow['record_id']
         title = trow['title']
         details = trow['details']
-        del_at = format_date_display(trow['deleted_at'])
-
-        cols = st.columns([3, 2, 1.5])
-        cols[0].write(f"**[{s_tbl.upper()}] {title}**<br><span style='font-size:12px; color:#94a3b8;'>{details}</span>", unsafe_allow_html=True)
-        cols[1].write(f"Deleted: `{del_at}`")
-        if cols[2].button("🗑️ Delete Forever", key=f"perm_del_{t_id}"):
-          c.execute("DELETE FROM trash_bin WHERE id=?", (t_id,))
-          conn.commit()
-          st.rerun()
+        
+        cols = st.columns([3, 3, 1.5])
+        cols[0].write(f"**{title}** (`{s_tbl}`)")
+        cols[1].write(details if details else "No details")
+        if cols[2].button("🗑️ Delete Permanently", key=f"del_perm_{t_id}"):
+            c.execute("DELETE FROM trash_bin WHERE id=?", (t_id,))
+            conn.commit()
+            st.success("Item permanently deleted!")
+            st.rerun()
         st.write("---")
     else:
-      st.info("Recycle bin is empty. (রিসাইকেল বিন খালি আছে।)")
+      st.info("Recycle bin is empty. (রিসাইকেল বিন খালি।)")
 
   with set_tab4:
     st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
     with st.form("change_admin_pass_form"):
-      old_p = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_p1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
-      new_p2 = st.text_input("Confirm New Password (কনফার্ম নতুন পাসওয়ার্ড)", type="password")
-      sub_pass = st.form_submit_button("Update Password (পাসওয়ার্ড আপডেট)", type="primary")
+      old_pass_input = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_pass_input = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
+      confirm_pass_input = st.text_input("Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)", type="password")
+      
+      sub_pass = st.form_submit_button("🔒 Update Password (পাসওয়ার্ড আপডেট)", type="primary")
       if sub_pass:
         c.execute("SELECT password FROM users WHERE username='admin'")
-        cur_adm_pw = c.fetchone()[0]
-        if old_p == cur_adm_pw:
-          if new_p1 and new_p1 == new_p2:
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1,))
+        adm_db_row = c.fetchone()
+        if adm_db_row and adm_db_row[0] == old_pass_input:
+          if new_pass_input.strip() and new_pass_input == confirm_pass_input:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass_input.strip(),))
             conn.commit()
             st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!)")
           else:
-            st.error("New passwords do not match or are empty! (নতুন পাসওয়ার্ড মেলেনি!)")
+            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
         else:
-          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
+          st.error("Current admin password is incorrect! (বর্তমান পাসওয়ার্ড ভুল!)")
