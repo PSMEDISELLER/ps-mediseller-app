@@ -1,3 +1,8 @@
+
+Himadri Dhali <dhalihimadri1998@gmail.com>
+18:23 (6 minutes ago)
+to Himadri
+
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
@@ -10,7 +15,7 @@ import pandas as pd
 import sqlite3
 import streamlit as st
 from streamlit_folium import st_folium
-from streamlit_js_eval import get_geolocation
+from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
 # =========================================================
 # PAGE CONFIGURATION
@@ -371,9 +376,6 @@ if login_user:
         f_name, r_role = user_row
         st.session_state["username"] = login_user
         st.session_state["user_role"] = r_role
-        st.success(f"Welcome, {f_name}! Logged in. (স্বাগতম, {f_name}!)")
-        st.query_params.clear()
-        st.rerun()
 
 col_ht1, col_ht2 = st.columns([3, 1])
 with col_ht1:
@@ -815,11 +817,20 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংস)" and st.ses
   with st.form("create_agent_form"):
     name_input = st.text_input("Full Name")
     phone_input = st.text_input("Phone Number")
-    if st.form_submit_button("Create Agent", type="primary"):
+    submitted_agent = st.form_submit_button("Create Agent", type="primary")
+    if submitted_agent:
       if name_input and phone_input:
         uname = f"agent_{phone_input}"
-        c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at) VALUES (?, '1234', 'staff', ?, ?, ?)", 
+        c.execute("INSERT OR IGNORE INTO users (username, password, role, fullname, phone, created_at) VALUES (?, '1234', 'staff', ?, ?, ?)", 
                   (uname, name_input, phone_input, get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
-        link = f"https://{st.query_params.get('host', 'streamlit.app')}?login={uname}"
-        st.success(f"Agent created! Login Link: {link}")
+        
+        # Fixed: Get precise active app URL dynamically using JavaScript
+        base_url = streamlit_js_eval(js_expressions="window.location.href.split('?')[0]", key=f"url_{uname}", default="")
+        if not base_url:
+          base_url = "https://p-s-mediseller.streamlit.app"
+        
+        link = f"{base_url}?login={uname}"
+        st.success("Agent created successfully! Share this login link:")
+        st.code(link, language="text")
+        st.markdown(f"🔗 [Click here to open login link]({link})")
