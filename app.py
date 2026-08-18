@@ -1889,3 +1889,160 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         else:
           st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
 
+# =========================================================
+# 9. SETTINGS, ADMIN PASSWORD & AGENT MANAGEMENT
+# =========================================================
+elif selected_menu == "⚙️ Settings & Agents (সেটিংস)":
+  if st.session_state["user_role"] != "admin":
+    st.error("Admin only page. (অ্যাডমিন ছাড়া প্রবেশ নিষেধ)")
+  else:
+    st.write("### 🔑 Change Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    with st.form("admin_password_change_form"):
+      old_pass = st.text_input("Old Password (পুরনো পাসওয়ার্ড)", type="password")
+      new_pass = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
+      confirm_pass = st.text_input("Confirm Password (কনফার্ম পাসওয়ার্ড)", type="password")
+      change_pass_btn = st.form_submit_button("🔄 Update Password (আপডেট)", type="primary")
+
+      if change_pass_btn:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        adm_db_row = c.fetchone()
+        if adm_db_row and adm_db_row[0] == old_pass:
+          if new_pass == confirm_pass and new_pass.strip() != "":
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass,))
+            conn.commit()
+            st.success("Password changed successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
+          else:
+            st.error("Passwords do not match or empty. (পাসওয়ার্ড মিলছে না বা খালি)")
+        else:
+          st.error("Incorrect Old Password! (পুরনো পাসওয়ার্ড ভুল!)")
+
+    st.write("---")
+    st.write("### 👥 Agent Management (এজেন্ট ও ইউজার ম্যানেজমেন্ট)")
+   
+    c.execute("SELECT username, role, fullname, phone, created_at, is_active FROM users")
+    agents = c.fetchall()
+    st.write(f"Total Users: **{len(agents)}** (মোট ইউজার)")
+
+    users_report_df = pd.read_sql_query("SELECT username, role, fullname, phone, created_at FROM users", conn)
+    if not users_report_df.empty:
+      html_users_report = generate_html_report("System Users & Agents Directory", users_report_df)
+      st.download_button(
+          label="📥 Download Users & Agents Report (PDF/HTML)",
+          data=html_users_report,
+          file_name="mediseller_users_report.html",
+          mime="text/html",
+          type="primary"
+      )
+      st.write("---")
+
+    for ag in agents:
+      u_name, u_role, f_name, u_phone, c_date, is_act = ag
+      display_name = f_name if f_name else "No name (নাম নেই)"
+     
+      try:
+        join_date = datetime.strptime(c_date, "%Y-%m-%d %H:%M:%S").strftime("%d-%m-%Y %H:%M:%S") if c_date else "Unknown (অজানা)"
+      except:
+        join_date = c_date if c_date else "Unknown (অজানা)"
+
+      phone_disp = u_phone if u_phone else "No number (নম্বর নেই)"
+     
+      with st.expander(f"👤 {display_name} ({u_name})"):
+        st.write(f"📞 Phone: `{phone_disp}`")
+        st.write(f"📅 Join Date: `{join_date}`")
+       
+        col_ed1, col_ed2 = st.columns(2)
+        with col_ed1:
+          with st.form(f"edit_form_{u_name}"):
+            new_name = st.text_input("Agent Name (নাম)", value=display_name, key=f"fname_{u_name}")
+            new_phone = st.text_input("Phone Number (ফোন নম্বর)", value=phone_disp if phone_disp != "No number (নম্বর নেই)" else "", key=f"fphone_{u_name}")
+            update_btn = st.form_submit_button("Save (সংরক্ষণ)")
+           
+            if update_btn:
+              c.execute("UPDATE users SET fullname=?, phone=? WHERE username=?", (new_name, new_phone, u_name))
+              conn.commit()
+              st.success("Updated! (সফলভাবে আপডেট হয়েছে!)")
+              st.rerun()
+
+        with col_ed2:
+          if u_name != "admin":
+            if st.button("🗑️ Delete Agent (এজেন্ট ডিলিট)", key=f"del_ag_{u_name}", type="secondary"):
+              c.execute("DELETE FROM users WHERE username=?", (u_name,))
+              c.execute("DELETE FROM agent_live_locations WHERE username=?", (u_name,))
+              conn.commit()
+              st.success("Agent deleted! (এজেন্ট ডিলিট হয়েছে!)")
+              st.rerun()
+
+    st.write("---")
+    st.write("### ➕ Add New Agent (নতুন এজেন্ট তৈরি করুন)")
+    with st.form("new_agent_form"):
+      n_fullname = st.text_input("Agent Name (এজেন্টের পুরো নাম)")
+      n_user = st.text_input("Username (ইউজারনেম)")
+      n_role = st.selectbox("Role (পদমর্যাদা)", ["staff", "admin"])
+      add_agent_btn = st.form_submit_button("Add Agent (এজেন্ট তৈরি করুন)")
+
+      if add_agent_btn:
+        if n_fullname and n_user:
+          try:
+            c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      (n_user, "direct_login", n_role, n_fullname, "", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
+            conn.commit()
+            st.session_state["last_created_agent_user"] = n_user
+            st.session_state["last_created_agent_name"] = n_fullname
+            st.success("Agent added successfully! (নতুন এজেন্ট তৈরি সফল!)")
+            st.rerun()
+          except sqlite3.IntegrityError:
+            st.error("Username already exists. (ইউজারনেমটি আগে থেকেই আছে)")
+        else:
+          st.error("Fill name and username. (নাম ও ইউজারনেম দিন)")
+
+    if st.session_state.get("last_created_agent_user"):
+      created_u = st.session_state["last_created_agent_user"]
+      created_n = st.session_state["last_created_agent_name"]
+     
+      st.markdown("---")
+      st.write(f"#### 🔗 Direct Link (সরাসরি লগইন লিঙ্ক)")
+     
+      direct_msg = f"Hello {created_n}, your account has been created in P.S Mediseller. Click below to login:\n"
+     
+      copy_html = f"""
+      <div style="background: #1e293b; padding: 15px; border-radius: 10px; border: 1px solid #475569; margin-top: 10px;">
+        <p style="color: #fff; margin-bottom: 8px; font-weight: 600;">Generated Direct Link (লিঙ্ক):</p> &nbsp;
+        <input type="text" id="generated_link" readonly style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #64748b; background: #0f172a; color: #fff; font-size: 14px; margin-bottom: 10px; box-sizing: border-box;">
+        <button onclick="copyLink()" id="copy_btn" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📋 Copy Link (কপি করুন)</button>
+        <span id="copy_status" style="color: #34d399; margin-left: 10px; font-weight: bold; display: none;">✓ Copied! (কপি হয়ে গেছে!)</span>
+      </div>
+      <script>
+        let currentUrl = "";
+        try {{
+          currentUrl = window.parent.location.href.split('?')[0];
+        }} catch(e) {{
+          try {{
+            currentUrl = document.referrer.split('?')[0];
+          }} catch(e2) {{
+            currentUrl = window.location.origin + window.location.pathname;
+          }}
+        }}
+       
+        if (!currentUrl || currentUrl.includes('srcdoc') || currentUrl.startsWith('about:') || currentUrl.includes('null')) {{
+          currentUrl = document.referrer ? document.referrer.split('?')[0] : (window.location.origin + window.location.pathname);
+        }}
+       
+        const fullLink = currentUrl + '?login=' + encodeURIComponent('{created_u}');
+        document.getElementById('generated_link').value = fullLink;
+       
+        function copyLink() {{
+          const copyText = document.getElementById('generated_link');
+          copyText.select();
+          copyText.setSelectionRange(0, 99999);
+          navigator.clipboard.writeText(copyText.value);
+         
+          const status = document.getElementById('copy_status');
+          status.style.display = 'inline';
+          setTimeout(() => {{ status.style.display = 'none'; }}, 2000);
+        }}
+      </script>
+      """
+      st.components.v1.html(copy_html, height=140)
+     
+      whatsapp_msg = urllib.parse.quote(direct_msg)
+      st.markdown(f'<a href="https://wa.me/?text={whatsapp_msg}" target="_blank"><button style="background: #25d366; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;">💬 Share via WhatsApp (হোয়াটসঅ্যাপে পাঠান)</button></a>', unsafe_allow_html=True)
