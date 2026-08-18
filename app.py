@@ -503,7 +503,6 @@ if reg_user and reg_pass:
     conn.commit()
   st.session_state["username"] = reg_user
   st.session_state["user_role"] = "staff"
-  # Automatically store in localStorage so PWA app shortcut remembers logged-in agent session permanently
   st.markdown(f"""
   <script>
       localStorage.setItem('ps_mediseller_user', '{reg_user}');
@@ -751,7 +750,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       if gps_lat and gps_lon:
         st.session_state["selected_lat"] = gps_lat
         st.session_state["selected_lon"] = gps_lon
-        st.success("GPS location taken! (নেwা হয়েছে!)")
+        st.success("GPS location taken! (নেওয়া হয়েছে!)")
         st.rerun()
       else:
         st.warning("GPS not found! (নেই!)")
@@ -1973,18 +1972,17 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
     with st.form("change_admin_pass_form"):
       old_p = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
       new_p1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
-      new_p2 = st.text_input("Confirm New Password (আবার নতুন পাসওয়ার্ড দিন)", type="password")
-      submit_ch_pass = st.form_submit_button("🔄 Update Password (আপডেট করুন)", type="primary")
-      if submit_ch_pass:
+      new_p2 = st.text_input("Confirm New Password (কনফার্ম নতুন পাসওয়ার্ড)", type="password")
+      sub_pass = st.form_submit_button("Update Password (পাসওয়ার্ড আপডেট)", type="primary")
+      if sub_pass:
         c.execute("SELECT password FROM users WHERE username='admin'")
-        adm_db_pass = c.fetchone()[0]
-        if old_p == adm_db_pass:
-          if new_p1.strip() and new_p1 == new_p2:
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1.strip(),))
+        cur_adm_pw = c.fetchone()[0]
+        if old_p == cur_adm_pw:
+          if new_p1 and new_p1 == new_p2:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1,))
             conn.commit()
-            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
+            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!)")
           else:
-            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
+            st.error("New passwords do not match or are empty! (নতুন পাসওয়ার্ড মেলেনি!)")
         else:
           st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
-
