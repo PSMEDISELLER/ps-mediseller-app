@@ -1,8 +1,3 @@
-
-Himadri Dhali <dhalihimadri1998@gmail.com>
-18:23 (6 minutes ago)
-to Himadri
-
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
