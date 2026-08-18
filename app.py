@@ -1556,28 +1556,68 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
 elif selected_menu == "⚙️ Settings & Agents (সেটিংস)" and st.session_state["user_role"] == "admin":
   st.write("### ⚙️ System Settings & Agent Management (সেটিংস ও ইউজার)")
   
+  # Detect current base URL using JS
+  current_origin = streamlit_js_eval(js_expressions="window.location.origin + window.location.pathname", key="get_current_url_origin")
+  if not current_origin:
+    current_origin = "https://your-app-url.streamlit.app"
+
   with st.form("create_agent_form"):
-    st.write("#### ➕ Create New Agent / Staff Account (নতুন অ্যাকাউন্ট তৈরি করুন)")
-    new_username = st.text_input("Username (ইউজারনেম যেমন: agent2)")
-    new_password = st.text_input("Password (পাসওয়ার্ড)", type="password")
-    new_fullname = st.text_input("Full Name (পুরো নাম)")
-    new_phone = st.text_input("Phone Number (ফোন নম্বর)")
+    st.write("#### ➕ Create Agent & Generate WhatsApp Login Link (এজেন্ট তৈরি ও লিংক জেনারেট)")
+    st.markdown("<p style='color: #cbd5e1; font-size: 13px;'>এজেন্টের পুরো নাম ও ফোন নম্বর দিন। জেনারেট হওয়া লিংকটি কপি করে সরাসরি হোয়াটসঅ্যাপে শেয়ার করতে পারবেন।</p>", unsafe_allow_html=True)
     
-    submit_new_user = st.form_submit_button("💾 Create User (তৈরি করুন)", type="primary")
+    agent_full_name_input = st.text_input("Agent Full Name (এজেন্টের পুরো নাম, যেমন: Rahul Mondal)")
+    agent_phone_input = st.text_input("Agent Phone Number (ফোন নম্বর, যেমন: 9876543210)")
+    agent_password_input = st.text_input("Password (পাসওয়ার্ড)", value="1234", type="password")
+    
+    submit_new_user = st.form_submit_button("🚀 Create & Generate Link (তৈরি করুন ও লিংক পান)", type="primary")
+    
     if submit_new_user:
-      if new_username.strip() and new_password.strip():
-        try:
-          c.execute("""
-              INSERT INTO users (username, password, role, fullname, phone, created_at, is_active)
-              VALUES (?, ?, 'staff', ?, ?, ?, 1)
-          """, (new_username.strip(), new_password.strip(), new_fullname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
-          conn.commit()
-          st.success(f"Agent '{new_username}' created successfully! (সফলভাবে তৈরি হয়েছে!)")
-          st.rerun()
-        except sqlite3.IntegrityError:
-          st.error("Username already exists! (এই ইউজারনেমটি ইতিমধ্যে আছে!)")
+      if agent_full_name_input.strip() and agent_phone_input.strip():
+        # Clean phone or generate clean username
+        clean_phone = "".join(filter(str.isdigit, agent_phone_input.strip()))
+        generated_username = f"agent_{clean_phone}"
+        
+        c.execute("SELECT username FROM users WHERE username=? OR phone=?", (generated_username, agent_phone_input.strip()))
+        existing_u = c.fetchone()
+        
+        if existing_u:
+          st.error("This agent or phone number already exists in the system! (এই ফোন নম্বর বা এজেন্ট ইতিমধ্যে রেজিস্টার্ড আছে!)")
+        else:
+          try:
+            c.execute("""
+                INSERT INTO users (username, password, role, fullname, phone, created_at, is_active)
+                VALUES (?, ?, 'staff', ?, ?, ?, 1)
+            """, (generated_username, agent_password_input.strip(), agent_full_name_input.strip(), agent_phone_input.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
+            conn.commit()
+            
+            # Store in session state to display shareable link immediately
+            st.session_state["last_generated_agent_name"] = agent_full_name_input.strip()
+            st.session_state["last_generated_link"] = f"{current_origin}?login={generated_username}"
+            st.success(f"Agent '{agent_full_name_input}' created successfully! (সফলভাবে তৈরি হয়েছে!)")
+          except Exception as e:
+            st.error(f"Error creating agent: {e}")
       else:
-        st.error("Username and password are required. (ইউজারনেম ও পাসওয়ার্ড আবশ্যক।)")
+        st.error("Please provide both Full Name and Phone Number. (পুরো নাম ও ফোন নম্বর আবশ্যক।)")
+
+  # Display Generated Shareable Link if available in session state
+  if st.session_state.get("last_generated_link"):
+    st.write("---")
+    st.markdown(f"#### 🔗 WhatsApp Shareable Link for **{st.session_state.get('last_generated_agent_name')}**")
+    st.info("নিচের লিংকটি কপি করে এজেন্টের হোয়াটসঅ্যাপে পাঠিয়ে দিন। এজেন্ট লিংকে ক্লিক করলেই সরাসরি অ্যাপে লগইন হয়ে যাবে এবং হোম স্ক্রিনে সেভ (Add to Home Screen) করতে পারবে।")
+    
+    share_url = st.session_state["last_generated_link"]
+    st.code(share_url, language="text")
+    
+    whatsapp_msg = urllib.parse.quote(f"नमस्कार {st.session_state.get('last_generated_agent_name')}! P.S Mediseller অ্যাপে কাজ করার জন্য আপনার সরাসরি লগইন লিংক:\n\n{share_url}\n\nএই লিংকে টাচ করে ব্রাউজার থেকে ওপেন করুন এবং 'Add to Home Screen' করে অ্যাপ হিসেবে ব্যবহার করুন।")
+    whatsapp_url = f"https://api.whatsapp.com/send?text={whatsapp_msg}"
+    
+    st.markdown(f'''
+    <a href="{whatsapp_url}" target="_blank">
+        <button style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 15px; box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);">
+            🟢 Share via WhatsApp (হোয়াটসঅ্যাপে পাঠান)
+        </button>
+    </a>
+    ''', unsafe_allow_html=True)
 
   st.write("---")
   st.write("#### 👥 Registered Users / Agents (নিবন্ধিত ইউজারগণ)")
