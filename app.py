@@ -110,7 +110,7 @@ text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
         <h2 style="color: #f87171; margin-top: 0; font-size: 22px;">Location Permission Required<br>(লোকেশন পারমিশন আবশ্যক)</h2>
         <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
             P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant permission.<br><br>
-            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে পুনরায় অ্যাপে ঢুকতে পারবেন না।)</b>
+            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
         </p>
         <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:
 none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px
@@ -398,13 +398,14 @@ CREATE TABLE IF NOT EXISTS recycle_bin (
     deleted_at TEXT NOT NULL
 )
 """)
-# NEW TABLE FOR SECURITY LOGS
+
+# NEW TABLE FOR SECURITY / ACCESS LOGS
 c.execute("""
 CREATE TABLE IF NOT EXISTS access_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    attempted_user TEXT NOT NULL,
-    status TEXT NOT NULL,
-    attempt_time TIMESTAMP NOT NULL
+    attempt_username TEXT,
+    attempt_time TEXT,
+    status TEXT
 )
 """)
 
@@ -545,46 +546,45 @@ if "user_role" not in st.session_state:
 query_params = st.query_params
 
 # =========================================================
-# ROBUST AUTH & AUTO-LOGIN SYSTEM (WITH SECURITY LOGS)
+# ROBUST AUTH & AUTO-LOGIN SYSTEM (DIRECT AUTO-LOGIN LINK SUPPORT)
 # =========================================================
 saved_user_js = streamlit_js_eval(js_expressions="localStorage.getItem('ps_mediseller_user')", key="get_saved_user_storage")
 target_login = None
-is_link_click = query_params.get("login") is not None
 
-if is_link_click:
+if query_params.get("login"):
     target_login = query_params.get("login")
     st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
 elif saved_user_js and saved_user_js != "null" and saved_user_js != "None":
     target_login = saved_user_js
 
-if target_login and target_login != "null" and target_login != "None":
+# NEW SECURE LOGIN LOGIC WITH ACCESS TRACKING
+if target_login:
     c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
     user_row = c.fetchone()
     if user_row:
         f_name, r_role, is_active = user_row
-        
         if is_active == 1:
             st.session_state["username"] = target_login
             st.session_state["user_role"] = r_role
-            if is_link_click:
+            if query_params.get("login"):
                 st.query_params.clear()
                 st.rerun()
         else:
-            # Blocked User Trying to Login
-            if is_link_click:
-                c.execute("INSERT INTO access_logs (attempted_user, status, attempt_time) VALUES (?, ?, ?)", 
-                          (target_login, "Blocked Agent Attempt (ব্লকড এজেন্ট)", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
-                conn.commit()
-                st.error("🚫 Your account is blocked! (আপনার অ্যাকাউন্ট ব্লক করা হয়েছে!)")
+            # Blocked Agent Trying to Login
+            c.execute("INSERT INTO access_logs (attempt_username, attempt_time, status) VALUES (?, ?, ?)",
+                      (target_login, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Blocked Agent Joined from Link"))
+            conn.commit()
             st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
+            st.error("🚫 Your account has been completely blocked by the Admin. You cannot access this app. (আপনার অ্যাকাউন্ট ব্লক করা হয়েছে।)")
+            st.stop()
     else:
         # Unknown User Trying to Login
-        if is_link_click:
-            c.execute("INSERT INTO access_logs (attempted_user, status, attempt_time) VALUES (?, ?, ?)", 
-                      (target_login, "Unknown Access Attempt (অচেনা লিঙ্কে ক্লিক)", get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
-            conn.commit()
-            st.error("🚫 Invalid Login Link! (ভুল লগইন লিংক!)")
+        c.execute("INSERT INTO access_logs (attempt_username, attempt_time, status) VALUES (?, ?, ?)",
+                  (target_login, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Unknown Link Join Attempt"))
+        conn.commit()
         st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
+        st.error("🚫 Invalid Login Link or User! (ভুল লগইন লিংক বা অজানা ইউজার!)")
+        st.stop()
 
 # =========================================================
 # MAIN APP HEADER
@@ -664,16 +664,16 @@ if st.session_state.get("show_admin_login", False):
     with col_al2:
       cancel_admin = st.form_submit_button("Cancel (বাতিল)")
     if submit_admin:
-      c.execute("SELECT password, role FROM users WHERE username='admin'")
+      c.execute("SELECT password, role, is_active FROM users WHERE username='admin'")
       adm_row = c.fetchone()
-      if adm_row and adm_row[0] == admin_pass_input:
+      if adm_row and adm_row[0] == admin_pass_input and adm_row[2] == 1:
         st.session_state["username"] = "admin"
         st.session_state["user_role"] = "admin"
         st.session_state["show_admin_login"] = False        
         st.success("Admin login successful! (সফল!)")
         st.rerun()
       else:
-        st.error("Incorrect Password! (ভুল পাসওয়ার্ড!)")
+        st.error("Incorrect Password or Inactive Admin! (ভুল পাসওয়ার্ড!)")
     if cancel_admin:
       st.session_state["show_admin_login"] = False
       st.rerun()
@@ -1614,63 +1614,114 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         WHERE t.status='Completed'
         ORDER BY t.created_at DESC
     """, conn)
+    
     if not completed_tasks_df.empty:
       if st.session_state["user_role"] == "admin":
         export_comp_df = completed_tasks_df.copy()
         export_comp_df['Agent Name'] = export_comp_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
-        st.dataframe(export_comp_df[['Agent Name', 'party_name', 'task_type', 'sale_amount', 'payment_collected_actual', 'created_at']], use_container_width=True)
-    else:
-      st.info("No completed tasks found.")
-
-# =========================================================
-# 6. SETTINGS & AGENTS (সেটিংস এবং সিকিউরিটি)
-# =========================================================
-elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
-  st.write("### ⚙️ Settings & Agents (সেটিংস এবং কর্মী ব্যবস্থাপনা)")
-  
-  sec_tab1, sec_tab2 = st.tabs(["🛡️ Security & Unauthorized Access", "👥 Manage Agents (ব্লক/আনব্লক)"])
-  
-  with sec_tab1:
-    st.write("#### 🚨 Security Logs (সিকিউরিটি লগস)")
-    st.write("যদি কোনো অজানা ব্যক্তি বা ব্লক করা এজেন্ট অ্যাপে ঢোকার চেষ্টা করে, তা এখানে দেখা যাবে।")
-    
-    logs_df = pd.read_sql_query("SELECT * FROM access_logs ORDER BY attempt_time DESC", conn)
-    if not logs_df.empty:
-      if st.button("🗑️ Clear Logs", key="clear_logs_btn"):
-        c.execute("DELETE FROM access_logs")
-        conn.commit()
-        st.success("Logs Cleared! (লগ পরিষ্কার করা হয়েছে!)")
-        st.rerun()
+        export_comp_df_final = export_comp_df[['Agent Name', 'party_name', 'task_type', 'sale_amount', 'payment_collected_actual', 'created_at', 'address']]
         
-      for idx, row in logs_df.iterrows():
-        st.warning(f"⚠️ **Attempted User:** `{row['attempted_user']}` | **Status:** `{row['status']}` | **Time:** `{row['attempt_time']}`")
-    else:
-      st.success("✅ No unauthorized attempts detected. (সব নিরাপদ আছে!)")
-      
-  with sec_tab2:
-    st.write("#### 👥 Agent Management")
-    st.write("এখান থেকে আপনি কোনো কর্মচারীকে ব্লক করতে পারবেন, যাতে সে তার লিঙ্কে ক্লিক করলেও অ্যাপে ঢুকতে না পারে।")
-    
-    users_df = pd.read_sql_query("SELECT * FROM users WHERE role='staff'", conn)
-    if not users_df.empty:
-      for idx, row in users_df.iterrows():
-        cols = st.columns([3, 2, 2, 2])
-        cols[0].write(f"**{row['fullname']}** (`{row['username']}`)")
-        cols[1].write(f"Ph: {row['phone']}")
+        html_comp_task = generate_html_report("Completed Tasks History Report", export_comp_df_final)
+        st.download_button("📥 Download Completed Tasks Report", data=html_comp_task, file_name="completed_tasks_history.html", mime="text/html", type="primary")
+        st.write("---")
         
-        if row['is_active'] == 1:
-          cols[2].success("✅ Active (সক্রিয়)")
-          if cols[3].button("🚫 Block (ব্লক করুন)", key=f"block_{row['username']}", type="primary"):
-            c.execute("UPDATE users SET is_active=0 WHERE username=?", (row['username'],))
-            conn.commit()
-            st.rerun()
-        else:
-          cols[2].error("🚫 Blocked (ব্লকড)")
-          if cols[3].button("✅ Unblock (আনব্লক করুন)", key=f"unblock_{row['username']}"):
-            c.execute("UPDATE users SET is_active=1 WHERE username=?", (row['username'],))
-            conn.commit()
-            st.rerun()
+      for idx, row in completed_tasks_df.iterrows():
+        ag_disp = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name']
+        st.write(f"**Agent:** {ag_disp} | **Party:** {row['party_name']} | **Task:** {row['task_type']} | ✅ Completed")
         st.write("---")
     else:
-      st.info("No agents found. (কোনো কর্মী নেই।)")
+      st.info("No completed tasks found in history.")
+
+# =========================================================
+# 6. ROUTE MAP
+# =========================================================
+elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
+  st.write("### 🗺️ Delivery Route Map (রুট ম্যাপ)")
+  st.info("The map plotting and routing interface will display here.")
+
+# =========================================================
+# 7. ATTENDANCE
+# =========================================================
+elif selected_menu == "📅 Attendance (উপস্থিতি)":
+  st.write("### 📅 Attendance System (হাজিরা)")
+  if st.button("✅ Daily Check-in (আজকের উপস্থিতি দিন)", type="primary"):
+    try:
+        current_date_str = get_ist_time().strftime("%Y-%m-%d")
+        current_time_str = get_ist_time().strftime("%H:%M:%S")
+        c.execute("INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
+                  (st.session_state["username"], current_date_str, current_time_str, "Present"))
+        conn.commit()
+        st.success(f"Attendance marked successfully for today ({current_date_str})! (হাজিরা সম্পন্ন!)")
+    except sqlite3.IntegrityError:
+        st.warning("You have already checked in for today! (আজকের হাজিরা আগেই দেওয়া হয়েছে!)")
+
+# =========================================================
+# 8. LIVE TRACKING
+# =========================================================
+elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)":
+  st.write("### 📊 Live Agent Tracking (কর্মচারীর লোকেশন)")
+  if st.session_state["user_role"] == "admin":
+      tracking_df = pd.read_sql_query("SELECT * FROM agent_live_locations", conn)
+      if not tracking_df.empty:
+          st.dataframe(tracking_df, use_container_width=True)
+      else:
+          st.info("No active agent locations tracked yet.")
+  else:
+      st.warning("Only admin can view live tracking data.")
+
+# =========================================================
+# 9. SETTINGS & AGENTS MANAGEMENT (NEW SECURE OPTIONS)
+# =========================================================
+elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)":
+  if st.session_state["user_role"] != "admin":
+      st.error("Only administrators can access this section.")
+      st.stop()
+
+  st.markdown('<div class="main-title">⚙️ Settings & Security Management</div>', unsafe_allow_html=True)
+  
+  set_tab1, set_tab2 = st.tabs(["🚨 Security & Access Alerts", "👥 Agent Control (Block/Unblock)"])
+
+  with set_tab1:
+      st.write("#### 🚨 Security & Access Alerts (নিরাপত্তা ও জয়েন্ট এলার্ট)")
+      st.info("কোনো ব্লক করা এজেন্ট বা অজানা ব্যক্তি আপনার লিংক থেকে জয়েন্ট করার চেষ্টা করলে, তার রিপোর্ট আপনি এখানে দেখতে পাবেন।")
+      
+      access_df = pd.read_sql_query("SELECT attempt_username as 'Username / Link ID', attempt_time as 'Attempt Time', status as 'Status' FROM access_logs ORDER BY id DESC LIMIT 30", conn)
+      if not access_df.empty:
+          st.dataframe(access_df, use_container_width=True)
+          if st.button("🗑️ Clear Alerts History (হিস্ট্রি মুছুন)"):
+              c.execute("DELETE FROM access_logs")
+              conn.commit()
+              st.success("Security alerts cleared successfully!")
+              st.rerun()
+      else:
+          st.success("No unauthorized join attempts yet. (কোনো অবৈধ চেষ্টা নেই।)")
+
+  with set_tab2:
+      st.write("#### 👥 Agent Management (এজেন্ট কন্ট্রোল)")
+      st.info("এখান থেকে কোনো এজেন্ট কাজ ছেড়ে দিলে তাকে Block করে দিন। ব্লক করা হলে সে আর আগের লিংক থেকে জয়েন্ট হতে পারবে না।")
+      
+      agents_df = pd.read_sql_query("SELECT username, fullname, phone, is_active FROM users WHERE role!='admin'", conn)
+      if not agents_df.empty:
+          for _, ag in agents_df.iterrows():
+              cols = st.columns([2, 2, 2, 2])
+              cols[0].write(f"**{ag['fullname']}** ({ag['username']})")
+              cols[1].write(f"Ph: {ag['phone']}")
+              if ag['is_active'] == 1:
+                  cols[2].success("✅ Active (সক্রিয়)")
+                  if cols[3].button("🚫 Block Agent (ব্লক করুন)", key=f"block_{ag['username']}", type="primary"):
+                      c.execute("UPDATE users SET is_active=0 WHERE username=?", (ag['username'],))
+                      conn.commit()
+                      st.success(f"Agent {ag['fullname']} has been blocked!")
+                      st.rerun()
+              else:
+                  cols[2].error("❌ Blocked (ব্লকড)")
+                  if cols[3].button("✅ Unblock Agent (আনব্লক করুন)", key=f"unblock_{ag['username']}", type="secondary"):
+                      c.execute("UPDATE users SET is_active=1 WHERE username=?", (ag['username'],))
+                      conn.commit()
+                      st.success(f"Agent {ag['fullname']} has been unblocked!")
+                      st.rerun()
+              st.write("---")
+      else:
+          st.info("No agents found.")
+
 
