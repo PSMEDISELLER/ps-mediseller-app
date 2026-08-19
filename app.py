@@ -2010,36 +2010,39 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
           st.rerun()
       st.write("---")
       for idx, r in recycle_df.iterrows():
-        st.markdown(f"**Type:** `{r['item_type']}` | **Title/Name:** `{r['item_title']}` | **Deleted At:** `{r['deleted_at']}`")
-        col_act1, col_act2 = st.columns(2)
-        with col_act1:
-          if st.button("♻️ Restore (পুনরুদ্ধার)", key=f"restore_bin_{r['id']}"):
+        st.markdown(f"**Type:** `{r['item_type']}` | **Title:** `{r['item_title']}` | **Deleted At:** `{r['deleted_at']}`")
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+          if st.button("♻️ Restore Item (পুনরুদ্ধার)", key=f"restore_item_{r['id']}"):
             try:
               data_dict = json.loads(r['item_data'])
               if r['item_type'] == 'Location':
-                c.execute("INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-                          (data_dict.get('party_name'), data_dict.get('address'), data_dict.get('party_phone'), data_dict.get('lat'), data_dict.get('lon')))
+                cols_str = ", ".join(data_dict.keys())
+                vals_placeholder = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT OR IGNORE INTO locations ({cols_str}) VALUES ({vals_placeholder})", list(data_dict.values()))
               elif r['item_type'] == 'Order':
-                c.execute("INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
-                          (data_dict.get('party_name'), data_dict.get('order_details'), data_dict.get('order_date'), data_dict.get('status', 'Pending'), data_dict.get('payment_collected', '0')))
+                cols_str = ", ".join(data_dict.keys())
+                vals_placeholder = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT INTO orders ({cols_str}) VALUES ({vals_placeholder})", list(data_dict.values()))
               elif r['item_type'] == 'Daily Work':
-                c.execute("INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                          (data_dict.get('party_name'), data_dict.get('activity_type'), data_dict.get('work_date')))
+                cols_str = ", ".join(data_dict.keys())
+                vals_placeholder = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT INTO daily_work ({cols_str}) VALUES ({vals_placeholder})", list(data_dict.values()))
               elif r['item_type'] == 'Task':
-                c.execute("INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                          (data_dict.get('agent_name'), data_dict.get('party_name'), data_dict.get('task_type'), data_dict.get('due_amount'), data_dict.get('sale_amount', '0'), data_dict.get('payment_collected_actual', '0'), data_dict.get('status', 'Pending'), data_dict.get('created_at')))
-              
+                cols_str = ", ".join(data_dict.keys())
+                vals_placeholder = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT INTO task_assignments ({cols_str}) VALUES ({vals_placeholder})", list(data_db := list(data_dict.values())))
               c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
               conn.commit()
               st.success("Item restored successfully! (পুনরুদ্ধার করা হয়েছে!)")
               st.rerun()
             except Exception as e:
               st.error(f"Restore failed: {e}")
-        with col_act2:
+        with col_r2:
           if st.button("🗑️ Delete Permanently (স্থায়ীভাবে মুছুন)", key=f"perm_del_{r['id']}"):
             c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
             conn.commit()
-            st.success("Item permanently deleted!")
+            st.success("Deleted permanently!")
             st.rerun()
         st.write("---")
     else:
@@ -2049,21 +2052,21 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
   with set_tab4:
     st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
     with st.form("change_admin_pass_form"):
-      old_pass_input = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_pass_input = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
-      confirm_pass_input = st.text_input("Confirm New Password (পুনরায় নতুন পাসওয়ার্ড)", type="password")
-      submit_pass_change = st.form_submit_button("🔒 Update Password (পাসওয়ার্ড আপডেট)", type="primary")
+      old_p = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_p1 = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
+      new_p2 = st.text_input("Confirm New Password (কনফার্ম পাসওয়ার্ড)", type="password")
+      submit_chg_pass = st.form_submit_button("🔒 Update Password (আপডেট করুন)", type="primary")
 
-      if submit_pass_change:
+      if submit_chg_pass:
         c.execute("SELECT password FROM users WHERE username='admin'")
-        adm_db_pass = c.fetchone()[0]
-        if old_pass_input == adm_db_pass:
-          if new_pass_input == confirm_pass_input and new_pass_input.strip():
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass_input.strip(),))
+        adm_db_row = c.fetchone()
+        if adm_db_row and adm_db_row[0] == old_p:
+          if new_p1.strip() and new_p1 == new_p2:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1.strip(),))
             conn.commit()
-            st.success("Admin password changed successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!)")
+            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
           else:
-            st.error("New passwords do not match or empty!")
+            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
         else:
-          st.error("Incorrect current password!")
+          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
 
