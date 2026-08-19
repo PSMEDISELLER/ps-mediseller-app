@@ -52,7 +52,6 @@ for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
             logo_b64 = base64.b64encode(f.read()).decode()
         break
 
-# PWA Start URL fix: Removes query params for clean home screen installation
 pwa_manifest_html = f"""
 <script>
 try {{
@@ -438,7 +437,6 @@ if c.fetchone()[0] == 0:
             ("delivery", "user123", "staff", "Delivery Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
   conn.commit()
 
-# HELPER TO MOVE DELETED ITEMS TO RECYCLE BIN
 def move_to_recycle_bin(item_type, item_title, item_data_dict):
     data_json = json.dumps(item_data_dict)
     deleted_at = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
@@ -447,11 +445,10 @@ def move_to_recycle_bin(item_type, item_title, item_data_dict):
     conn.commit()
 
 # =========================================================
-# AUTOMATIC CLEANUP LOGIC (48H COMPLETED TASKS & 7 DAYS ORDERS)
+# AUTOMATIC CLEANUP LOGIC
 # =========================================================
 current_dt_str = get_ist_time()
 
-# ১. ৭ দিন পার হওয়া অর্ডার ডিলিট
 c.execute("SELECT id, order_date FROM orders")
 for row_ord in c.fetchall():
   try:
@@ -465,7 +462,6 @@ for row_ord in c.fetchall():
   except Exception:
     pass
 
-# ২. ৪৮ ঘণ্টা পার হওয়া কমপ্লিট টাস্ক ডিলিট
 c.execute("SELECT id, created_at, status FROM task_assignments")
 for row_task in c.fetchall():
   try:
@@ -483,9 +479,6 @@ for row_task in c.fetchall():
 
 conn.commit()
 
-# =========================================================
-# PROFESSIONAL HTML/PDF REPORT GENERATOR HELPER
-# =========================================================
 def generate_html_report(title, df):
   html = f"""
   <!DOCTYPE html>
@@ -538,7 +531,7 @@ if "user_role" not in st.session_state:
 query_params = st.query_params
 
 # =========================================================
-# ROBUST AUTH & AUTO-LOGIN SYSTEM (FIXED REGISTRATION LOOP)
+# ROBUST AUTH & AUTO-LOGIN SYSTEM (RESTRICTED ACCESS SECURITY)
 # =========================================================
 saved_user_js = streamlit_js_eval(js_expressions="localStorage.getItem('ps_mediseller_user')", key="get_saved_user_storage")
 target_login = None
@@ -549,7 +542,8 @@ if query_params.get("login"):
 elif saved_user_js and saved_user_js != "null" and saved_user_js != "None":
     target_login = saved_user_js
 
-# Validate and automatically log user in
+# Validate login state
+is_authenticated = False
 if target_login:
     c.execute("SELECT fullname, role FROM users WHERE username=?", (target_login,))
     user_row = c.fetchone()
@@ -557,8 +551,8 @@ if target_login:
         f_name, r_role = user_row        
         st.session_state["username"] = target_login
         st.session_state["user_role"] = r_role
+        is_authenticated = True
         
-        # If user is logged in, but trapped on join/login page URL, force redirect to main dashboard
         if query_params.get("join") == "true" or query_params.get("login"):
             st.query_params.clear()
             st.rerun()
@@ -566,15 +560,16 @@ if target_login:
         st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
 
 # =========================================================
-# AGENT SHAREABLE JOIN LINK ONBOARDING PAGE
+# AGENT SHAREABLE JOIN LINK ONBOARDING PAGE & SECURITY RESTRICTION
 # =========================================================
 if query_params.get("join") == "true":
     st.markdown("## 🤝 Join P. S MEDISELLER Team (এজেন্ট নতুন একাউন্ট)")
     st.write("এখানে আপনার সঠিক নাম, ফোন নম্বর এবং পাসওয়ার্ড প্রদান করে যোগ দিন:")
     
     if st.button("⬅️ Already have an account? Login Here (আগে থেকেই একাউন্ট আছে)"):
-        st.query_params.clear()
-        st.rerun()
+        # সিকিউরিটি প্রটেকশন ও বাধা প্রদান সিস্টেম (Facebook/WhatsApp স্টাইল সিকিউরিটি গার্ড)
+        st.warning("⚠️ আপনি সরাসরি প্রবেশ করতে পারবেন না! রেজিস্টার্ড এজেন্ট বা সঠিক অ্যাকাউন্ট ছাড়া এখানে প্রবেশাধিকার সংরক্ষিত। অনুগ্রহ করে নিচের ফর্ম পূরণ করে অথবা সঠিক ইউজারনেম দিয়ে লগইন করুন।")
+        st.stop()
 
     with st.form("agent_public_join_form", clear_on_submit=True):
         j_fname = st.text_input("Full Name (আপনার নাম)")
@@ -592,7 +587,6 @@ if query_params.get("join") == "true":
                     )
                     conn.commit()
                     
-                    # Auto login bypass
                     st.session_state["username"] = j_uname.strip()
                     st.session_state["user_role"] = "staff"
                     st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{j_uname.strip()}');</script>", unsafe_allow_html=True)
@@ -1946,7 +1940,6 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
       "🔑 Admin Password"
   ])
 
-  # TAB 1: MANAGE AGENTS & SHAREABLE JOIN LINK
   with set_tab1:
     st.write("#### 🔗 Agent Shareable Join Link (এজেন্ট যুক্ত করার লিঙ্ক)")
     
@@ -2015,7 +2008,6 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
               st.success("Agent deleted successfully!")
               st.rerun()
 
-  # TAB 2: DATABASE BACKUP & RESTORE
   with set_tab2:
     st.write("#### 📂 Database Backup & Restore (ব্যাকআপ ও রিস্টোর)")
     with open(DB_FILE, "rb") as db_f:
@@ -2036,7 +2028,6 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         st.success("Database restored successfully! Please refresh page. (সফলভাবে রিস্টোর হয়েছে!)")
         st.rerun()
 
-  # TAB 3: RECYCLE BIN
   with set_tab3:
     st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন - ডিলিট করা আইটেম)")
     bin_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY deleted_at DESC", conn)
@@ -2087,9 +2078,8 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         cols = st.columns([2, 3, 2, 1.5, 1.5])
         cols[0].write(f"Type: `{row['item_type']}`")
         cols[1].write(f"Title: **{row['item_title']}**")
-        cols[2].write(f"Deleted: `{format_date_display(row['deleted_at'])}`")
-       
-        if cols[3].button("♻️ Restore", key=f"restore_bin_{row['id']}"):
+        cols[2].write(f"Deleted: `{row['deleted_at']}`")
+        if cols[3].button("♻️ Restore", key=f"rest_bin_{row['id']}"):
           i_type = row['item_type']
           i_data = json.loads(row['item_data'])
           if i_type == "Location":
@@ -2118,7 +2108,33 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
               pass
           c.execute("DELETE FROM recycle_bin WHERE id=?", (row['id'],))
           conn.commit()
-          st.success("Item restored successfully! (ফিরিয়ে আনা হয়েছে!)")
+          st.success("Item restored successfully!")
+          st.rerun()
+        if cols[4].button("🔥 Delete", key=f"perm_del_bin_{row['id']}"):
+          c.execute("DELETE FROM recycle_bin WHERE id=?", (row['id'],))
+          conn.commit()
+          st.success("Permanently deleted!")
           st.rerun()
         st.write("---")
+    else:
+      st.info("Recycle Bin is empty. (রিসাইকেল বিন খালি।)")
 
+  with set_tab4:
+    st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    with open("admin_pass_form", clear_on_submit=True):
+      old_p = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_p1 = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
+      new_p2 = st.text_input("Confirm New Password (কনফার্ম পাসওয়ার্ড)", type="password")
+      submit_ch_pass = st.form_submit_button("🔒 Update Password (আপডেট করুন)", type="primary")
+      if submit_ch_pass:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        cur_adm_pw = c.fetchone()[0]
+        if old_p == cur_adm_pw:
+          if new_p1.strip() and new_p1 == new_p2:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1.strip(),))
+            conn.commit()
+            st.success("Admin password updated successfully! (পাসওয়ার্ড পরিবর্তিত হয়েছে!)")
+          else:
+            st.error("New passwords do not match or empty!")
+        else:
+          st.error("Incorrect current password!")
