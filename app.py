@@ -1975,105 +1975,95 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
     else:
       st.info("No agents found. Add an agent above.")
 
-  # TAB 2: DATABASE BACKUP & RESTORE
+  # TAB 2: BACKUP & RESTORE
   with set_tab2:
     st.write("#### 📂 Database Backup & Restore (ব্যাকআপ ও রিস্টোর)")
-    with open(DB_FILE, "rb") as db_f:
-      db_bytes = db_f.read()
-    st.download_button(
-        label="📥 Download Database Backup (.db file)",
-        data=db_bytes,
-        file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
-        mime="application/octet-stream",
-        type="primary"
-    )
+    if os.path.exists(DB_FILE):
+      with open(DB_FILE, "rb") as db_f:
+        st.download_button(
+            label="📥 Download Database Backup (.db ফাইল ডাউনলোড)",
+            data=db_f,
+            file_name="mediseller_backup.db",
+            mime="application/octet-stream",
+            type="primary"
+        )
     st.write("---")
-    uploaded_db = st.file_uploader("Upload Database Backup File to Restore (রিস্টোর করুন)", type=["db"])
+    uploaded_db = st.file_uploader("📂 Restore Database (ব্যাকআপ ফাইল আপলোড করুন)", type=["db"])
     if uploaded_db is not None:
-      if st.button("⚠️ Confirm & Restore Database", type="secondary"):
+      if st.button("⚠️ Confirm & Overwrite Database (রিস্টোর করুন)", type="primary"):
         with open(DB_FILE, "wb") as f_out:
           f_out.write(uploaded_db.getbuffer())
-        st.success("Database restored successfully! Please reload page. (সফলভাবে রিস্টোর হয়েছে!)")
+        st.success("Database restored successfully! Please refresh. (সফলভাবে রিস্টোর হয়েছে!)")
         st.rerun()
 
   # TAB 3: RECYCLE BIN
   with set_tab3:
-    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন - ডিলিট হওয়া আইটেম)")
-    recycle_df = pd.read_sql_query("SELECT id, item_type, item_title, deleted_at FROM recycle_bin ORDER BY deleted_at DESC", conn)
+    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন - ডিলিট করা ডাটা)")
+    recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
     if not recycle_df.empty:
-      if st.button("🧹 Empty Recycle Bin (সব স্থায়ীভাবে মুছুন)", type="secondary"):
-        c.execute("DELETE FROM recycle_bin")
-        conn.commit()
-        st.success("Recycle bin emptied!")
-        st.rerun()
+      col_rb1, col_rb2 = st.columns(2)
+      with col_rb1:
+        if st.button("🧹 Empty Recycle Bin (সব খালি করুন)", type="secondary"):
+          c.execute("DELETE FROM recycle_bin")
+          conn.commit()
+          st.success("Recycle Bin emptied successfully!")
+          st.rerun()
       st.write("---")
       for idx, r in recycle_df.iterrows():
-        cols = st.columns([2, 3, 2, 1.5, 1.5])
-        cols[0].write(f"Type: `{r['item_type']}`")
-        cols[1].write(f"Title: **{r['item_title']}**")
-        cols[2].write(f"Deleted: `{format_date_display(r['deleted_at'])}`")
-        
-        if cols[3].button("♻️ Restore", key=f"restore_{r['id']}"):
-          c.execute("SELECT item_data FROM recycle_bin WHERE id=?", (r['id'],))
-          data_json = c.fetchone()[0]
-          data_dict = json.loads(data_json)
-          if r['item_type'] == "Location":
+        st.markdown(f"**Type:** `{r['item_type']}` | **Title/Name:** `{r['item_title']}` | **Deleted At:** `{r['deleted_at']}`")
+        col_act1, col_act2 = st.columns(2)
+        with col_act1:
+          if st.button("♻️ Restore (পুনরুদ্ধার)", key=f"restore_bin_{r['id']}"):
             try:
-              c.execute("INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-                        (data_dict.get('party_name'), data_dict.get('address'), data_dict.get('party_phone'), data_dict.get('lat'), data_dict.get('lon')))
-            except:
-              pass
-          elif r['item_type'] == "Order":
-            try:
-              c.execute("INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
-                        (data_dict.get('party_name'), data_dict.get('order_details'), data_dict.get('order_date'), data_dict.get('status', 'Pending'), data_dict.get('payment_collected', '0')))
-            except:
-              pass
-          elif r['item_type'] == "Daily Work":
-            try:
-              c.execute("INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                        (data_dict.get('party_name'), data_dict.get('activity_type'), data_dict.get('work_date')))
-            except:
-              pass
-          elif r['item_type'] == "Task":
-            try:
-              c.execute("INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (data_dict.get('agent_name', 'delivery'), data_dict.get('party_name'), data_dict.get('task_type'), data_dict.get('due_amount', '0'), data_dict.get('sale_amount', '0'), data_dict.get('payment_collected_actual', '0'), data_dict.get('status', 'Pending'), data_dict.get('created_at', get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))))
-            except:
-              pass
-          c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
-          conn.commit()
-          st.success("Restored successfully! (রিস্টোর করা হয়েছে!)")
-          st.rerun()
-
-        if cols[4].button("🗑️ Delete", key=f"perm_del_{r['id']}"):
-          c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
-          conn.commit()
-          st.success("Deleted permanently!")
-          st.rerun()
+              data_dict = json.loads(r['item_data'])
+              if r['item_type'] == 'Location':
+                c.execute("INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+                          (data_dict.get('party_name'), data_dict.get('address'), data_dict.get('party_phone'), data_dict.get('lat'), data_dict.get('lon')))
+              elif r['item_type'] == 'Order':
+                c.execute("INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
+                          (data_dict.get('party_name'), data_dict.get('order_details'), data_dict.get('order_date'), data_dict.get('status', 'Pending'), data_dict.get('payment_collected', '0')))
+              elif r['item_type'] == 'Daily Work':
+                c.execute("INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                          (data_dict.get('party_name'), data_dict.get('activity_type'), data_dict.get('work_date')))
+              elif r['item_type'] == 'Task':
+                c.execute("INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                          (data_dict.get('agent_name'), data_dict.get('party_name'), data_dict.get('task_type'), data_dict.get('due_amount'), data_dict.get('sale_amount', '0'), data_dict.get('payment_collected_actual', '0'), data_dict.get('status', 'Pending'), data_dict.get('created_at')))
+              
+              c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
+              conn.commit()
+              st.success("Item restored successfully! (পুনরুদ্ধার করা হয়েছে!)")
+              st.rerun()
+            except Exception as e:
+              st.error(f"Restore failed: {e}")
+        with col_act2:
+          if st.button("🗑️ Delete Permanently (স্থায়ীভাবে মুছুন)", key=f"perm_del_{r['id']}"):
+            c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
+            conn.commit()
+            st.success("Item permanently deleted!")
+            st.rerun()
         st.write("---")
     else:
       st.info("Recycle Bin is empty. (রিসাইকেল বিন খালি।)")
 
-  # TAB 4: ADMIN PASSWORD CHANGE
+  # TAB 4: ADMIN PASSWORD
   with set_tab4:
     st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
-    with form_pass := st.form("change_admin_pass_form", clear_on_submit=True):
-      old_p = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_p = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
-      confirm_p = st.text_input("Confirm New Password (পুনরায় নতুন পাসওয়ার্ড)", type="password")
-      sub_pass = st.form_submit_button("Update Password (পাসওয়ার্ড আপডেট)", type="primary")
+    with st.form("change_admin_pass_form"):
+      old_pass_input = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_pass_input = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
+      confirm_pass_input = st.text_input("Confirm New Password (পুনরায় নতুন পাসওয়ার্ড)", type="password")
+      submit_pass_change = st.form_submit_button("🔒 Update Password (পাসওয়ার্ড আপডেট)", type="primary")
 
-      if sub_pass:
+      if submit_pass_change:
         c.execute("SELECT password FROM users WHERE username='admin'")
-        cur_adm_pass = c.fetchone()[0]
-        if old_p == cur_adm_pass:
-          if new_p and new_p == confirm_p:
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p,))
+        adm_db_pass = c.fetchone()[0]
+        if old_pass_input == adm_db_pass:
+          if new_pass_input == confirm_pass_input and new_pass_input.strip():
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass_input.strip(),))
             conn.commit()
-            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
+            st.success("Admin password changed successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!)")
           else:
-            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
+            st.error("New passwords do not match or empty!")
         else:
-          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
+          st.error("Incorrect current password!")
 
