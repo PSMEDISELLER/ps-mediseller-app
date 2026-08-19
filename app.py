@@ -548,18 +548,33 @@ elif saved_user_js and saved_user_js != "null" and saved_user_js != "None":
     target_login = saved_user_js
 
 if target_login:
-    c.execute("SELECT fullname, role FROM users WHERE username=?", (target_login,))
+    c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
     user_row = c.fetchone()
     if user_row:
-        f_name, r_role = user_row        
-        st.session_state["username"] = target_login
-        st.session_state["user_role"] = r_role
-        
-        if query_params.get("login"):
-            st.query_params.clear()
-            st.rerun()
+        f_name, r_role, is_active = user_row
+        if is_active == 0:
+            st.warning("⚠️ আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
+            st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
+            st.stop()
+        else:
+            st.session_state["username"] = target_login
+            st.session_state["user_role"] = r_role
+            if query_params.get("login"):
+                st.query_params.clear()
+                st.rerun()
     else:
         st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
+
+# =========================================================
+# UNKNOWN AGENT DETECTION LOGIC
+# =========================================================
+current_logged_username = st.session_state["username"]
+if current_logged_username != "admin":
+    c.execute("SELECT is_active FROM users WHERE username=?", (current_logged_username,))
+    res_act = c.fetchone()
+    if res_act and res_act[0] == 0:
+        st.error("🚫 আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
+        st.stop()
 
 # =========================================================
 # MAIN APP HEADER
@@ -1867,10 +1882,10 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
     st.info("No live agent location data available yet.")
 
 # =========================================================
-# 9. ADMIN: SETTINGS & AGENTS MANAGEMENT (WITH AUTO-LOGIN LINK CREATOR)
+# 9. ADMIN: SETTINGS & AGENTS MANAGEMENT (WITH AUTO-LOGIN LINK CREATOR & UNKNOWN AGENTS MONITORING)
 # =========================================================
 elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
-  st.write("### ⚙️ Settings & Agents Management (কর্মী ও অটো-লগইন লিঙ্ক জেনারেটর)")
+  st.write("### ⚙️ Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
   
   c.execute("SELECT COUNT(*) FROM users WHERE role='staff'")
   total_staff_count = c.fetchone()[0]
@@ -1894,8 +1909,9 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
       """, unsafe_allow_html=True)
   st.write("")
 
-  set_tab1, set_tab2, set_tab3, set_tab4 = st.tabs([
-      "👥 Add Agents & Auto-Login Links", 
+  set_tab1, set_tab2, set_tab3, set_tab4, set_tab5 = st.tabs([
+      "👥 Add Agents & Auto-Login Links",
+      "🚨 Unknown & Re-joined Agents", 
       "📂 Database Backup & Restore",
       "🗑️ Recycle Bin (রিসাইকেল বিন)",
       "🔑 Admin Password"
@@ -1972,6 +1988,54 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
       st.info("No agents found. Add an agent above.")
 
   with set_tab2:
+    st.write("#### 🚨 Unknown Visitors & Re-joined / Deleted Agents Monitoring")
+    st.info("💡 এখানে কোনো অজানা ব্যক্তি বা অতীতে ডিলিট করা কোনো এজেন্ট যদি লিংক ব্যবহার করে পুনরায় অ্যাপে প্রবেশ (join) করে, তবে আপনি তাদের তালিকা দেখতে পাবেন এবং এক ক্লিকে তাদের সম্পূর্ণরূপে **Block (ব্লক)** করে দিতে পারবেন।")
+
+    all_users_monitoring = pd.read_sql_query("SELECT username, fullname, phone, created_at, is_active, role FROM users WHERE role != 'admin' ORDER BY created_at DESC", conn)
+    if not all_users_monitoring.empty:
+      for idx, u_row in all_users_monitoring.iterrows():
+        u_name = u_row['username']
+        u_fname = u_row['fullname'] or u_name
+        u_phone = u_row['phone'] or "N/A"
+        u_status = u_row['is_active']
+        u_created = u_row['created_at'] or "Unknown"
+
+        status_badge = "🟢 Active (সক্রিয়)" if u_status == 1 else "🔴 Blocked (ব্লক করা)"
+        
+        with st.expander(f"👤 {u_fname} (`{u_name}`) — Status: {status_badge} — Joined: {u_created}", expanded=False):
+          st.markdown(f"""
+          - **Full Name:** {u_fname}
+          - **Username:** `{u_name}`
+          - **Phone:** {u_phone}
+          - **Account Created/Joined:** `{u_created}`
+          - **Current Status:** `{status_badge}`
+          """, unsafe_allow_html=True)
+
+          col_b_act1, col_b_act2 = st.columns(2)
+          with col_b_act1:
+            if u_status == 1:
+              if st.button(f"🚫 Block Agent (ব্লক করুন)", key=f"block_ag_{u_name}", type="primary"):
+                c.execute("UPDATE users SET is_active=0 WHERE username=?", (u_name,))
+                conn.commit()
+                st.success(f"Agent {u_fname} has been blocked successfully! (সফলভাবে ব্লক করা হয়েছে!)")
+                st.rerun()
+            else:
+              if st.button(f"✅ Unblock Agent (আনব্লক করুন)", key=f"unblock_ag_{u_name}", type="primary"):
+                c.execute("UPDATE users SET is_active=1 WHERE username=?", (u_name,))
+                conn.commit()
+                st.success(f"Agent {u_fname} has been unblocked! (আনব্লক করা হয়েছে!)")
+                st.rerun()
+          with col_b_act2:
+            if st.button(f"🗑️ Delete Permanently (স্থায়ীভাবে মুছুন)", key=f"perm_del_ag_{u_name}", type="secondary"):
+              c.execute("DELETE FROM users WHERE username=?", (u_name,))
+              conn.commit()
+              st.success(f"Agent deleted permanently!")
+              st.rerun()
+        st.write("---")
+    else:
+      st.info("No agents or users found in the system.")
+
+  with set_tab3:
     st.write("#### 📂 Database Backup & Restore (ব্যাকআপ ও রিস্টোর)")
     if os.path.exists(DB_FILE):
       with open(DB_FILE, "rb") as db_f:
@@ -1991,7 +2055,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         st.success("Database restored successfully! Please refresh. (সফলভাবে রিস্টোর হয়েছে!)")
         st.rerun()
 
-  with set_tab3:
+  with set_tab4:
     st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন - ডিলিট করা ডাটা)")
     recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
     if not recycle_df.empty:
@@ -2022,40 +2086,39 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
               elif r['item_type'] == 'Task':
                 c.execute("INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                           (item_data.get('agent_name'), item_data.get('party_name'), item_data.get('task_type'), item_data.get('due_amount'), item_data.get('sale_amount', '0'), item_data.get('payment_collected_actual', '0'), item_data.get('status', 'Pending'), item_data.get('created_at')))
-              
               c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
               conn.commit()
-              st.success("Item restored successfully!")
+              st.success("Restored successfully!")
               st.rerun()
             except Exception as e:
-              st.error(f"Error restoring item: {e}")
+              st.error(f"Restore failed: {e}")
         with col_r2:
-          if st.button(f"🗑️ Delete Permanently", key=f"perm_del_item_{r['id']}"):
+          if st.button(f"🗑️ Delete Forever", key=f"perm_del_{r['id']}"):
             c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
             conn.commit()
-            st.success("Item permanently deleted.")
+            st.success("Deleted permanently!")
             st.rerun()
         st.write("---")
     else:
       st.info("Recycle Bin is empty.")
 
-  with set_tab4:
+  with set_tab5:
     st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
     with st.form("change_admin_pass_form"):
-      old_p = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_p1 = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
-      new_p2 = st.text_input("Confirm New Admin Password (পুনরায় নতুন পাসওয়ার্ড)", type="password")
-      sub_chg_pass = st.form_submit_button("🔒 Update Password (পাসওয়ার্ড পরিবর্তন করুন)", type="primary")
+      old_pass = st.text_input("Current Password (পুরোনো পাসওয়ার্ড)", type="password")
+      new_pass1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
+      new_pass2 = st.text_input("Confirm New Password (আবার নতুন পাসওয়ার্ড দিন)", type="password")
+      submit_pass_change = st.form_submit_button("🔒 Update Password (পাসওয়ার্ড আপডেট করুন)", type="primary")
 
-      if sub_chg_pass:
+      if submit_pass_change:
         c.execute("SELECT password FROM users WHERE username='admin'")
-        adm_curr_pw = c.fetchone()[0]
-        if old_p == adm_curr_pw:
-          if new_p1.strip() and new_p1 == new_p2:
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p1.strip(),))
+        cur_adm_pass = c.fetchone()[0]
+        if old_pass == cur_adm_pass:
+          if new_pass1.strip() and new_pass1 == new_pass2:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass1.strip(),))
             conn.commit()
-            st.success("Admin password updated successfully! (পাসওয়ার্ড পরিবর্তন সফল হয়েছে!)")
+            st.success("Admin password updated successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!)")
           else:
-            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
+            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মেলেনি!)")
         else:
-          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
+          st.error("Incorrect current password! (পুরোনো পাসওয়ার্ড ভুল!)")
