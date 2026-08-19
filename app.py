@@ -1775,15 +1775,7 @@ elif selected_menu == "📅 Attendance (উপস্থিতি)":
 
 elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state["user_role"] == "admin":
   st.write("### 📊 Live Agent Tracking & Last Saved Locations (লাইভ ও লাস্ট লোকেশন ট্র্যাকিং)")
-  st.markdown("<p style='color: #38bdf8; font-size: 13px;'><i>💡 Note: This page automatically refreshes every 10 seconds. Click on any agent marker on the map to see their last saved location or live location!</i></p>", unsafe_allow_html=True)
-
-  st.components.v1.html("""
-  <script>
-  setTimeout(function(){
-      window.location.reload();
-  }, 10000);
-  </script>
-  """, height=0)
+  st.markdown("<p style='color: #38bdf8; font-size: 13px;'><i>💡 Note: Click on any agent's Google Maps button below to check their last location instantly!</i></p>", unsafe_allow_html=True)
 
   live_df = pd.read_sql_query("""
       SELECT a.username, u.fullname, u.phone, a.lat, a.lon, a.last_updated, a.completed_deliveries
@@ -1792,41 +1784,6 @@ elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকি
   """, conn)
 
   if not live_df.empty:
-    valid_live_df = live_df.dropna(subset=['lat', 'lon'])
-    if not valid_live_df.empty:
-      m_lat = valid_live_df.iloc[0]['lat']
-      m_lon = valid_live_df.iloc[0]['lon']
-      live_map = folium.Map(location=[m_lat, m_lon], zoom_start=13, tiles=None)
-      folium.TileLayer(
-          tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-          attr="Google Maps Street",
-          name="Street View (স্ট্রিট ভিউ)",
-          show=True
-      ).add_to(live_map)
-      folium.TileLayer(
-          tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-          attr="Google Maps Satellite",
-          name="Satellite View (স্যাটেলাইট ভিউ)",
-          show=False
-      ).add_to(live_map)
-
-      for _, r in valid_live_df.iterrows():
-        ag_name = r['fullname'] if pd.notna(r['fullname']) and r['fullname'] else r['username']
-        l_lat, l_lon = r['lat'], r['lon']
-        l_time = r['last_updated']
-        
-        popup_content = f"<b>Agent: {ag_name}</b><br>Last Location: {l_lat}, {l_lon}<br>Time: {l_time}"
-        folium.Marker(
-            [l_lat, l_lon],
-            popup=folium.Popup(popup_content, max_width=300),
-            tooltip=f"Agent: {ag_name}",
-            icon=folium.Icon(color="green", icon="user", prefix="fa")
-        ).add_to(live_map)
-
-      folium.LayerControl().add_to(live_map)
-      st_folium(live_map, width="100%", height=450, key="admin_all_agents_live_map")
-    
-    st.write("---")
     for idx, r in live_df.iterrows():
       name = r['fullname'] if pd.notna(r['fullname']) and r['fullname'] else r['username']
       username = r['username']
@@ -1999,76 +1956,127 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
           col_b_act1, col_b_act2 = st.columns(2)
           with col_b_act1:
             if u_status == 1:
-              if st.button(f"🚫 Block Agent (ব্লক করুন)", key=f"block_ag_{u_name}", type="primary"):
+              if st.button("🚫 Block User (ব্লক করুন)", key=f"block_user_{u_name}", type="secondary"):
                 c.execute("UPDATE users SET is_active=0 WHERE username=?", (u_name,))
                 conn.commit()
-                st.success(f"Agent {u_fname} has been blocked successfully! (সফলভাবে ব্লক করা হয়েছে!)")
+                st.success(f"User '{u_name}' has been blocked successfully!")
                 st.rerun()
             else:
-              if st.button(f"✅ Unblock Agent (আনব্লক করুন)", key=f"unblock_ag_{u_name}", type="primary"):
+              if st.button("✅ Unblock User (আনব্লক করুন)", key=f"unblock_user_{u_name}", type="primary"):
                 c.execute("UPDATE users SET is_active=1 WHERE username=?", (u_name,))
                 conn.commit()
-                st.success(f"Agent {u_fname} has been unblocked successfully!")
+                st.success(f"User '{u_name}' has been unblocked successfully!")
                 st.rerun()
+          with col_b_act2:
+            if st.button("🗑️ Permanent Delete (পুরোপুরি মুছুন)", key=f"perm_del_user_{u_name}"):
+              c.execute("DELETE FROM users WHERE username=?", (u_name,))
+              conn.commit()
+              st.success(f"User '{u_name}' deleted completely!")
+              st.rerun()
+          st.write("---")
     else:
-      st.info("No unknown or blocked users found.")
+      st.info("No users found.")
 
   with set_tab3:
-    st.write("#### 📂 Database Backup & Restore")
-    if st.button("📥 Download Database Backup (.db)", type="primary"):
-      with open(DB_FILE, "rb") as f:
-        st.download_button(
-            label="Download DB File",
-            data=f,
-            file_name="mediseller_delivery.db",
-            mime="application/octet-stream"
-        )
+    st.write("#### 📂 Database Backup & Restore (ডাটাবেস ব্যাকআপ ও রিস্টোর)")
+    with open(DB_FILE, "rb") as db_f:
+      db_bytes = db_f.read()
+    st.download_button(
+        label="📥 Download Database Backup (.db file)",
+        data=db_bytes,
+        file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
+        mime="application/octet-stream",
+        type="primary"
+    )
     st.write("---")
-    uploaded_db = st.file_uploader("Upload Database Backup (.db) to Restore", type=["db"])
+    st.write("#### 📤 Restore Database (ডাটাবেস রিস্টোর করুন)")
+    uploaded_db = st.file_uploader("Upload Backup .db file", type=["db"])
     if uploaded_db is not None:
-      with open(DB_FILE, "wb") as f:
-        f.write(uploaded_db.getbuffer())
-      st.success("Database restored successfully! Please refresh.")
-      st.rerun()
+      if st.button("⚠️ Confirm & Restore Database (রিস্টোর নিশ্চিত করুন)", type="primary"):
+        with open(DB_FILE, "wb") as f_out:
+          f_out.write(uploaded_db.getbuffer())
+        st.success("Database restored successfully! Please refresh page.")
+        st.rerun()
 
   with set_tab4:
-    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
-    recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY deleted_at DESC", conn)
-    if not recycle_df.empty:
-      if st.button("🗑️ Clear Entire Recycle Bin", type="secondary"):
+    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন - ডিলিট হওয়া আইটেম)")
+    bin_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY deleted_at DESC", conn)
+    if not bin_df.empty:
+      if st.button("🧹 Empty Recycle Bin (সব মুছে ফেলুন)", type="secondary"):
         c.execute("DELETE FROM recycle_bin")
         conn.commit()
-        st.success("Recycle bin cleared!")
+        st.success("Recycle Bin emptied successfully!")
         st.rerun()
       st.write("---")
-      for idx, r in recycle_df.iterrows():
-        st.markdown(f"**Type:** `{r['item_type']}` | **Title:** `{r['item_title']}` | **Deleted At:** `{r['deleted_at']}`")
-        if st.button("♻️ Remove Item", key=f"restore_bin_{r['id']}"):
-          c.execute("DELETE FROM recycle_bin WHERE id=?", (r['id'],))
-          conn.commit()
-          st.success("Item removed from bin!")
-          st.rerun()
+      for idx, b_row in bin_df.iterrows():
+        b_id = b_row['id']
+        b_type = b_row['item_type']
+        b_title = b_row['item_title']
+        b_time = b_row['deleted_at']
+        
+        st.markdown(f"**Type:** `{b_type}` | **Title/Name:** `{b_title}` | **Deleted At:** `{b_time}`")
+        col_rb1, col_rb2 = st.columns(2)
+        with col_rb1:
+          if st.button("♻️ Restore (ফিরিয়ে আনুন)", key=f"restore_bin_{b_id}"):
+            try:
+              data_dict = json.loads(b_row['item_data'])
+              if b_type == "Location":
+                cols_str = ", ".join(data_dict.keys())
+                vals_tuple = tuple(data_dict.values())
+                placeholders = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT OR IGNORE INTO locations ({cols_str}) VALUES ({placeholders})", vals_tuple)
+              elif b_type == "Order":
+                data_dict.pop('id', None)
+                cols_str = ", ".join(data_dict.keys())
+                vals_tuple = tuple(data_dict.values())
+                placeholders = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT INTO orders ({cols_str}) VALUES ({placeholders})", vals_tuple)
+              elif b_type == "Daily Work":
+                data_dict.pop('id', None)
+                cols_str = ", ".join(data_dict.keys())
+                vals_tuple = tuple(data_dict.values())
+                placeholders = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT INTO daily_work ({cols_str}) VALUES ({placeholders})", vals_tuple)
+              elif b_type == "Task":
+                data_dict.pop('id', None)
+                cols_str = ", ".join(data_dict.keys())
+                vals_tuple = tuple(data_dict.values())
+                placeholders = ", ".join(["?"] * len(data_dict))
+                c.execute(f"INSERT INTO task_assignments ({cols_str}) VALUES ({placeholders})", vals_tuple)
+              
+              c.execute("DELETE FROM recycle_bin WHERE id=?", (b_id,))
+              conn.commit()
+              st.success("Restored successfully!")
+              st.rerun()
+            except Exception as e:
+              st.error(f"Error restoring: {e}")
+        with col_rb2:
+          if st.button("🗑️ Delete Permanently (স্থায়ীভাবে মুছুন)", key=f"del_bin_{b_id}"):
+            c.execute("DELETE FROM recycle_bin WHERE id=?", (b_id,))
+            conn.commit()
+            st.success("Deleted permanently from Recycle Bin!")
+            st.rerun()
         st.write("---")
     else:
-      st.info("Recycle bin is empty.")
+      st.info("Recycle Bin is empty. (রিসাইকেল বিন খালি।)")
 
   with set_tab5:
-    st.write("#### 🔑 Change Admin Password")
-    with st.form("change_admin_pass_form", clear_on_submit=True):
-      old_p = st.text_input("Current Password", type="password")
-      new_p = st.text_input("New Password", type="password")
-      conf_p = st.text_input("Confirm New Password", type="password")
-      sub_cp = st.form_submit_button("Update Password", type="primary")
-      if sub_cp:
-        c.execute("SELECT password FROM users WHERE username='admin'")
-        cur_pwd = c.fetchone()[0]
-        if old_p == cur_pwd:
-          if new_p == conf_p and new_p.strip():
-            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_p.strip(),))
-            conn.commit()
-            st.success("Admin password updated successfully!")
-          else:
-            st.error("New passwords do not match or empty.")
-        else:
-          st.error("Incorrect current password.")
+    st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    with open_form_pw := st.form("change_admin_password_form", clear_on_submit=True):
+      old_pass_in = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_pass_in = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
+      confirm_pass_in = st.text_input("Confirm New Password (কনফার্ম পাসওয়ার্ড)", type="password")
+      submit_change_pw = st.form_submit_button("🔒 Change Password (পরিবর্তন করুন)", type="primary")
 
+      if submit_change_pw:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        cur_adm_pw = c.fetchone()[0]
+        if old_pass_in == cur_adm_pw:
+          if new_pass_in.strip() and new_pass_in == confirm_pass_in:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass_in.strip(),))
+            conn.commit()
+            st.success("Admin password changed successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
+          else:
+            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড মিলছে না!)")
+        else:
+          st.error("Current password is incorrect! (বর্তমান পাসওয়ার্ড ভুল!)")
