@@ -627,6 +627,7 @@ else:
 
 col_u1, _ = st.columns([3, 1])
 with col_u1:
+  # ফ্রন্ট পেজে ইউজারের নাম সঠিকভাবে শো করানো হচ্ছে
   st.write(f"👤 User: **{display_user_name}** (`{st.session_state['user_role']}`)")
 
 c.execute("SELECT COUNT(*) FROM orders WHERE status='Pending'")
@@ -2024,175 +2025,97 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
             st.success(f"Agent {new_fname.strip()} added successfully!")
             st.rerun()
           except sqlite3.IntegrityError:
-            st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
-        else:
-          st.error("Please fill all required fields.")
-    
+            st.error("Username already exists! (এই ইউজারনেমটি আগে থেকেই আছে!)")
+
     st.write("---")
-    st.write("#### 👥 All Staff Agents (এজেন্ট তালিকা ও লিংক)")
-    c.execute("SELECT username, password, fullname, phone, is_active FROM users WHERE role='staff'")
-    staff_agents = c.fetchall()
-    for s_usr, s_pass, s_fname, s_phone, s_act in staff_agents:
-        status_text = "🟢 Active" if s_act else "🔴 Blocked"
-        with st.expander(f"👤 {s_fname} ({s_usr}) - {status_text}"):
-            st.write(f"**Username:** `{s_usr}` | **Password:** `{s_pass}`")
-            st.write(f"**Phone:** `{s_phone if s_phone else 'N/A'}`")
-            
-            encoded_login = urllib.parse.quote(s_usr)
-            agent_link = f"{clean_base_url}?login={encoded_login}"
-            st.write("**Auto-Login Link (এজেন্ট লিংক):**")
-            st.code(agent_link, language="text")
-            
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                if s_act:
-                    if st.button(f"🚫 Block {s_fname}", key=f"blk_{s_usr}"):
-                        c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_usr,))
-                        conn.commit()
-                        st.rerun()
-                else:
-                    if st.button(f"✅ Unblock {s_fname}", key=f"unblk_{s_usr}"):
-                        c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_usr,))
-                        conn.commit()
-                        st.rerun()
-            with col_b2:
-                if st.button(f"🗑️ Delete {s_fname}", key=f"del_ag_{s_usr}"):
-                    c.execute("DELETE FROM users WHERE username=?", (s_usr,))
-                    conn.commit()
-                    st.success("Agent deleted successfully!")
-                    st.rerun()
+    st.write("#### 🔗 Agent Management (এজেন্ট লিংক ও নাম পরিবর্তন)")
+    
+    agents_df = pd.read_sql_query("SELECT username, fullname, phone FROM users WHERE role='staff'", conn)
+    if not agents_df.empty:
+      for idx, row in agents_df.iterrows():
+        a_uname = row['username']
+        a_fname = row['fullname']
+        
+        with st.expander(f"👤 {a_fname} (Username: {a_uname}) - Click to Open", expanded=False):
+          # লিংক তৈরি
+          encoded_uname = urllib.parse.quote(a_uname)
+          join_link = f"{clean_base_url}/?login={encoded_uname}"
+          st.write("**Auto-Login Link (এই লিংকটি কপি করে এজেন্টকে দিন):**")
+          st.code(join_link, language="html")
+          st.markdown(f"🔗 [Test Link / Login Now]({join_link})")
+          
+          # নাম এডিট করার অপশন
+          st.write("✏️ **Edit Agent Name (এজেন্টের নাম পরিবর্তন):**")
+          with st.form(f"edit_name_form_{a_uname}"):
+            new_edit_name = st.text_input("Full Name", value=a_fname)
+            if st.form_submit_button("💾 Update Name"):
+              if new_edit_name.strip():
+                c.execute("UPDATE users SET fullname=? WHERE username=?", (new_edit_name.strip(), a_uname))
+                conn.commit()
+                st.success("Name updated successfully! (নাম পরিবর্তন হয়েছে!)")
+                st.rerun()
+              else:
+                st.error("Name cannot be empty!")
 
   with set_tab_perm:
-      st.write("#### 🛡️ Menu Permissions (মাস্টার অপশন)")
-      st.info("এজেন্টদের কোন কোন মেনু দেখানো হবে তা এখান থেকে সিলেক্ট করুন।")
-      c.execute("SELECT username, fullname, allowed_menus FROM users WHERE role='staff'")
-      for u, f, m in c.fetchall():
-          with st.expander(f"⚙️ {f} ({u}) Permissions"):
-              current_menus = m.split(",") if m else []
-              selected = st.multiselect("Allowed Menus", all_basic_menus, default=current_menus, key=f"perm_{u}")
-              if st.button("💾 Save Permissions", key=f"save_perm_{u}"):
-                  c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (",".join(selected), u))
-                  conn.commit()
-                  st.success("Permissions updated!")
-                  st.rerun()
+    st.write("#### 🛡️ Agent Menu Permissions (মেনু পারমিশন)")
+    c.execute("SELECT username, fullname, allowed_menus FROM users WHERE role='staff'")
+    for u_name, f_name, a_menus in c.fetchall():
+      with st.expander(f"⚙️ {f_name} ({u_name})"):
+        curr_menus = a_menus.split(',') if a_menus else []
+        with st.form(f"perm_{u_name}"):
+          sel_menus = st.multiselect("Select Menus", all_basic_menus, default=[m for m in curr_menus if m in all_basic_menus])
+          if st.form_submit_button("Save Permissions"):
+            c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (','.join(sel_menus), u_name))
+            conn.commit()
+            st.success("Permissions updated!")
+            st.rerun()
 
   with set_tab3:
-      st.write("#### 🚨 Unknown & Blocked/Re-joined Agents")
-      st.info("যেসব এজেন্ট ডিলিট হওয়ার পর লিংক থেকে পুনরায় যুক্ত হওয়ার চেষ্টা করেছে বা ব্লক করা আছে, তাদের তালিকা। এখান থেকে পুনরায় রিস্টোর বা পার্মানেন্ট ডিলিট করতে পারবেন।")
-      c.execute("SELECT username, fullname, phone FROM users WHERE is_active=0 AND role='staff'")
-      blocked_users = c.fetchall()
-      if blocked_users:
-          for bu, bf, bp in blocked_users:
-              cols = st.columns([3, 2, 2])
-              cols[0].write(f"👤 **{bf}** (`{bu}`)")
-              if cols[1].button("✅ Restore (রিস্টোর)", key=f"res_unk_{bu}"):
-                  c.execute("UPDATE users SET is_active=1 WHERE username=?", (bu,))
-                  conn.commit()
-                  st.success("Agent restored! (রিস্টোর হয়েছে!)")
-                  st.rerun()
-              if cols[2].button("🗑️ Permanent Delete", key=f"pdel_unk_{bu}"):
-                  c.execute("DELETE FROM users WHERE username=?", (bu,))
-                  conn.commit()
-                  st.success("Deleted permanently!")
-                  st.rerun()
-      else:
-          st.success("No blocked or unknown agents found. (অজানা বা ব্লকড কোনো এজেন্ট নেই।)")
+    st.write("#### 🚨 Unknown & Blocked Agents (ব্লক/আনব্লক)")
+    c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
+    for u_name, f_name, is_act in c.fetchall():
+      col1, col2 = st.columns([3, 1])
+      col1.write(f"**{f_name}** (`{u_name}`) - {'🟢 Active' if is_act else '🔴 Blocked'}")
+      btn_txt = "Block (ব্লক করুন)" if is_act else "Unblock (আনব্লক করুন)"
+      if col2.button(btn_txt, key=f"blk_{u_name}"):
+        c.execute("UPDATE users SET is_active=? WHERE username=?", (0 if is_act else 1, u_name))
+        conn.commit()
+        st.rerun()
 
   with set_tab4:
-      st.write("#### 📂 Database Backup & Restore (ডেটা ব্যাকআপ)")
-      st.info("আপনার সম্পূর্ণ অ্যাপের ডেটা ব্যাকআপ নিন বা পুরানো ডেটা রিস্টোর করুন।")
-      
-      try:
-          with open(DB_FILE, "rb") as f:
-              db_bytes = f.read()
-          
-          st.download_button(
-              label="📥 Download Database Backup (ব্যাকআপ নিন)",
-              data=db_bytes,
-              file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
-              mime="application/octet-stream",
-              type="primary"
-          )
-      except Exception as e:
-          st.error("Error reading database for backup.")
-
-      st.write("---")
-      st.write("##### 📤 Restore Database (রিস্টোর করুন)")
-      st.warning("⚠️ রিস্টোর করলে বর্তমান সব ডেটা মুছে গিয়ে ব্যাকআপ ডেটা সেট হবে!")
-      uploaded_db = st.file_uploader("Upload Backup .db file (ব্যাকআপ ফাইল আপলোড করুন)", type=["db"])
-      if uploaded_db is not None:
-          if st.button("🔄 Restore Now (রিস্টোর শুরু করুন)", type="primary"):
-              try:
-                  with open(DB_FILE, "wb") as f:
-                      f.write(uploaded_db.getbuffer())
-                  st.success("Database restored successfully! Please refresh/restart the app. (সফলভাবে রিস্টোর হয়েছে!)")
-              except Exception as e:
-                  st.error(f"Failed to restore database: {e}")
+    st.write("#### 📂 Backup & Restore (ব্যাকআপ এবং রিস্টোর)")
+    with open(DB_FILE, "rb") as f:
+      st.download_button("📥 Download Database Backup", f, file_name="mediseller_backup.db")
+    uploaded_db = st.file_uploader("📤 Restore Database (Upload .db file)", type=["db", "sqlite"])
+    if uploaded_db:
+      if st.button("⚠️ Restore Now (রিস্টোর করুন)"):
+        with open(DB_FILE, "wb") as f:
+          f.write(uploaded_db.getbuffer())
+        st.success("Database Restored Successfully!")
+        st.rerun()
 
   with set_tab5:
-      st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
-      st.info("ডিলিট করা পার্টি, অর্ডার বা কাজ এখান থেকে পুনরায় ফিরিয়ে আনা যাবে।")
-      c.execute("SELECT id, item_type, item_title, item_data, deleted_at FROM recycle_bin ORDER BY id DESC")
-      rb_items = c.fetchall()
-      if rb_items:
-          if st.button("💥 Empty Recycle Bin (সব মুছুন)", type="secondary"):
-              c.execute("DELETE FROM recycle_bin")
-              conn.commit()
-              st.success("Recycle bin emptied! (রিসাইকেল বিন ফাঁকা করা হয়েছে!)")
-              st.rerun()
-          
-          for rid, rtype, rtitle, rdata_str, rdel in rb_items:
-              with st.expander(f"📌 {rtype}: {rtitle} (Deleted: {rdel})"):
-                  st.json(rdata_str)
-                  col1, col2 = st.columns(2)
-                  if col1.button("♻️ Restore (রিস্টোর)", key=f"rb_res_{rid}"):
-                      rdata = json.loads(rdata_str)
-                      try:
-                          if rtype == "Location":
-                              c.execute("INSERT INTO locations (party_name, address, party_phone, lat, lon, current_due) VALUES (?, ?, ?, ?, ?, ?)", (rdata.get('party_name'), rdata.get('address'), rdata.get('party_phone'), rdata.get('lat'), rdata.get('lon'), rdata.get('current_due', 0)))
-                          elif rtype == "Order":
-                              c.execute("INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)", (rdata.get('party_name'), rdata.get('order_details'), rdata.get('order_date'), rdata.get('status'), rdata.get('payment_collected', '0')))
-                          elif rtype == "Daily Work":
-                              c.execute("INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)", (rdata.get('party_name'), rdata.get('activity_type'), rdata.get('work_date')))
-                          elif rtype == "Task":
-                              c.execute("INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (rdata.get('agent_name'), rdata.get('party_name'), rdata.get('task_type'), rdata.get('due_amount'), rdata.get('sale_amount', '0'), rdata.get('payment_collected_actual', '0'), rdata.get('remaining_due', '0'), rdata.get('status', 'Pending'), rdata.get('created_at')))
-                          
-                          c.execute("DELETE FROM recycle_bin WHERE id=?", (rid,))
-                          conn.commit()
-                          st.success("Restored successfully! (রিস্টোর হয়েছে!)")
-                          st.rerun()
-                      except sqlite3.IntegrityError:
-                          st.error("Error: Item with this name already exists in active database. (এই নামের ডেটা ইতিমধ্যে আছে!)")
-                      except Exception as e:
-                          st.error(f"Error restoring: {e}")
-                  if col2.button("❌ Delete Permanently", key=f"rb_del_{rid}"):
-                      c.execute("DELETE FROM recycle_bin WHERE id=?", (rid,))
-                      conn.commit()
-                      st.success("Deleted permanently! (স্থায়ীভাবে মুছে ফেলা হয়েছে!)")
-                      st.rerun()
-      else:
-          st.success("Recycle bin is empty. (রিসাইকেল বিন ফাঁকা)")
+    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
+    bin_df = pd.read_sql_query("SELECT id, item_type, item_title, deleted_at FROM recycle_bin ORDER BY deleted_at DESC", conn)
+    if not bin_df.empty:
+      st.dataframe(bin_df, use_container_width=True)
+      if st.button("Empty Recycle Bin (সব মুছুন)"):
+        c.execute("DELETE FROM recycle_bin")
+        conn.commit()
+        st.rerun()
+    else:
+      st.info("Recycle bin is empty.")
 
   with set_tab6:
-      st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
-      st.info("নিরাপত্তার জন্য পুরনো পাসওয়ার্ড দিয়ে নতুন পাসওয়ার্ড সেট করুন।")
-      with st.form("admin_password_form", clear_on_submit=True):
-          old_pass = st.text_input("Old Password (পুরানো পাসওয়ার্ড)", type="password")
-          new_pass = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
-          conf_pass = st.text_input("Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)", type="password")
-          
-          if st.form_submit_button("💾 Update Password (আপডেট করুন)", type="primary"):
-              c.execute("SELECT password FROM users WHERE username='admin'")
-              current_admin_pass = c.fetchone()[0]
-              
-              if old_pass != current_admin_pass:
-                  st.error("Old password is incorrect! (পুরানো পাসওয়ার্ড ভুল!)")
-              elif new_pass != conf_pass:
-                  st.error("New passwords do not match! (নতুন পাসওয়ার্ড মিলছে না!)")
-              elif len(new_pass) < 4:
-                  st.error("Password must be at least 4 characters. (পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।)")
-              else:
-                  c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass,))
-                  conn.commit()
-                  st.success("Admin password updated successfully! (পাসওয়ার্ড আপডেট হয়েছে!)")
+    st.write("#### 🔑 Admin Password (অ্যাডমিন পাসওয়ার্ড)")
+    with st.form("admin_pass_form"):
+      new_admin_pass = st.text_input("Enter New Admin Password", type="password")
+      if st.form_submit_button("Update Password"):
+        if new_admin_pass.strip():
+          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_admin_pass.strip(),))
+          conn.commit()
+          st.success("Admin Password Updated!")
+        else:
+          st.error("Password cannot be empty!")
 
