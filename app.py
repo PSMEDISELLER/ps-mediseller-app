@@ -171,7 +171,7 @@ function requestLocation() {
     const status = document.getElementById('loc-status');
     if (status) {
         status.style.display = 'block';
-        status.innerText = "⏳ Requesting location permission... (অনুমতি নেওয়া হচ্ছে...)";
+        status.innerText = "⏳ Requesting location permission... (অনুমতি নেওয়া হচ্ছে...)";
     }
     checkAndRequestLocation();
 }
@@ -332,7 +332,8 @@ CREATE TABLE IF NOT EXISTS users (
     fullname TEXT,
     phone TEXT,
     created_at TIMESTAMP,
-    is_active INTEGER DEFAULT 1
+    is_active INTEGER DEFAULT 1,
+    allow_resubmit INTEGER DEFAULT 0
 )
 """)
 c.execute("""
@@ -432,6 +433,8 @@ if "created_at" not in existing_user_cols:
   c.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP")
 if "is_active" not in existing_user_cols:
   c.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
+if "allow_resubmit" not in existing_user_cols:
+  c.execute("ALTER TABLE users ADD COLUMN allow_resubmit INTEGER DEFAULT 0")
 
 c.execute("PRAGMA table_info(task_assignments)")
 existing_cols_task = [row[1] for row in c.fetchall()]
@@ -445,10 +448,10 @@ conn.commit()
 
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
-  c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("admin", "admin123", "admin", "Admin", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
-  c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("delivery", "user123", "staff", "Delivery Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1))
+  c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("admin", "admin123", "admin", "Admin", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 1))
+  c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("delivery", "user123", "staff", "Delivery Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0))
   conn.commit()
 
 def move_to_recycle_bin(item_type, item_title, item_data_dict):
@@ -1577,6 +1580,45 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         </div>
         """, unsafe_allow_html=True)
 
+        # Admin permission toggle for agent re-submission
+        c.execute("SELECT allow_resubmit FROM users WHERE username=?", (row['agent_name'],))
+        resub_row = c.fetchone()
+        agent_allowed = bool(resub_row[0]) if resub_row and resub_row[0] is not None else False
+
+        if st.session_state["user_role"] == "admin":
+          resub_toggle = st.checkbox(
+              f"🔓 Allow {ag_disp} to Re-submit completed tasks (রি-সাবমিশনের অনুমতি প্রদান করুন)", 
+              value=agent_allowed, 
+              key=f"resub_perm_{row['agent_name']}_{row['task_date']}"
+          )
+          if resub_toggle != agent_allowed:
+            c.execute("UPDATE users SET allow_resubmit=? WHERE username=?", (1 if resub_toggle else 0, row['agent_name']))
+            conn.commit()
+            st.rerun()
+
+        comp_tasks_df = pd.read_sql_query("""
+            SELECT id, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due
+            FROM task_assignments
+            WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=? AND status='Completed'
+        """, conn, params=(row['agent_name'], row['task_date']))
+
+        if not comp_tasks_df.empty:
+          with st.expander(f"🔄 Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন - {len(comp_tasks_df)})", expanded=False):
+            can_do_resubmit = (st.session_state["user_role"] == "admin") or (st.session_state["username"] == row['agent_name'] and agent_allowed)
+            if not can_do_resubmit:
+              st.warning("🔒 রি-সাবমিশন করার অনুমতি নেই। শুধুমাত্র অ্যাডমিন বা অ্যাডমিন অনুমতি দিলে এই এজেন্ট কাজ পুনরায় একটিভ করতে পারবে।")
+            
+            for _, ct_row in comp_tasks_df.iterrows():
+              st.markdown(f"• **Party:** `{ct_row['party_name']}` | **Type:** `{ct_row['task_type']}` | **Collected:** ₹`{ct_row['payment_collected_actual']}`")
+              if can_do_resubmit:
+                if st.button(f"🔄 Move to Active Tasks (পুনরায় একটিভ করুন)", key=f"btn_resubmit_{ct_row['id']}"):
+                  c.execute("UPDATE task_assignments SET status='Pending' WHERE id=?", (ct_row['id'],))
+                  c.execute("UPDATE agent_live_locations SET completed_deliveries = CASE WHEN completed_deliveries > 0 THEN completed_deliveries - 1 ELSE 0 END WHERE username=?", (row['agent_name'],))
+                  conn.commit()
+                  st.success("Task moved back to Active Tasks! (কাজটি সফলভাবে পুনরায় একটিভ টাস্কে পাঠানো হয়েছে!)")
+                  st.rerun()
+              st.write("---")
+
         if st.session_state["user_role"] == "admin":
           if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{row['agent_name']}_{row['task_date']}"):
             c.execute("DELETE FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], row['task_date']))
@@ -1947,8 +1989,8 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         if new_uname.strip() and new_pass.strip() and new_fname.strip():
           try:
             c.execute(
-                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1)
+                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0)
             )
             conn.commit()
             st.success(f"Agent '{new_fname}' added successfully! Auto-login link generated below.")
@@ -2029,120 +2071,51 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
             st.rerun()
 
   with set_tab3:
-    st.write("#### 📂 Database Backup & Restore (ডেটাবেজ ব্যাকআপ ও রিস্টোর)")
-    st.info("💡 অ্যাপের সমস্ত ডেটার একটি ব্যাকআপ ফাইল ডাউনলোড করে রাখতে পারেন, অথবা পূর্বে ডাউনলোড করা ব্যাকআপ ফাইল আপলোড করে ডেটাবেজ রিস্টোর করতে পারেন।")
-    
-    col_db1, col_db2 = st.columns(2)
-    with col_db1:
-      st.write("##### 📥 Database Backup (ব্যাকআপ ডাউনলোড)")
-      if os.path.exists(DB_FILE):
-        with open(DB_FILE, "rb") as f:
-          db_bytes = f.read()
+    st.write("#### 📂 Database Backup & Restore")
+    if os.path.exists(DB_FILE):
+      with open(DB_FILE, "rb") as f:
         st.download_button(
-            label="💾 Download Database Backup (.db)",
-            data=db_bytes,
-            file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
+            label="📥 Download Database Backup (.db)",
+            data=f.read(),
+            file_name="mediseller_backup.db",
             mime="application/x-sqlite3",
             type="primary"
         )
-      else:
-        st.error("Database file not found!")
-
-    with col_db2:
-      st.write("##### 📤 Database Restore (রিস্টোর আপলোড)")
-      uploaded_db = st.file_uploader("Upload Backup Database File (.db)", type=["db", "sqlite"])
-      if uploaded_db is not None:
-        if st.button("🔄 Restore Database Now (রিস্টোর করুন)", type="primary"):
-          try:
-            with open(DB_FILE, "wb") as f:
-              f.write(uploaded_db.getbuffer())
-            st.success("Database restored successfully! Please refresh or rerun the app. (ডেটাবেজ রিস্টোর হয়েছে!)")
-            st.rerun()
-          except Exception as e:
-            st.error(f"Error restoring database: {e}")
+    st.write("---")
+    uploaded_db = st.file_uploader("Upload Backup Database (.db)", type=["db"])
+    if uploaded_db is not None:
+      if st.button("⚠️ Restore Database (রিস্টোর করুন)", type="secondary"):
+        with open(DB_FILE, "wb") as f:
+          f.write(uploaded_db.getbuffer())
+        st.success("Database restored successfully! Please refresh.")
+        st.rerun()
 
   with set_tab4:
     st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
-    st.info("💡 ডিলিট করা আইটেমসমূহ এখানে জমা থাকে। আপনি চাইলে মুছে যাওয়া আইটেম পুনরায় রিস্টোর (Restore) করতে পারেন অথবা চিরতরে ডিলিট (Permanently Delete) করে দিতে পারেন।")
-
-    bin_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
-    if not bin_df.empty:
-      if st.button("🔥 Empty Recycle Bin (সব চিরতরে মুছুন)", type="secondary"):
+    recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY deleted_at DESC", conn)
+    if not recycle_df.empty:
+      for idx, r_row in recycle_df.iterrows():
+        st.write(f"**Type:** `{r_row['item_type']}` | **Title:** `{r_row['item_title']}` | **Deleted:** `{r_row['deleted_at']}`")
+        st.write("---")
+      if st.button("🗑️ Empty Recycle Bin (সব মুছুন)", type="secondary"):
         c.execute("DELETE FROM recycle_bin")
         conn.commit()
-        st.success("Recycle Bin emptied successfully! (রিসাইকেল বিন ফাঁকা করা হয়েছে!)")
+        st.success("Recycle Bin emptied successfully!")
         st.rerun()
-      st.write("---")
-
-      for idx, row in bin_df.iterrows():
-        b_id = row['id']
-        i_type = row['item_type']
-        i_title = row['item_title']
-        i_data = row['item_data']
-        d_at = format_date_display(row['deleted_at'])
-
-        cols = st.columns([2, 3, 2, 2, 2])
-        cols[0].write(f"**{i_type}**")
-        cols[1].write(f"**{i_title}**")
-        cols[2].write(f"📅 {d_at}")
-
-        if cols[3].button("🔄 Restore", key=f"res_bin_{b_id}"):
-          try:
-            data_dict = json.loads(i_data)
-            if i_type == "Location":
-              c.execute(
-                  "INSERT OR REPLACE INTO locations (party_name, address, party_phone, lat, lon, route_order, current_due) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                  (data_dict.get('party_name'), data_dict.get('address'), data_dict.get('party_phone'), data_dict.get('lat'), data_dict.get('lon'), data_dict.get('route_order', 0), data_dict.get('current_due', 0))
-              )
-            elif i_type == "Order":
-              c.execute(
-                  "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
-                  (data_dict.get('party_name'), data_dict.get('order_details'), data_dict.get('order_date'), data_dict.get('status', 'Pending'), data_dict.get('payment_collected', '0'))
-              )
-            elif i_type == "Daily Work":
-              c.execute(
-                  "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                  (data_dict.get('party_name'), data_dict.get('activity_type'), data_dict.get('work_date'))
-              )
-            elif i_type == "Task":
-              c.execute(
-                  "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                  (data_dict.get('agent_name'), data_dict.get('party_name'), data_dict.get('task_type'), data_dict.get('due_amount', '0'), data_dict.get('sale_amount', '0'), data_dict.get('payment_collected_actual', '0'), data_dict.get('remaining_due', '0'), data_dict.get('status', 'Pending'), data_dict.get('created_at'))
-              )
-            c.execute("DELETE FROM recycle_bin WHERE id=?", (b_id,))
-            conn.commit()
-            st.success(f"Restored '{i_title}' successfully!")
-            st.rerun()
-          except Exception as e:
-            st.error(f"Failed to restore: {e}")
-
-        if cols[4].button("🗑️ Delete", key=f"del_bin_{b_id}"):
-          c.execute("DELETE FROM recycle_bin WHERE id=?", (b_id,))
-          conn.commit()
-          st.success("Permanently deleted!")
-          st.rerun()
-        st.write("---")
     else:
-      st.info("Recycle Bin is empty. (রিসাইকেল বিন ফাঁকা।)")
+      st.info("Recycle Bin is empty.")
 
   with set_tab5:
-    st.write("#### 🔑 Change Admin Password (এডমিন পাসওয়ার্ড পরিবর্তন)")
-    with st.form("change_admin_pass_form", clear_on_submit=True):
-      curr_pass = st.text_input("Current Admin Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_pass1 = st.text_input("New Admin Password (নতুন পাসওয়ার্ড)", type="password")
-      new_pass2 = st.text_input("Confirm New Admin Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)", type="password")
-      submit_pass_change = st.form_submit_button("🔑 Update Password (পাসওয়ার্ড পরিবর্তন করুন)", type="primary")
-
-      if submit_pass_change:
-        c.execute("SELECT password FROM users WHERE username='admin'")
-        real_pass = c.fetchone()
-        if not real_pass or real_pass[0] != curr_pass:
-          st.error("Current password is incorrect! (বর্তমান পাসওয়ার্ড ভুল!)")
-        elif not new_pass1.strip():
-          st.error("New password cannot be empty! (নতুন পাসওয়ার্ড ফাঁকা রাখা যাবে না!)")
-        elif new_pass1 != new_pass2:
-          st.error("New passwords do not match! (নতুন পাসওয়ার্ড দুটি মিলছে না!)")
-        else:
-          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass1.strip(),))
+    st.write("#### 🔑 Change Admin Password")
+    with st.form("change_admin_pass_form"):
+      new_adm_pass = st.text_input("New Admin Password", type="password")
+      conf_adm_pass = st.text_input("Confirm New Admin Password", type="password")
+      submit_adm_pass = st.form_submit_button("💾 Update Password", type="primary")
+      if submit_adm_pass:
+        if new_adm_pass and new_adm_pass == conf_adm_pass:
+          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_adm_pass.strip(),))
           conn.commit()
-          st.success("Admin password changed successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!)")
+          st.success("Admin password updated successfully!")
+        else:
+          st.error("Passwords do not match or empty!")
+
