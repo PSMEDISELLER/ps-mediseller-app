@@ -1934,4 +1934,146 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
     st.info("💡 এখানে কোনো অজানা ব্যক্তি বা অতীতে ডিলিট করা কোনো এজেন্ট যদি লিংক ব্যবহার করে পুনরায় অ্যাপে প্রবেশ (join) করে, তবে আপনি তাদের তালিকা দেখতে পাবেন এবং এক ক্লিকে তাদের সম্পূর্ণরূপে **Block (ব্লক)** করে দিতে পারবেন।")
 
     all_users_monitoring = pd.read_sql_query("SELECT username, fullname, phone, created_at, is_active, role FROM users WHERE role != 'admin' ORDER BY created_at DESC", conn)
+    
+    if not all_users_monitoring.empty:
+      for idx, r in all_users_monitoring.iterrows():
+        status_txt = "🟢 Active" if r['is_active'] == 1 else "🔴 Blocked"
+        with st.expander(f"👤 {r['fullname']} (`{r['username']}`) - {status_txt}"):
+          st.write(f"Phone: {r['phone'] or 'N/A'} | Joined: {r['created_at']}")
+          
+          col_um1, col_um2 = st.columns(2)
+          with col_um1:
+            if r['is_active'] == 1:
+              if st.button("🚫 Block User", key=f"block_{r['username']}"):
+                c.execute("UPDATE users SET is_active=0 WHERE username=?", (r['username'],))
+                conn.commit()
+                st.success("User blocked! (ব্যবহারকারীকে ব্লক করা হয়েছে!)")
+                st.rerun()
+            else:
+              if st.button("✅ Unblock User", key=f"unblock_{r['username']}"):
+                c.execute("UPDATE users SET is_active=1 WHERE username=?", (r['username'],))
+                conn.commit()
+                st.success("User unblocked! (ব্যবহারকারীকে আনব্লক করা হয়েছে!)")
+                st.rerun()
+          with col_um2:
+            if st.button("🗑️ Delete User Permanently", key=f"del_user_{r['username']}"):
+              c.execute("DELETE FROM users WHERE username=?", (r['username'],))
+              conn.commit()
+              st.success("User deleted! (ব্যবহারকারীকে ডিলিট করা হয়েছে!)")
+              st.rerun()
+    else:
+      st.info("No agents found in monitoring. (কোনো ব্যবহারকারী পাওয়া যায়নি।)")
 
+  with set_tab3:
+    st.write("#### 📂 Database Backup & Restore (ডাটাবেস ব্যাকআপ ও রিস্টোর)")
+    st.info("💡 আপনার সম্পূর্ণ ডাটাবেসের একটি কপি (Backup) ডাউনলোড করে রাখতে পারেন এবং প্রয়োজনে পরবর্তীতে আপলোড করে পুনরুদ্ধার (Restore) করতে পারেন।")
+    
+    st.write("**📥 1. Download Backup (ব্যাকআপ ডাউনলোড করুন):**")
+    try:
+      with open(DB_FILE, "rb") as f:
+        db_bytes = f.read()
+      st.download_button(
+        label="💾 Download Database Backup (mediseller_delivery.db)",
+        data=db_bytes,
+        file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
+        mime="application/octet-stream",
+        type="primary"
+      )
+    except Exception as e:
+      st.error("Backup file not found. (ডাটাবেস ফাইল পাওয়া যায়নি।)")
+
+    st.write("---")
+    st.write("**📤 2. Restore Database (ডাটাবেস রিস্টোর করুন):**")
+    st.warning("⚠️ সতর্কতা: নতুন ডাটাবেস আপলোড করলে বর্তমানের সমস্ত ডাটা মুছে যাবে এবং আপলোড করা ডাটাবেসের ডাটা সেভ হবে।")
+    uploaded_db = st.file_uploader("Upload .db file (আপনার ব্যাকআপ ফাইলটি আপলোড করুন)", type=["db"])
+    
+    if uploaded_db is not None:
+      if st.button("🔄 Confirm Restore (রিস্টোর নিশ্চিত করুন)", type="primary"):
+        try:
+          with open(DB_FILE, "wb") as f:
+            f.write(uploaded_db.getbuffer())
+          st.success("Database restored successfully! (ডাটাবেস সফলভাবে রিস্টোর হয়েছে!)")
+          st.rerun()
+        except Exception as e:
+          st.error(f"Error restoring database: {e}")
+
+  with set_tab4:
+    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
+    st.info("💡 ডিলিট করা আইটেমগুলো এখানে সাময়িকভাবে জমা থাকে। আপনি চাইলে এগুলো আবার রিস্টোর করতে পারেন অথবা চিরতরে মুছে ফেলতে পারেন।")
+    
+    c.execute("SELECT id, item_type, item_title, item_data, deleted_at FROM recycle_bin ORDER BY id DESC")
+    recycled_items = c.fetchall()
+    
+    if recycled_items:
+      if st.button("🗑️ Empty Recycle Bin (রিসাইকেল বিন সম্পূর্ণ খালি করুন)", type="secondary"):
+        c.execute("DELETE FROM recycle_bin")
+        conn.commit()
+        st.success("Recycle Bin emptied! (খালি করা হয়েছে!)")
+        st.rerun()
+      st.write("---")
+      
+      for r_item in recycled_items:
+        r_id, r_type, r_title, r_data, r_del_at = r_item
+        with st.expander(f"[{r_type}] {r_title} - Deleted at: {r_del_at}"):
+          st.json(r_data)
+          col_rb1, col_rb2 = st.columns(2)
+          with col_rb1:
+            if st.button("🔄 Restore", key=f"restore_{r_id}"):
+              try:
+                data_dict = json.loads(r_data)
+                if 'id' in data_dict:
+                  del data_dict['id'] 
+                
+                table_map = {
+                  "Location": "locations",
+                  "Order": "orders",
+                  "Daily Work": "daily_work",
+                  "Task": "task_assignments"
+                }
+                
+                if r_type in table_map:
+                  t_name = table_map[r_type]
+                  cols = ", ".join(data_dict.keys())
+                  placeholders = ", ".join(["?"] * len(data_dict))
+                  values = tuple(data_dict.values())
+                  c.execute(f"INSERT INTO {t_name} ({cols}) VALUES ({placeholders})", values)
+                  c.execute("DELETE FROM recycle_bin WHERE id=?", (r_id,))
+                  conn.commit()
+                  st.success("Restored successfully! (রিস্টোর করা হয়েছে!)")
+                  st.rerun()
+                else:
+                  st.error(f"Restore not supported for type: {r_type}")
+              except Exception as e:
+                st.error(f"Error restoring: {e}")
+          with col_rb2:
+            if st.button("🗑️ Delete Permanently", key=f"del_perm_rb_{r_id}"):
+              c.execute("DELETE FROM recycle_bin WHERE id=?", (r_id,))
+              conn.commit()
+              st.success("Deleted permanently! (স্থায়ীভাবে মুছে ফেলা হয়েছে!)")
+              st.rerun()
+    else:
+      st.info("Recycle Bin is empty. (রিসাইকেল বিন সম্পূর্ণ ফাঁকা।)")
+
+  with set_tab5:
+    st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    
+    with st.form("admin_password_form", clear_on_submit=True):
+      old_pass = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_pass = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
+      confirm_pass = st.text_input("Confirm New Password (পুনরায় নতুন পাসওয়ার্ড দিন)", type="password")
+      
+      submit_pass_change = st.form_submit_button("💾 Save Password (পাসওয়ার্ড সেভ করুন)", type="primary")
+      
+      if submit_pass_change:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        admin_data = c.fetchone()
+        
+        if admin_data and admin_data[0] == old_pass:
+          if new_pass == confirm_pass and new_pass.strip():
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass.strip(),))
+            conn.commit()
+            st.success("Password changed successfully! (পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!)")
+          else:
+            st.error("New passwords do not match or cannot be empty! (নতুন পাসওয়ার্ড মেলেনি বা ফাঁকা!)")
+        else:
+          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
