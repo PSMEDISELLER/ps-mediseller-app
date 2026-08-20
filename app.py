@@ -1945,13 +1945,149 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
     
     if not all_users_monitoring.empty:
       for idx, r in all_users_monitoring.iterrows():
-        status_txt = "🟢 Active" if r['is_active'] == 1 else "🔴 Blocked"
-        with st.expander(f"👤 {r['fullname']} (`{r['username']}`) - {status_txt}"):
-          st.write(f"Phone: {r['phone'] or 'N/A'} | Joined: {r['created_at']}")
-          
-          if r['is_active'] == 1:
-            if st.button("🚫 Block User (ব্লক করুন)", key=f"blk_{r['username']}"):
-              c.execute("UPDATE users SET is_active=0 WHERE username=?", (r['username'],))
-              conn.commit()
-              st.success("User Blocked Successfully!")
-              st.rerun()
+        uname = r['username']
+        fname = r['fullname'] or uname
+        phone = r['phone'] or 'N/A'
+        created = format_date_display(r['created_at'])
+        is_active = r['is_active']
+
+        cols = st.columns([3, 2, 2, 2])
+        cols[0].write(f"**{fname}** (`{uname}`)")
+        cols[1].write(f"📞 {phone}")
+        cols[2].write(f"📅 Joined: {created}")
+
+        if is_active == 1:
+          if cols[3].button("🚫 Block (ব্লক)", key=f"block_usr_{uname}"):
+            c.execute("UPDATE users SET is_active=0 WHERE username=?", (uname,))
+            conn.commit()
+            st.success(f"{fname} is now blocked!")
+            st.rerun()
+        else:
+          if cols[3].button("✅ Unblock (আনব্লক)", key=f"unblock_usr_{uname}"):
+            c.execute("UPDATE users SET is_active=1 WHERE username=?", (uname,))
+            conn.commit()
+            st.success(f"{fname} is unblocked!")
+            st.rerun()
+        st.write("---")
+    else:
+      st.info("No monitoring users found.")
+
+  with set_tab3:
+    st.write("#### 📂 Database Backup & Restore (ডাটাবেস ব্যাকআপ ও রিস্টোর)")
+    st.info("💡 এখানে আপনি আপনার অ্যাপের পুরো ডাটাবেসের ব্যাকআপ ফাইল ( .db ) ডাউনলোড করতে পারবেন এবং প্রয়োজন হলে ব্যাকআপ ফাইল আপলোড করে পুরনো তথ্য রিস্টোর করতে পারবেন।")
+
+    col_db1, col_db2 = st.columns(2)
+    with col_db1:
+      st.write("##### 📥 Download Backup (ব্যাকআপ ডাউনলোড)")
+      if os.path.exists(DB_FILE):
+        with open(DB_FILE, "rb") as f:
+          db_bytes = f.read()
+        st.download_button(
+            label="📥 Download Database (.db)",
+            data=db_bytes,
+            file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
+            mime="application/x-sqlite3",
+            type="primary"
+        )
+      else:
+        st.error("Database file not found!")
+
+    with col_db2:
+      st.write("##### 📤 Restore Database (ডাটাবেস রিস্টোর)")
+      uploaded_db = st.file_uploader("Upload Backup DB File (.db)", type=["db", "sqlite", "sqlite3"])
+      if uploaded_db is not None:
+        if st.button("⚠️ Confirm & Restore Database", type="secondary"):
+          conn.close()
+          with open(DB_FILE, "wb") as f:
+            f.write(uploaded_db.getbuffer())
+          st.success("Database restored successfully! Reloading application...")
+          st.rerun()
+
+  with set_tab4:
+    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
+    st.info("💡 ভুলবশত কোনো ডাটা ডিলিট হলে এখানে জমা হয়। আপনি চাইলে তা পুনরায় রিস্টোর করতে পারেন অথবা স্থায়ীভাবে মুছে ফেলতে পারেন।")
+
+    recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
+    if not recycle_df.empty:
+      if st.button("🚨 Permanent Clear All (সব স্থায়ীভাবে মুছুন)", type="secondary"):
+        c.execute("DELETE FROM recycle_bin")
+        conn.commit()
+        st.success("Recycle Bin cleared permanently!")
+        st.rerun()
+      st.write("---")
+
+      for idx, r in recycle_df.iterrows():
+        r_id = r['id']
+        r_type = r['item_type']
+        r_title = r['item_title']
+        r_data_str = r['item_data']
+        r_time = format_date_display(r['deleted_at'])
+
+        cols = st.columns([2, 3, 2, 2, 2])
+        cols[0].write(f"Type: `{r_type}`")
+        cols[1].write(f"**{r_title}**")
+        cols[2].write(f"🕒 {r_time}")
+
+        if cols[3].button("🔄 Restore", key=f"rec_rest_{r_id}"):
+          try:
+            item_data = json.loads(r_data_str)
+            if r_type == "Location":
+              c.execute(
+                  "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
+                  (item_data.get('party_name'), item_data.get('address'), item_data.get('party_phone'), item_data.get('lat'), item_data.get('lon'))
+              )
+            elif r_type == "Order":
+              c.execute(
+                  "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
+                  (item_data.get('party_name'), item_data.get('order_details'), item_data.get('order_date'), item_data.get('status', 'Pending'), item_data.get('payment_collected', '0'))
+              )
+            elif r_type == "Daily Work":
+              c.execute(
+                  "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                  (item_data.get('party_name'), item_data.get('activity_type'), item_data.get('work_date'))
+              )
+            elif r_type == "Task":
+              c.execute(
+                  "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  (item_data.get('agent_name'), item_data.get('party_name'), item_data.get('task_type'), item_data.get('due_amount', '0'), item_data.get('sale_amount', '0'), item_data.get('payment_collected_actual', '0'), item_data.get('status', 'Pending'), item_data.get('created_at'))
+              )
+            c.execute("DELETE FROM recycle_bin WHERE id=?", (r_id,))
+            conn.commit()
+            st.success(f"Restored '{r_title}' successfully!")
+            st.rerun()
+          except Exception as e:
+            st.error(f"Error during restore: {e}")
+
+        if cols[4].button("❌ Delete", key=f"rec_del_{r_id}"):
+          c.execute("DELETE FROM recycle_bin WHERE id=?", (r_id,))
+          conn.commit()
+          st.success("Deleted permanently!")
+          st.rerun()
+        st.write("---")
+    else:
+      st.info("Recycle Bin is empty. (রিসাইকেল বিন ফাঁকা আছে।)")
+
+  with set_tab5:
+    st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    with st.form("change_admin_pass_form", clear_on_submit=True):
+      curr_pass = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_pass1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
+      new_pass2 = st.text_input("Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)", type="password")
+      submit_pass_change = st.form_submit_button("🔑 Update Password (পাসওয়ার্ড আপডেট)", type="primary")
+
+      if submit_pass_change:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        real_pass = c.fetchone()[0]
+
+        if curr_pass != real_pass:
+          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
+        elif not new_pass1.strip():
+          st.error("New password cannot be empty! (নতুন পাসওয়ার্ড ফাঁকা রাখা যাবে না!)")
+        elif new_pass1 != new_pass2:
+          st.error("New passwords do not match! (নতুন পাসওয়ার্ড দুটি মেলেনি!)")
+        else:
+          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass1.strip(),))
+          conn.commit()
+          st.success("Admin password updated successfully! (অ্যাডমিন পাসওয়ার্ড সফলভাবে আপডেট হয়েছে!)")
+          st.rerun()
+
