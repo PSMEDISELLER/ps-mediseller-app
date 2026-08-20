@@ -117,7 +117,7 @@ text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
         <h2 style="color: #f87171; margin-top: 0; font-size: 22px;">Location Permission Required<br>(লোকেশন পারমিশন আবশ্যক)</h2>
         <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
             P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant permission.<br><br>
-            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে কাশী না।)</b>
+            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
         </p>
         <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:
 none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px
@@ -579,7 +579,7 @@ if current_logged_username != "admin":
     c.execute("SELECT is_active FROM users WHERE username=?", (current_logged_username,))
     res_act = c.fetchone()
     if res_act and res_act[0] == 0:
-        st.error("🚫 আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন কেজি না।")
+        st.error("🚫 আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
         st.stop()
 
 col_ht1, col_ht2 = st.columns([3, 1])
@@ -1775,7 +1775,7 @@ elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
     if gps_lat and gps_lon:
       folium.Marker(
           [gps_lat, gps_lon],
-          popup="<b>Your Live Location (আপনার লাইভ লোকেশন কমন)</b>",
+          popup="<b>Your Live Location (আপনার লাইভ লোকেশন)</b>",
           tooltip="You are here",
           icon=folium.Icon(color="red", icon="user", prefix="fa")
       ).add_to(r_map)
@@ -2000,7 +2000,7 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
 
     with st.form("add_agent_form", clear_on_submit=True):
       new_uname = st.text_input("Username (ইউজারনেম, যেমন: rahul1)")
-      new_pass = st.text_input("Password (পাসওয়ার্ড)", type="password")
+      new_pass = st.text_input("Password (পাসওয়ার্ড)")
       new_fname = st.text_input("Full Name (পুরো নাম)")
       new_phone = st.text_input("Phone Number (ফোন নম্বর)")
       submit_new_ag = st.form_submit_button("➕ Add Agent & Create Account (যোগ করুন)", type="primary")
@@ -2013,82 +2013,250 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
                 (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0, ",".join(all_basic_menus))
             )
             conn.commit()
-            st.success(f"Agent '{new_fname}' added successfully! Auto-login link generated below.")
+            st.success(f"Agent '{new_fname}' added successfully! (এজেন্ট সফলভাবে যুক্ত হয়েছে!)")
             st.rerun()
           except sqlite3.IntegrityError:
-            st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
+            st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে ব্যবহৃত হচ্ছে!)")
         else:
-          st.error("Please fill all required fields.")
+          st.error("Please fill in Username, Password, and Full Name. (ইউজারনেম, পাসওয়ার্ড ও পুরো নাম প্রদান করুন।)")
 
     st.write("---")
-    st.write("#### 📋 Existing Agents & Auto-Login Links (অটো-লগইন লিঙ্ক)")
-    
-    agents_df = pd.read_sql_query("SELECT username, fullname, phone, password, role, created_at FROM users WHERE role='staff'", conn)
-    if not agents_df.empty:
-      for idx, row in agents_df.iterrows():
-        agent_auto_link = f"{clean_base_url}/?login={row['username']}"
-        
-        with st.expander(f"👤 {row['fullname']} (`{row['username']}`) - Ph: {row['phone'] or 'N/A'} - Click to Open"):
-          st.markdown(f"**🔗 Auto-Login Link (এই লিঙ্কটি এজেন্টকে দিন):**")
-          st.code(agent_auto_link, language="text")
-          
-          with st.form(f"edit_agent_form_{row['username']}", clear_on_submit=False):
-            st.write("✏️ **Edit Agent Details (তথ্য পরিবর্তন করুন)**")
-            edit_fname = st.text_input("Full Name", value=row['fullname'] or "", key=f"efn_{row['username']}")
-            edit_phone = st.text_input("Phone Number", value=row['phone'] or "", key=f"eph_{row['username']}")
-            edit_pass = st.text_input("Change Password", value=row['password'] or "", type="password", key=f"eps_{row['username']}")
-            
-            col_eb1, col_eb2 = st.columns(2)
-            with col_eb1:
-              submit_edit = st.form_submit_button("💾 Save Changes (সেভ করুন)", type="primary")
-            with col_eb2:
-              submit_del = st.form_submit_button("🗑️ Delete Agent (ডিলিট)")
+    st.write("#### 📋 Registered Agents & Auto-Login Links List")
+    c.execute("SELECT username, password, fullname, phone, created_at, is_active FROM users WHERE role='staff' ORDER BY created_at DESC")
+    agents_list = c.fetchall()
 
-            if submit_edit:
-              c.execute("UPDATE users SET fullname=?, phone=?, password=? WHERE username=?",
-                        (edit_fname.strip(), edit_phone.strip(), edit_pass.strip(), row['username']))
+    if agents_list:
+      for u_name, u_pass, f_name, u_phone, c_at, is_act in agents_list:
+        agent_auto_link = f"{clean_base_url}?login={u_name}"
+        status_badge = "🟢 Active" if is_act == 1 else "🔴 Blocked"
+        
+        with st.expander(f"👤 {f_name or u_name} (`{u_name}`) - {status_badge}", expanded=False):
+          st.markdown(f"""
+          - **Full Name:** {f_name or 'N/A'}
+          - **Username:** `{u_name}`
+          - **Password:** `{u_pass}`
+          - **Phone:** {u_phone or 'N/A'}
+          - **Created At:** {format_date_display(c_at)}
+          """, unsafe_allow_html=True)
+
+          st.text_input("🔗 Auto-Login Link (কপি করে এজেন্টকে দিন):", agent_auto_link, key=f"autolink_{u_name}")
+
+          col_ab1, col_ab2 = st.columns(2)
+          with col_ab1:
+            if is_act == 1:
+              if st.button("🚫 Block Agent (ব্লক করুন)", key=f"btn_block_{u_name}"):
+                c.execute("UPDATE users SET is_active=0 WHERE username=?", (u_name,))
+                conn.commit()
+                st.warning(f"Agent '{u_name}' blocked!")
+                st.rerun()
+            else:
+              if st.button("🟢 Unblock Agent (আনব্লক করুন)", key=f"btn_unblock_{u_name}"):
+                c.execute("UPDATE users SET is_active=1 WHERE username=?", (u_name,))
+                conn.commit()
+                st.success(f"Agent '{u_name}' activated!")
+                st.rerun()
+          
+          with col_ab2:
+            if st.button("🗑️ Delete Account (ডিলিট)", key=f"btn_del_user_{u_name}"):
+              c.execute("DELETE FROM users WHERE username=?", (u_name,))
               conn.commit()
-              st.success("Changes saved! (সেভ হয়েছে!)")
+              st.success(f"User '{u_name}' deleted!")
               st.rerun()
-            if submit_del:
-              c.execute("DELETE FROM users WHERE username=?", (row['username'],))
-              conn.commit()
-              st.success("Agent deleted! (এজেন্ট ডিলিট করা হয়েছে!)")
-              st.rerun()
+        st.write("---")
+    else:
+      st.info("No staff agents registered yet. (কোনো কর্মী নিবন্ধিত নেই।)")
 
   with set_tab_perm:
-    st.write("#### 🛡️ Menu Permissions (এজেন্টদের মাস্টার অপশন পারমিশন)")
-    st.info("এখান থেকে আপনি ঠিক করতে পারবেন কোন এজেন্ট কোন মেনু অপশনগুলো দেখতে ও ব্যবহার করতে পারবে।")
-    
-    c.execute("SELECT username, fullname, allowed_menus FROM users WHERE role='staff'")
-    agents_for_perms = c.fetchall()
-    
-    if agents_for_perms:
-      perm_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন):", agents_for_perms, format_func=lambda x: f"{x[1]} ({x[0]})")
-      if perm_agent:
-        current_perms = [m.strip() for m in perm_agent[2].split(",")] if perm_agent[2] else all_basic_menus
+    st.write("#### 🛡️ Dynamic Menu Permissions (কর্মী ভিত্তিক মেনু পারমিশন)")
+    st.info("💡 কোন কর্মী অ্যাপের কোন কোন অপশন বা মেনু দেখতে পাবেন তা এখান থেকে সিলেক্ট করে সেট করতে পারবেন।")
+
+    c.execute("SELECT username, fullname FROM users WHERE role='staff'")
+    perm_staff_list = c.fetchall()
+
+    if perm_staff_list:
+      perm_agent_map = {r[0]: (r[1] if r[1] else r[0]) for r in perm_staff_list}
+      selected_perm_user = st.selectbox(
+          "Select Staff/Agent (কর্মী সিলেক্ট করুন):",
+          [r[0] for r in perm_staff_list],
+          format_func=lambda x: f"{perm_agent_map.get(x, x)} ({x})"
+      )
+
+      if selected_perm_user:
+        c.execute("SELECT allowed_menus FROM users WHERE username=?", (selected_perm_user,))
+        curr_allowed = c.fetchone()
+        curr_allowed_list = [m.strip() for m in curr_allowed[0].split(",")] if (curr_allowed and curr_allowed[0]) else all_basic_menus
+
+        st.write(f"##### Allowed Menus for **{perm_agent_map.get(selected_perm_user, selected_perm_user)}**:")
         
-        with st.form("agent_permission_form"):
-          selected_perms = st.multiselect(
-              "Allowed Menus (অনুমোদিত মেনুসমূহ):",
+        with st.form("update_permissions_form"):
+          new_selected_menus = st.multiselect(
+              "Select Accessible Menus (মেনু নির্বাচন করুন):",
               options=all_basic_menus,
-              default=[m for m in current_perms if m in all_basic_menus]
+              default=[m for m in curr_allowed_list if m in all_basic_menus]
           )
-          if st.form_submit_button("💾 Save Permissions (সেভ করুন)", type="primary"):
-            new_perms_str = ",".join(selected_perms)
-            c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (new_perms_str, perm_agent[0]))
+          submit_perm = st.form_submit_button("💾 Save Menu Permissions (পারমিশন সেভ করুন)", type="primary")
+
+          if submit_perm:
+            perm_str = ",".join(new_selected_menus)
+            c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (perm_str, selected_perm_user))
             conn.commit()
-            st.success("Permissions updated successfully! (অনুমতি আপডেট হয়েছে!)")
+            st.success("Menu permissions updated successfully! (পারমিশন সফলভাবে আপডেট হয়েছে!)")
             st.rerun()
     else:
-      st.info("No agents found.")
-      
+      st.info("No staff agents available to configure permissions.")
+
   with set_tab2:
-    pass
+    st.write("#### 🚨 Unknown & Re-joined Agents (অজানা ও পুনরায় যুক্ত কর্মী)")
+    st.info("💡 যেসব ইউজার একাউন্ট ব্লক (Block) করা আছে অথবা যেসব কর্মী অজানা ডিভাইস বা একাউন্ট নিয়ে পুনরায় অ্যাপে যুক্ত হতে চেষ্টা করেছেন তাদের তালিকা এখানে প্রদর্শিত হচ্ছে।")
+
+    c.execute("SELECT username, fullname, phone, created_at, is_active FROM users WHERE role='staff' AND is_active=0 ORDER BY created_at DESC")
+    blocked_agents = c.fetchall()
+
+    if blocked_agents:
+      st.write(f"##### 🚫 Blocked / Inactive Agents ({len(blocked_agents)} Found):")
+      for b_uname, b_fname, b_phone, b_cat, b_act in blocked_agents:
+        col_ba1, col_ba2, col_ba3 = st.columns([3, 2, 2])
+        col_ba1.write(f"👤 **{b_fname or b_uname}** (`{b_uname}`)")
+        col_ba2.write(f"📞 {b_phone or 'No Phone'}")
+        
+        with col_ba3:
+          if st.button("🟢 Re-activate (পুনরায় যুক্ত করুন)", key=f"rejoin_act_{b_uname}"):
+            c.execute("UPDATE users SET is_active=1 WHERE username=?", (b_uname,))
+            conn.commit()
+            st.success(f"Agent '{b_uname}' activated and re-joined successfully!")
+            st.rerun()
+        st.write("---")
+    else:
+      st.success("No blocked or pending unknown agent requests found! (কোনো ব্লকড বা অজানা ইউজারের পেন্ডিং রিকোয়েস্ট নেই!)")
+
   with set_tab3:
-    pass
+    st.write("#### 📂 Database Backup & Restore (ডাটাবেস ব্যাকআপ ও রিস্টোর)")
+    st.info("💡 অ্যাপের পুরো ডেটা নিরাপদ রাখতে প্রতি সপ্তাহে একবার ব্যাকআপ ফাইল (SQLite File) ডাউনলোড করে রাখুন। ডেটা হারিয়ে গেলে বা নতুন করে রিস্টোর করতে চাইলে সেই ব্যাকআপ ফাইলটি আপলোড করে অ্যাপ পূর্বাবস্থায় ফিরিয়ে আনুন।")
+
+    col_db1, col_db2 = st.columns(2)
+
+    with col_db1:
+      st.write("##### 📥 1. Download Database Backup")
+      if os.path.exists(DB_FILE):
+        with open(DB_FILE, "rb") as db_f:
+          db_bytes = db_f.read()
+        
+        backup_filename = f"mediseller_backup_{get_ist_time().strftime('%d_%m_%Y_%H_%M')}.db"
+        st.download_button(
+            label="💾 Download SQLite Database Backup (.db)",
+            data=db_bytes,
+            file_name=backup_filename,
+            mime="application/x-sqlite3",
+            type="primary"
+        )
+      else:
+        st.error("Database file not found!")
+
+    with col_db2:
+      st.write("##### 📤 2. Restore Database from Backup File")
+      uploaded_db = st.file_uploader("Upload Backup Database File (.db)", type=["db", "sqlite", "sqlite3"])
+
+      if uploaded_db is not None:
+        if st.button("⚠️ Confirm Database Restore (রিস্টোর নিশ্চিত করুন)", type="secondary"):
+          try:
+            conn.close()
+            with open(DB_FILE, "wb") as f_out:
+              f_out.write(uploaded_db.getbuffer())
+            
+            st.success("Database restored successfully! (ডাটাবেস সফলভাবে রিস্টোর হয়েছে!)")
+            st.rerun()
+          except Exception as e:
+            st.error(f"Error restoring database: {e}")
+
   with set_tab4:
-    pass
+    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
+    st.info("💡 ভুলবশত কোনো পার্টি, অর্ডার, দৈনিক কাজ বা টাস্ক ডিলিট করা হলে তা এই রিসাইকেল বিনে জমা থাকে। প্রয়োজনবোধে সেগুলোকে পুনরায় রিস্টোর (Restore) করতে পারবেন অথবা স্থায়ীভাবে মুছতে পারবেন।")
+
+    recycle_df = pd.read_sql_query("SELECT id, item_type, item_title, item_data, deleted_at FROM recycle_bin ORDER BY id DESC", conn)
+
+    if not recycle_df.empty:
+      col_rb_btn1, _ = st.columns([2, 2])
+      with col_rb_btn1:
+        if st.button("🚨 Permanently Empty Recycle Bin (সব স্থায়ীভাবে মুছুন)", type="secondary"):
+          c.execute("DELETE FROM recycle_bin")
+          conn.commit()
+          st.success("Recycle Bin emptied successfully!")
+          st.rerun()
+      st.write("---")
+
+      for idx, r_item in recycle_df.iterrows():
+        col_r1, col_r2, col_r3, col_r4 = st.columns([2, 3, 2, 2])
+        col_r1.write(f"Type: **{r_item['item_type']}**")
+        col_r2.write(f"Title: `{r_item['item_title']}`")
+        col_r3.write(f"Deleted: {format_date_display(r_item['deleted_at'])}")
+
+        with col_r4:
+          col_act1, col_act2 = st.columns(2)
+          with col_act1:
+            if st.button("🔄 Restore", key=f"rst_bin_{r_item['id']}"):
+              try:
+                raw_data = json.loads(r_item['item_data'])
+                itype = r_item['item_type']
+
+                if itype == "Location":
+                  c.execute(
+                      "INSERT INTO locations (party_name, address, party_phone, lat, lon, current_due) VALUES (?, ?, ?, ?, ?, ?)",
+                      (raw_data.get('party_name'), raw_data.get('address'), raw_data.get('party_phone'), raw_data.get('lat'), raw_data.get('lon'), raw_data.get('current_due', 0))
+                  )
+                elif itype == "Order":
+                  c.execute(
+                      "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
+                      (raw_data.get('party_name'), raw_data.get('order_details'), raw_data.get('order_date'), raw_data.get('status', 'Pending'), raw_data.get('payment_collected', '0'))
+                  )
+                elif itype == "Daily Work":
+                  c.execute(
+                      "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                      (raw_data.get('party_name'), raw_data.get('activity_type'), raw_data.get('work_date'))
+                  )
+                elif itype == "Task":
+                  c.execute(
+                      "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      (raw_data.get('agent_name'), raw_data.get('party_name'), raw_data.get('task_type'), raw_data.get('due_amount'), raw_data.get('sale_amount'), raw_data.get('payment_collected_actual'), raw_data.get('remaining_due'), raw_data.get('status'), raw_data.get('created_at'))
+                  )
+
+                c.execute("DELETE FROM recycle_bin WHERE id=?", (r_item['id'],))
+                conn.commit()
+                st.success(f"Item '{r_item['item_title']}' restored successfully!")
+                st.rerun()
+              except Exception as err:
+                st.error(f"Restore failed: {err}")
+
+          with col_act2:
+            if st.button("❌ Delete", key=f"del_bin_{r_item['id']}"):
+              c.execute("DELETE FROM recycle_bin WHERE id=?", (r_item['id'],))
+              conn.commit()
+              st.success("Permanently deleted!")
+              st.rerun()
+        st.write("---")
+    else:
+      st.info("Recycle bin is empty. (রিসাইকেল বিন সম্পূর্ণ ফাঁকা।)")
+
   with set_tab5:
-    pass
+    st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
+    
+    with st.form("change_admin_password_form", clear_on_submit=True):
+      curr_pass = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
+      new_pass1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
+      new_pass2 = st.text_input("Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)", type="password")
+      submit_pass = st.form_submit_button("🔑 Update Admin Password (পাসওয়ার্ড পরিবর্তন করুন)", type="primary")
+
+      if submit_pass:
+        c.execute("SELECT password FROM users WHERE username='admin'")
+        adm_row = c.fetchone()
+
+        if adm_row and adm_row[0] == curr_pass.strip():
+          if new_pass1.strip() and new_pass1 == new_pass2:
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass1.strip(),))
+            conn.commit()
+            st.success("Admin password changed successfully! (অ্যাডমিন পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!)")
+            st.rerun()
+          else:
+            st.error("New passwords do not match or empty! (নতুন পাসওয়ার্ড দুটি মিলছে না!)")
+        else:
+          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
 
