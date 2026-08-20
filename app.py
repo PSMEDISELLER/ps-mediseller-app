@@ -117,7 +117,7 @@ text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
         <h2 style="color: #f87171; margin-top: 0; font-size: 22px;">Location Permission Required<br>(লোকেশন পারমিশন আবশ্যক)</h2>
         <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
             P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant permission.<br><br>
-            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
+            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে কাশী না।)</b>
         </p>
         <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:
 none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px
@@ -343,7 +343,8 @@ CREATE TABLE IF NOT EXISTS locations (
     party_phone TEXT UNIQUE,
     lat REAL,
     lon REAL,
-    route_order INTEGER DEFAULT 0
+    route_order INTEGER DEFAULT 0,
+    current_due REAL DEFAULT 0
 )
 """)
 c.execute("""
@@ -383,6 +384,7 @@ CREATE TABLE IF NOT EXISTS task_assignments (
     due_amount TEXT DEFAULT '0',
     sale_amount TEXT DEFAULT '0',
     payment_collected_actual TEXT DEFAULT '0',
+    remaining_due TEXT DEFAULT '0',
     status TEXT DEFAULT 'Pending',
     created_at TEXT NOT NULL
 )
@@ -410,6 +412,8 @@ c.execute("PRAGMA table_info(locations)")
 existing_cols_loc = [row[1] for row in c.fetchall()]
 if "party_phone" not in existing_cols_loc:
   c.execute("ALTER TABLE locations ADD COLUMN party_phone TEXT")
+if "current_due" not in existing_cols_loc:
+  c.execute("ALTER TABLE locations ADD COLUMN current_due REAL DEFAULT 0")
 
 c.execute("PRAGMA table_info(orders)")
 existing_cols_ord = [row[1] for row in c.fetchall()]
@@ -435,6 +439,8 @@ if "sale_amount" not in existing_cols_task:
   c.execute("ALTER TABLE task_assignments ADD COLUMN sale_amount TEXT DEFAULT '0'")
 if "payment_collected_actual" not in existing_cols_task:
   c.execute("ALTER TABLE task_assignments ADD COLUMN payment_collected_actual TEXT DEFAULT '0'")
+if "remaining_due" not in existing_cols_task:
+  c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
 conn.commit()
 
 c.execute("SELECT COUNT(*) FROM users")
@@ -1349,10 +1355,11 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
   all_parties = [r[0] for r in loc_data]
 
-  task_tab1, task_tab2, task_tab3 = st.tabs([
+  task_tab1, task_tab2, task_tab3, task_tab4 = st.tabs([
       "Active Tasks (চলমান কাজ)",
       "Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
-      "Completed Tasks History (সম্পন্ন কাজ)"
+      "Completed Tasks History (সম্পন্ন কাজ)",
+      "💰 Master Due List (ডিউ লিস্ট)"
   ])
 
   with task_tab1:
@@ -1413,6 +1420,13 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
         sel_pt = ""
 
+    auto_due_val = "0"
+    if sel_pt and sel_pt.strip():
+      c.execute("SELECT current_due FROM locations WHERE party_name=?", (sel_pt.strip(),))
+      res_due = c.fetchone()
+      if res_due and res_due[0] is not None:
+        auto_due_val = str(int(res_due[0]) if float(res_due[0]).is_integer() else res_due[0])
+
     with st.form("easy_assign_form", clear_on_submit=True):
       st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
       
@@ -1431,7 +1445,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
       with col_chk2:
         chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)")
 
-      d_amount = st.text_input("Due Amount (ডিউ টাকা)", "0")
+      d_amount = st.text_input("Due Amount (ডিউ টাকা)", auto_due_val)
       submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
 
       if submit_easy_task:
@@ -1487,10 +1501,19 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
              
               submit_complete = st.form_submit_button("✔️ Complete Task (সম্পন্ন বলে ক্লিক করুন)", type="primary")
               if submit_complete:
+                try:
+                  t_due = float(row['due_amount']) if str(row['due_amount']).strip() else 0.0
+                  s_amt = float(sale_input) if sale_input.strip() else 0.0
+                  p_amt = float(payment_input) if payment_input.strip() else 0.0
+                  r_due = t_due + s_amt - p_amt
+                except ValueError:
+                  r_due = 0.0
+
                 c.execute(
-                    "UPDATE task_assignments SET status='Completed', sale_amount=?, payment_collected_actual=? WHERE id=?",
-                    (sale_input, payment_input, row['id'])
+                    "UPDATE task_assignments SET status='Completed', sale_amount=?, payment_collected_actual=?, remaining_due=? WHERE id=?",
+                    (sale_input, payment_input, str(r_due), row['id'])
                 )
+                c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (r_due, row['party_name']))
                 c.execute(
                     "UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?",
                     (row['agent_name'],)
@@ -1567,7 +1590,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
   with task_tab3:
     st.markdown("#### Completed Tasks History (সম্পন্ন কাজ)")
     completed_tasks_df = pd.read_sql_query("""
-        SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.created_at, l.address
+        SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.remaining_due, t.created_at, l.address
         FROM task_assignments t
         LEFT JOIN users u ON t.agent_name = u.username
         LEFT JOIN locations l ON t.party_name = l.party_name
@@ -1583,9 +1606,10 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         export_comp_df['Due Amount (₹)'] = export_comp_df['due_amount']
         export_comp_df['Sale Amount (₹)'] = export_comp_df['sale_amount']
         export_comp_df['Collection Amount (₹)'] = export_comp_df['payment_collected_actual']
+        export_comp_df['Remaining Due (₹)'] = export_comp_df['remaining_due']
         export_comp_df['Completed Date'] = export_comp_df['created_at'].apply(lambda x: format_date_display(x))
         
-        export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Due Amount (₹)', 'Completed Date']]
+        export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Remaining Due (₹)', 'Completed Date']]
         
         html_comp_tasks = generate_html_report("Completed Tasks History", export_comp_df_final)
         col_tc1, col_tc2 = st.columns(2)
@@ -1609,7 +1633,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
       for idx, row in completed_tasks_df.iterrows():
         ag_c_name = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name']
         st.markdown(f"**Agent:** `{ag_c_name}` | **Party:** `{row['party_name']}` | **Task:** `{row['task_type']}`")
-        st.markdown(f"📦 Sale: ₹`{row['sale_amount']}` | 💰 Collected: ₹`{row['payment_collected_actual']}` | ⏳ Due: ₹`{row['due_amount']}`")
+        st.markdown(f"📦 Sale: ₹`{row['sale_amount']}` | 💰 Collected: ₹`{row['payment_collected_actual']}` | ⏳ Remaining Due: ₹`{row['remaining_due']}`")
         if st.session_state["user_role"] == "admin":
           if st.button("🗑️ Delete Task Record", key=f"del_comp_task_{row['id']}"):
             move_to_recycle_bin("Task", row['party_name'], dict(row))
@@ -1620,6 +1644,44 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         st.write("---")
     else:
       st.info("No completed tasks history found.")
+
+  with task_tab4:
+    st.write("#### 💰 Master Due List & Management (পার্টি ডিউ ম্যানেজমেন্ট)")
+    
+    col_md1, col_md2 = st.columns([1, 2])
+    with col_md1:
+      st.write("##### ✏️ Update Due (ডিউ আপডেট)")
+      if st.session_state["user_role"] == "admin":
+        due_parties = [p for p in all_parties]
+        if due_parties:
+          selected_due_party = st.selectbox("Select Party:", due_parties, key="admin_due_update_party")
+          c.execute("SELECT current_due FROM locations WHERE party_name=?", (selected_due_party,))
+          curr_d = c.fetchone()
+          curr_d_val = curr_d[0] if (curr_d and curr_d[0] is not None) else 0.0
+          
+          with st.form("update_due_form"):
+            new_due_val = st.text_input("Current Due Amount (বর্তমান ডিউ)", str(curr_d_val))
+            if st.form_submit_button("💾 Update Due", type="primary"):
+              try:
+                nd_val = float(new_due_val)
+              except ValueError:
+                nd_val = 0.0
+              c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (nd_val, selected_due_party))
+              conn.commit()
+              st.success("Due updated successfully! (ডিউ আপডেট হয়েছে!)")
+              st.rerun()
+        else:
+          st.info("No parties available.")
+      else:
+        st.warning("Only Admin can manually update due amounts.")
+
+    with col_md2:
+      st.write("##### 📋 Parties with Pending Due (বাকি ডিউ তালিকা)")
+      due_df = pd.read_sql_query("SELECT party_name AS 'Party Name', current_due AS 'Due Amount (₹)', party_phone AS 'Phone' FROM locations WHERE current_due > 0 ORDER BY current_due DESC", conn)
+      if not due_df.empty:
+        st.dataframe(due_df, use_container_width=True)
+      else:
+        st.success("No parties have any pending dues! (কারো ডিউ বাকি নেই!)")
 
 elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
   st.write("### 🗺️ Route Map & Locations (রুট ম্যাপ)")
@@ -1966,128 +2028,6 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
           if cols[3].button("✅ Unblock (আনব্লক)", key=f"unblock_usr_{uname}"):
             c.execute("UPDATE users SET is_active=1 WHERE username=?", (uname,))
             conn.commit()
-            st.success(f"{fname} is unblocked!")
+            st.success(f"{fname} is now unblocked!")
             st.rerun()
-        st.write("---")
-    else:
-      st.info("No monitoring users found.")
-
-  with set_tab3:
-    st.write("#### 📂 Database Backup & Restore (ডাটাবেস ব্যাকআপ ও রিস্টোর)")
-    st.info("💡 এখানে আপনি আপনার অ্যাপের পুরো ডাটাবেসের ব্যাকআপ ফাইল ( .db ) ডাউনলোড করতে পারবেন এবং প্রয়োজন হলে ব্যাকআপ ফাইল আপলোড করে পুরনো তথ্য রিস্টোর করতে পারবেন।")
-
-    col_db1, col_db2 = st.columns(2)
-    with col_db1:
-      st.write("##### 📥 Download Backup (ব্যাকআপ ডাউনলোড)")
-      if os.path.exists(DB_FILE):
-        with open(DB_FILE, "rb") as f:
-          db_bytes = f.read()
-        st.download_button(
-            label="📥 Download Database (.db)",
-            data=db_bytes,
-            file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
-            mime="application/x-sqlite3",
-            type="primary"
-        )
-      else:
-        st.error("Database file not found!")
-
-    with col_db2:
-      st.write("##### 📤 Restore Database (ডাটাবেস রিস্টোর)")
-      uploaded_db = st.file_uploader("Upload Backup DB File (.db)", type=["db", "sqlite", "sqlite3"])
-      if uploaded_db is not None:
-        if st.button("⚠️ Confirm & Restore Database", type="secondary"):
-          conn.close()
-          with open(DB_FILE, "wb") as f:
-            f.write(uploaded_db.getbuffer())
-          st.success("Database restored successfully! Reloading application...")
-          st.rerun()
-
-  with set_tab4:
-    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
-    st.info("💡 ভুলবশত কোনো ডাটা ডিলিট হলে এখানে জমা হয়। আপনি চাইলে তা পুনরায় রিস্টোর করতে পারেন অথবা স্থায়ীভাবে মুছে ফেলতে পারেন।")
-
-    recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
-    if not recycle_df.empty:
-      if st.button("🚨 Permanent Clear All (সব স্থায়ীভাবে মুছুন)", type="secondary"):
-        c.execute("DELETE FROM recycle_bin")
-        conn.commit()
-        st.success("Recycle Bin cleared permanently!")
-        st.rerun()
-      st.write("---")
-
-      for idx, r in recycle_df.iterrows():
-        r_id = r['id']
-        r_type = r['item_type']
-        r_title = r['item_title']
-        r_data_str = r['item_data']
-        r_time = format_date_display(r['deleted_at'])
-
-        cols = st.columns([2, 3, 2, 2, 2])
-        cols[0].write(f"Type: `{r_type}`")
-        cols[1].write(f"**{r_title}**")
-        cols[2].write(f"🕒 {r_time}")
-
-        if cols[3].button("🔄 Restore", key=f"rec_rest_{r_id}"):
-          try:
-            item_data = json.loads(r_data_str)
-            if r_type == "Location":
-              c.execute(
-                  "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-                  (item_data.get('party_name'), item_data.get('address'), item_data.get('party_phone'), item_data.get('lat'), item_data.get('lon'))
-              )
-            elif r_type == "Order":
-              c.execute(
-                  "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
-                  (item_data.get('party_name'), item_data.get('order_details'), item_data.get('order_date'), item_data.get('status', 'Pending'), item_data.get('payment_collected', '0'))
-              )
-            elif r_type == "Daily Work":
-              c.execute(
-                  "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                  (item_data.get('party_name'), item_data.get('activity_type'), item_data.get('work_date'))
-              )
-            elif r_type == "Task":
-              c.execute(
-                  "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                  (item_data.get('agent_name'), item_data.get('party_name'), item_data.get('task_type'), item_data.get('due_amount', '0'), item_data.get('sale_amount', '0'), item_data.get('payment_collected_actual', '0'), item_data.get('status', 'Pending'), item_data.get('created_at'))
-              )
-            c.execute("DELETE FROM recycle_bin WHERE id=?", (r_id,))
-            conn.commit()
-            st.success(f"Restored '{r_title}' successfully!")
-            st.rerun()
-          except Exception as e:
-            st.error(f"Error during restore: {e}")
-
-        if cols[4].button("❌ Delete", key=f"rec_del_{r_id}"):
-          c.execute("DELETE FROM recycle_bin WHERE id=?", (r_id,))
-          conn.commit()
-          st.success("Deleted permanently!")
-          st.rerun()
-        st.write("---")
-    else:
-      st.info("Recycle Bin is empty. (রিসাইকেল বিন ফাঁকা আছে।)")
-
-  with set_tab5:
-    st.write("#### 🔑 Change Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
-    with st.form("change_admin_pass_form", clear_on_submit=True):
-      curr_pass = st.text_input("Current Password (বর্তমান পাসওয়ার্ড)", type="password")
-      new_pass1 = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
-      new_pass2 = st.text_input("Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)", type="password")
-      submit_pass_change = st.form_submit_button("🔑 Update Password (পাসওয়ার্ড আপডেট)", type="primary")
-
-      if submit_pass_change:
-        c.execute("SELECT password FROM users WHERE username='admin'")
-        real_pass = c.fetchone()[0]
-
-        if curr_pass != real_pass:
-          st.error("Incorrect current password! (বর্তমান পাসওয়ার্ড ভুল!)")
-        elif not new_pass1.strip():
-          st.error("New password cannot be empty! (নতুন পাসওয়ার্ড ফাঁকা রাখা যাবে না!)")
-        elif new_pass1 != new_pass2:
-          st.error("New passwords do not match! (নতুন পাসওয়ার্ড দুটি মেলেনি!)")
-        else:
-          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass1.strip(),))
-          conn.commit()
-          st.success("Admin password updated successfully! (অ্যাডমিন পাসওয়ার্ড সফলভাবে আপডেট হয়েছে!)")
-          st.rerun()
 
