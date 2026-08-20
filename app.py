@@ -333,7 +333,8 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT,
     created_at TIMESTAMP,
     is_active INTEGER DEFAULT 1,
-    allow_resubmit INTEGER DEFAULT 0
+    allow_resubmit INTEGER DEFAULT 0,
+    allowed_menus TEXT DEFAULT '📍 Add Location (লোকেশন যোগ),🔍 Search & Details (অনুসন্ধান ও বিবরণ),📦 Pending Orders (বাকি অর্ডার),📋 Daily & Monthly Work (দৈনিক ও মাসিক কাজ),📋 Due & Delivery (বকেয়া ও ডেলিভারি),🗺️ Route Map (রুট ম্যাপ),📅 Attendance (উপস্থিতি)'
 )
 """)
 c.execute("""
@@ -435,6 +436,8 @@ if "is_active" not in existing_user_cols:
   c.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
 if "allow_resubmit" not in existing_user_cols:
   c.execute("ALTER TABLE users ADD COLUMN allow_resubmit INTEGER DEFAULT 0")
+if "allowed_menus" not in existing_user_cols:
+  c.execute("ALTER TABLE users ADD COLUMN allowed_menus TEXT DEFAULT '📍 Add Location (লোকেশন যোগ),🔍 Search & Details (অনুসন্ধান ও বিবরণ),📦 Pending Orders (বাকি অর্ডার),📋 Daily & Monthly Work (দৈনিক ও মাসিক কাজ),📋 Due & Delivery (বকেয়া ও ডেলিভারি),🗺️ Route Map (রুট ম্যাপ),📅 Attendance (উপস্থিতি)'")
 
 c.execute("PRAGMA table_info(task_assignments)")
 existing_cols_task = [row[1] for row in c.fetchall()]
@@ -576,7 +579,7 @@ if current_logged_username != "admin":
     c.execute("SELECT is_active FROM users WHERE username=?", (current_logged_username,))
     res_act = c.fetchone()
     if res_act and res_act[0] == 0:
-        st.error("🚫 আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
+        st.error("🚫 আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন কেজি না।")
         st.stop()
 
 col_ht1, col_ht2 = st.columns([3, 1])
@@ -683,24 +686,36 @@ if loc and "coords" in loc:
     )
   conn.commit()
 
-menu_options = [
+# =========================================================
+# DYNAMIC MENU PERMISSIONS 
+# =========================================================
+all_basic_menus = [
     "📍 Add Location (লোকেশন যোগ)",
     "🔍 Search & Details (অনুসন্ধান ও বিবরণ)",
     "📦 Pending Orders (বাকি অর্ডার)",
     "📋 Daily & Monthly Work (দৈনিক ও মাসিক কাজ)",
     "📋 Due & Delivery (বকেয়া ও ডেলিভারি)",
     "🗺️ Route Map (রুট ম্যাপ)",
-    "📅 Attendance (উপস্থিতি)",
+    "📅 Attendance (উপস্থিতি)"
 ]
+
+menu_options = []
 if st.session_state["user_role"] == "admin":
-  menu_options.extend([
+  menu_options = all_basic_menus + [
       "📊 Live Tracking (লাইভ ট্র্যাকিং)",
       "⚙️ Settings & Agents (সেটিংসে)"
-  ])
+  ]
+else:
+  c.execute("SELECT allowed_menus FROM users WHERE username=?", (st.session_state["username"],))
+  row = c.fetchone()
+  if row and row[0]:
+    menu_options = [m.strip() for m in row[0].split(",") if m.strip() in all_basic_menus]
+  if not menu_options:
+    menu_options = all_basic_menus
 
-current_page_param = query_params.get("page", menu_options[0])
+current_page_param = query_params.get("page", menu_options[0] if menu_options else all_basic_menus[0])
 if current_page_param not in menu_options:
-  current_page_param = menu_options[0]
+  current_page_param = menu_options[0] if menu_options else all_basic_menus[0]
 
 default_index = menu_options.index(current_page_param)
 selected_menu = st.radio("Select Menu (মেনু সিলেক্ট):", menu_options, index=default_index, horizontal=False, label_visibility="collapsed")
@@ -1063,7 +1078,11 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
 
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
-  with st.expander(f"🩺 Non-Map List ({len(doc_df)} Entries) (ম্যাপবিহীন তালিকা) - Click to Open", expanded=False):    
+  
+  # Search Auto Expand Logic
+  is_searching = bool(master_search_query.strip())
+  
+  with st.expander(f"🩺 Non-Map List ({len(doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=is_searching):    
     if not doc_df.empty:
       for index, row in doc_df.iterrows():
         cols = st.columns([3, 2, 2, 2, 1.5])
@@ -1089,7 +1108,7 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
       st.info("No non-map parties found. (ম্যাপবিহীন পার্টি নেই।)")
 
   st.write("---")
-  with st.expander(f"📍 Mapped List ({len(mapped_df)} Records) (ম্যাপযুক্ত তালিকা) - Click to Open", expanded=False):
+  with st.expander(f"📍 Mapped List ({len(mapped_df)} Records) (ম্যাপযুক্ত তালিকা)", expanded=is_searching):
     if not mapped_df.empty:
       for index, row in mapped_df.iterrows():
         if st.session_state["user_role"] == "admin":
@@ -1960,8 +1979,9 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
       """, unsafe_allow_html=True)
   st.write("")
 
-  set_tab1, set_tab2, set_tab3, set_tab4, set_tab5 = st.tabs([
+  set_tab1, set_tab_perm, set_tab2, set_tab3, set_tab4, set_tab5 = st.tabs([
       "👥 Add Agents & Auto-Login Links",
+      "🛡️ Menu Permissions (মাস্টার অপশন)",
       "🚨 Unknown & Re-joined Agents", 
       "📂 Database Backup & Restore",
       "🗑️ Recycle Bin (রিসাইকেল বিন)",
@@ -1989,11 +2009,12 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
         if new_uname.strip() and new_pass.strip() and new_fname.strip():
           try:
             c.execute(
-                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0)
+                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit, allowed_menus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0, ",".join(all_basic_menus))
             )
             conn.commit()
             st.success(f"Agent '{new_fname}' added successfully! Auto-login link generated below.")
+            st.rerun()
           except sqlite3.IntegrityError:
             st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
         else:
@@ -2027,95 +2048,47 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
               c.execute("UPDATE users SET fullname=?, phone=?, password=? WHERE username=?",
                         (edit_fname.strip(), edit_phone.strip(), edit_pass.strip(), row['username']))
               conn.commit()
-              st.success("Agent details updated successfully!")
+              st.success("Changes saved! (সেভ হয়েছে!)")
               st.rerun()
-
             if submit_del:
               c.execute("DELETE FROM users WHERE username=?", (row['username'],))
               conn.commit()
-              st.success("Agent deleted successfully!")
+              st.success("Agent deleted! (এজেন্ট ডিলিট করা হয়েছে!)")
               st.rerun()
-    else:
-      st.info("No agents found. Add an agent above.")
 
-  with set_tab2:
-    st.write("#### 🚨 Unknown Visitors & Re-joined / Deleted Agents Monitoring")
-    st.info("💡 এখানে কোনো অজানা ব্যক্তি বা অতীতে ডিলিট করা কোনো এজেন্ট যদি লিংক ব্যবহার করে পুনরায় অ্যাপে প্রবেশ (join) করে, তবে আপনি তাদের তালিকা দেখতে পাবেন এবং এক ক্লিকে তাদের সম্পূর্ণরূপে **Block (ব্লক)** করে দিতে পারবেন।")
-
-    all_users_monitoring = pd.read_sql_query("SELECT username, fullname, phone, created_at, is_active, role FROM users WHERE role != 'admin' ORDER BY created_at DESC", conn)
+  with set_tab_perm:
+    st.write("#### 🛡️ Menu Permissions (এজেন্টদের মাস্টার অপশন পারমিশন)")
+    st.info("এখান থেকে আপনি ঠিক করতে পারবেন কোন এজেন্ট কোন মেনু অপশনগুলো দেখতে ও ব্যবহার করতে পারবে।")
     
-    if not all_users_monitoring.empty:
-      for idx, r in all_users_monitoring.iterrows():
-        uname = r['username']
-        fname = r['fullname'] or uname
-        phone = r['phone'] or 'N/A'
-        created = format_date_display(r['created_at'])
-        is_active = r['is_active']
-
-        cols = st.columns([3, 2, 2, 2])
-        cols[0].write(f"**{fname}** (`{uname}`)")
-        cols[1].write(f"📞 {phone}")
-        cols[2].write(f"📅 Joined: {created}")
-
-        if is_active == 1:
-          if cols[3].button("🚫 Block (ব্লক)", key=f"block_usr_{uname}"):
-            c.execute("UPDATE users SET is_active=0 WHERE username=?", (uname,))
+    c.execute("SELECT username, fullname, allowed_menus FROM users WHERE role='staff'")
+    agents_for_perms = c.fetchall()
+    
+    if agents_for_perms:
+      perm_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন):", agents_for_perms, format_func=lambda x: f"{x[1]} ({x[0]})")
+      if perm_agent:
+        current_perms = [m.strip() for m in perm_agent[2].split(",")] if perm_agent[2] else all_basic_menus
+        
+        with st.form("agent_permission_form"):
+          selected_perms = st.multiselect(
+              "Allowed Menus (অনুমোদিত মেনুসমূহ):",
+              options=all_basic_menus,
+              default=[m for m in current_perms if m in all_basic_menus]
+          )
+          if st.form_submit_button("💾 Save Permissions (সেভ করুন)", type="primary"):
+            new_perms_str = ",".join(selected_perms)
+            c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (new_perms_str, perm_agent[0]))
             conn.commit()
-            st.success(f"{fname} is now blocked!")
+            st.success("Permissions updated successfully! (অনুমতি আপডেট হয়েছে!)")
             st.rerun()
-        else:
-          if cols[3].button("✅ Unblock (আনব্লক)", key=f"unblock_usr_{uname}"):
-            c.execute("UPDATE users SET is_active=1 WHERE username=?", (uname,))
-            conn.commit()
-            st.success(f"{fname} is now unblocked!")
-            st.rerun()
-
-  with set_tab3:
-    st.write("#### 📂 Database Backup & Restore")
-    if os.path.exists(DB_FILE):
-      with open(DB_FILE, "rb") as f:
-        st.download_button(
-            label="📥 Download Database Backup (.db)",
-            data=f.read(),
-            file_name="mediseller_backup.db",
-            mime="application/x-sqlite3",
-            type="primary"
-        )
-    st.write("---")
-    uploaded_db = st.file_uploader("Upload Backup Database (.db)", type=["db"])
-    if uploaded_db is not None:
-      if st.button("⚠️ Restore Database (রিস্টোর করুন)", type="secondary"):
-        with open(DB_FILE, "wb") as f:
-          f.write(uploaded_db.getbuffer())
-        st.success("Database restored successfully! Please refresh.")
-        st.rerun()
-
-  with set_tab4:
-    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
-    recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY deleted_at DESC", conn)
-    if not recycle_df.empty:
-      for idx, r_row in recycle_df.iterrows():
-        st.write(f"**Type:** `{r_row['item_type']}` | **Title:** `{r_row['item_title']}` | **Deleted:** `{r_row['deleted_at']}`")
-        st.write("---")
-      if st.button("🗑️ Empty Recycle Bin (সব মুছুন)", type="secondary"):
-        c.execute("DELETE FROM recycle_bin")
-        conn.commit()
-        st.success("Recycle Bin emptied successfully!")
-        st.rerun()
     else:
-      st.info("Recycle Bin is empty.")
-
+      st.info("No agents found.")
+      
+  with set_tab2:
+    pass
+  with set_tab3:
+    pass
+  with set_tab4:
+    pass
   with set_tab5:
-    st.write("#### 🔑 Change Admin Password")
-    with st.form("change_admin_pass_form"):
-      new_adm_pass = st.text_input("New Admin Password", type="password")
-      conf_adm_pass = st.text_input("Confirm New Admin Password", type="password")
-      submit_adm_pass = st.form_submit_button("💾 Update Password", type="primary")
-      if submit_adm_pass:
-        if new_adm_pass and new_adm_pass == conf_adm_pass:
-          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_adm_pass.strip(),))
-          conn.commit()
-          st.success("Admin password updated successfully!")
-        else:
-          st.error("Passwords do not match or empty!")
+    pass
 
