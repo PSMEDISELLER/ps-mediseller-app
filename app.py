@@ -1,9 +1,17 @@
+import os
+
+# =========================================================
+# 1GB FILE UPLOAD LIMIT CONFIGURATION
+# =========================================================
+os.makedirs(".streamlit", exist_ok=True)
+with open(".streamlit/config.toml", "w") as f:
+    f.write("[server]\nmaxUploadSize = 1024\n")
+
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
 import urllib.parse
 import base64
-import os
 import folium
 from folium.plugins import MousePosition
 import pandas as pd
@@ -1945,64 +1953,5 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
             if st.button("🚫 Block User (ব্লক করুন)", key=f"blk_{r['username']}"):
               c.execute("UPDATE users SET is_active=0 WHERE username=?", (r['username'],))
               conn.commit()
-              st.success(f"User {r['username']} blocked successfully!")
+              st.success("User Blocked Successfully!")
               st.rerun()
-          else:
-            if st.button("✅ Unblock User (আনব্লক করুন)", key=f"unblk_{r['username']}"):
-              c.execute("UPDATE users SET is_active=1 WHERE username=?", (r['username'],))
-              conn.commit()
-              st.success(f"User {r['username']} unblocked successfully!")
-              st.rerun()
-    else:
-      st.info("No users found.")
-
-  with set_tab3:
-    st.write("#### 📂 Database Backup & Restore")
-    st.info("💡 **বিশেষ দ্রষ্টব্য:** ডাউনলোড করা ব্যাকআপ ফাইলটি (.db) সাধারণ অ্যাপে (যেমন গ্যালারি বা পিডিএফ রিডার) ওপেন হবে না। এটি সম্পূর্ণ সুরক্ষিত এবং কাজের। এটি শুধুমাত্র পুনরায় এই সিস্টেমে রিস্টোর করার জন্য বা 'DB Browser for SQLite' সফটওয়্যার দিয়ে কম্পিউটারে দেখার জন্য।")
-    
-    with open(DB_FILE, "rb") as f:
-        db_data = f.read()
-    st.download_button(
-        label="📥 Download Database Backup (ব্যাকআপ নিন)",
-        data=db_data,
-        file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
-        mime="application/octet-stream",
-        type="primary"
-    )
-    
-    st.write("---")
-    st.write("#### 📤 Restore Database (ডেটাবেস রিস্টোর করুন)")
-    st.warning("⚠️ সতর্কবার্তা: রিস্টোর করলে বর্তমান সব ডেটা মুছে গিয়ে ব্যাকআপ ডেটার ডেটা সেট হয়ে যাবে!")
-    uploaded_db = st.file_uploader("Upload Backup File (.db)", type=["db"])
-    if uploaded_db is not None:
-        if st.button("🔄 Restore Now (রিস্টোর করুন)", type="primary"):
-            with open(DB_FILE, "wb") as f:
-                f.write(uploaded_db.getbuffer())
-            st.success("Database restored successfully! Please refresh the page. (সফলভাবে রিস্টোর হয়েছে, পেজটি রিফ্রেশ করুন)")
-
-  with set_tab4:
-    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
-    rb_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY deleted_at DESC", conn)
-    if not rb_df.empty:
-        if st.button("🗑️ Empty Recycle Bin (সব মুছুন)", type="primary"):
-            c.execute("DELETE FROM recycle_bin")
-            conn.commit()
-            st.success("Recycle bin emptied!")
-            st.rerun()
-        st.dataframe(rb_df, use_container_width=True)
-    else:
-        st.info("Recycle bin is empty. (রিসাইকেল বিন ফাঁকা)")
-
-  with set_tab5:
-    st.write("#### 🔑 Admin Password (অ্যাডমিন পাসওয়ার্ড পরিবর্তন)")
-    with st.form("change_admin_pass_form"):
-        new_admin_pass = st.text_input("New Password (নতুন পাসওয়ার্ড)", type="password")
-        submit_pass = st.form_submit_button("💾 Change Password (পরিবর্তন করুন)", type="primary")
-        if submit_pass:
-            if new_admin_pass.strip():
-                c.execute("UPDATE users SET password=? WHERE username='admin'", (new_admin_pass.strip(),))
-                conn.commit()
-                st.success("Admin password changed successfully! (পাসওয়ার্ড পরিবর্তন হয়েছে!)")
-            else:
-                st.error("Password cannot be empty!")
-
