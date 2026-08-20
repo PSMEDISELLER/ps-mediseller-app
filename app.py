@@ -117,7 +117,7 @@ text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
         <h2 style="color: #f87171; margin-top: 0; font-size: 22px;">Location Permission Required<br>(লোকেশন পারমিশন আবশ্যক)</h2>
         <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
             P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant permission.<br><br>
-            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
+            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে কাশী করা যাবে না।)</b>
         </p>
         <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:
 none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px
@@ -540,21 +540,23 @@ if "selected_lat" not in st.session_state:
   st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
   st.session_state["selected_lon"] = 87.3320
-if "username" not in st.session_state:
-  st.session_state["username"] = "delivery"
-if "user_role" not in st.session_state:
-  st.session_state["user_role"] = "staff"
 
 query_params = st.query_params
-
 saved_user_js = streamlit_js_eval(js_expressions="localStorage.getItem('ps_mediseller_user')", key="get_saved_user_storage")
 target_login = None
 
 if query_params.get("login"):
     target_login = query_params.get("login")
     st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
+    st.session_state["username"] = target_login
 elif saved_user_js and saved_user_js != "null" and saved_user_js != "None":
     target_login = saved_user_js
+    st.session_state["username"] = target_login
+
+if "username" not in st.session_state:
+    st.session_state["username"] = target_login if target_login else "delivery"
+if "user_role" not in st.session_state:
+    st.session_state["user_role"] = "staff"
 
 if target_login:
     c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
@@ -2026,16 +2028,115 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
     c.execute("SELECT username, fullname, phone, password, is_active FROM users WHERE role='staff'")
     staff_users = c.fetchall()
     if staff_users:
-      for u_name, f_name, ph, pwd, active in staff_users:
+        agent_options = [f"{f_name} ({u_name})" for u_name, f_name, ph, pwd, active in staff_users]
+        selected_agent_str = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন):", agent_options, key="manage_agent_dropdown")
+        sel_u = selected_agent_str.split("(")[-1].replace(")", "")
+        
+        c.execute("SELECT username, fullname, phone, password, is_active FROM users WHERE username=?", (sel_u,))
+        u_name, f_name, ph, pwd, active = c.fetchone()
+        
         agent_link = f"{clean_base_url}/?login={u_name}"
-        st.markdown(f"**Name:** {f_name or u_name} (`{u_name}`) | **Phone:** {ph or 'N/A'} | **Password:** `{pwd}`")
+        
+        st.markdown(f"""
+        **👤 Name:** {f_name}  
+        **🆔 Username:** `{u_name}`  
+        **🔑 Password:** `{pwd}`  
+        **📱 Phone:** {ph}  
+        **🔗 Login Link:** `{agent_link}`
+        """)
         st.code(agent_link, language="text")
-        if st.button(f"🗑️ Delete Agent ({u_name})", key=f"del_agent_{u_name}"):
-          c.execute("DELETE FROM users WHERE username=?", (u_name,))
-          conn.commit()
-          st.success(f"Agent {u_name} deleted!")
-          st.rerun()
-        st.write("---")
+        
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            if active == 1:
+                if st.button("🚫 Block Agent (ব্লক করুন)", key=f"block_{u_name}"):
+                    c.execute("UPDATE users SET is_active=0 WHERE username=?", (u_name,))
+                    conn.commit()
+                    st.success(f"Agent {f_name} blocked!")
+                    st.rerun()
+            else:
+                if st.button("✅ Unblock Agent (আনব্লক করুন)", key=f"unblock_{u_name}"):
+                    c.execute("UPDATE users SET is_active=1 WHERE username=?", (u_name,))
+                    conn.commit()
+                    st.success(f"Agent {f_name} unblocked!")
+                    st.rerun()
+        with col_a2:
+            if st.button("🗑️ Delete Agent (এজেন্ট মুছুন)", key=f"del_{u_name}"):
+                c.execute("DELETE FROM users WHERE username=?", (u_name,))
+                conn.commit()
+                st.success("Agent deleted successfully!")
+                st.rerun()
     else:
-      st.info("No staff agents found.")
+        st.info("No agents found in database.")
+
+  with set_tab_perm:
+    st.write("#### 🛡️ Menu Permissions (মাস্টার অপশন)")
+    if staff_users:
+        agent_options_perm = [f"{f} ({u})" for u, f, p, pw, a in staff_users]
+        selected_agent_perm_str = st.selectbox("Select Agent for Permission (এজেন্ট সিলেক্ট করুন):", agent_options_perm, key="perm_agent_dropdown")
+        sel_u_perm = selected_agent_perm_str.split("(")[-1].replace(")", "")
+        
+        c.execute("SELECT allowed_menus FROM users WHERE username=?", (sel_u_perm,))
+        am_row = c.fetchone()
+        curr_menus = am_row[0].split(",") if (am_row and am_row[0]) else all_basic_menus
+        
+        with st.form(f"perm_form_{sel_u_perm}"):
+            sel_menus = st.multiselect("Allowed Menus (অনুমোদিত মেনুসমূহ)", all_basic_menus, default=[m for m in curr_menus if m in all_basic_menus])
+            if st.form_submit_button("💾 Save Permissions (পারমিশন সেভ)", type="primary"):
+                c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (",".join(sel_menus), sel_u_perm))
+                conn.commit()
+                st.success("Permissions updated successfully!")
+                st.rerun()
+    else:
+        st.info("No agents available to set permissions.")
+
+  with set_tab2:
+    st.write("#### 🚨 Unknown & Re-joined Agents (Blocked List)")
+    st.info("এখানে ব্লক করা এজেন্টদের তালিকা দেখা যাবে।")
+    c.execute("SELECT username, fullname, phone FROM users WHERE role='staff' AND is_active=0")
+    blocked = c.fetchall()
+    if blocked:
+        for b_u, b_f, b_p in blocked:
+            st.markdown(f"🚫 **{b_f}** (`{b_u}`) - Ph: {b_p}")
+    else:
+        st.success("No blocked or unknown agents found.")
+
+  with set_tab3:
+    st.write("#### 📂 Database Backup & Restore")
+    try:
+        with open(DB_FILE, "rb") as f:
+            st.download_button(
+                label="📥 Download Database Backup (.db)", 
+                data=f.read(), 
+                file_name=f"mediseller_backup_{get_ist_time().strftime('%Y%m%d_%H%M%S')}.db",
+                mime="application/octet-stream",
+                type="primary"
+            )
+    except Exception as e:
+        st.error(f"Backup failed. Error: {e}")
+
+  with set_tab4:
+    st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
+    rb_df = pd.read_sql_query("SELECT item_type AS 'Type', item_title AS 'Title', deleted_at AS 'Deleted On' FROM recycle_bin ORDER BY deleted_at DESC", conn)
+    if not rb_df.empty:
+        if st.button("🗑️ Empty Recycle Bin (সব মুছুন)", type="secondary"):
+            c.execute("DELETE FROM recycle_bin")
+            conn.commit()
+            st.success("Recycle Bin emptied successfully!")
+            st.rerun()
+        st.dataframe(rb_df, use_container_width=True)
+    else:
+        st.info("Recycle Bin is empty.")
+
+  with set_tab5:
+    st.write("#### 🔑 Change Admin Password")
+    with st.form("admin_pass_form"):
+        new_pass = st.text_input("New Admin Password", type="password")
+        if st.form_submit_button("Update Password", type="primary"):
+            if new_pass.strip():
+                c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass.strip(),))
+                conn.commit()
+                st.success("Admin password updated successfully!")
+            else:
+                st.error("Password cannot be empty.")
 
