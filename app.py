@@ -618,12 +618,10 @@ with col_ht2:
 
 c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
 curr_user_row = c.fetchone()
-current_fullname = curr_user_row[0] if curr_user_row and curr_user_row[0] else "User"
-
-if st.session_state['username'] == "delivery":
-    display_user_name = "User"
+if curr_user_row and curr_user_row[0]:
+    display_user_name = curr_user_row[0]
 else:
-    display_user_name = current_fullname
+    display_user_name = st.session_state['username']
 
 col_u1, _ = st.columns([3, 1])
 with col_u1:
@@ -676,6 +674,17 @@ if st.session_state.get("show_admin_login", False):
     if cancel_admin:
       st.session_state["show_admin_login"] = False
       st.rerun()
+  with st.expander("পাসওয়ার্ড ভুলে গেছেন? (Forgot Password)"):
+    st.info("অ্যাডমিন পাসওয়ার্ড রিসেট করতে মাস্টার কোড ব্যবহার করুন। (Master Code: PSMEDISELLER)")
+    master_code = st.text_input("Master Code (মাস্টার কোড)", type="password")
+    new_admin_pass = st.text_input("New Admin Password", type="password")
+    if st.button("Reset Admin Password (রিসেট করুন)"):
+        if master_code == "PSMEDISELLER" and new_admin_pass.strip():
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_admin_pass.strip(),))
+            conn.commit()
+            st.success("পাসওয়ার্ড সফলভাবে রিসেট হয়েছে! (Password Reset Successful!)")
+        else:
+            st.error("ভুল কোড বা পাসওয়ার্ড! (Invalid Code or Password!)")
 
 st.write("---")
 
@@ -940,6 +949,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
             (selected_order_party_native.strip(), "Order (অর্ডার)", current_date_str)
         )
         conn.commit()
+        st.session_state["order_party_search_text_input"] = "" # Search clear update
         st.success("Order submitted successfully! (জমা দেওয়া হয়েছে!)")
         st.rerun()
     if submitted_visit:
@@ -952,6 +962,7 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
             (selected_order_party_native.strip(), "Visit (ভিজিট)", current_date_str)
         )
         conn.commit()
+        st.session_state["order_party_search_text_input"] = "" # Search clear update
         st.success("Visit saved successfully! (সেভ হয়েছে!)")
         st.rerun()
 
@@ -1494,6 +1505,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
                 (sel_ag, sel_pt.strip(), t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
             )
             conn.commit()
+            st.session_state["task_party_search_text_input"] = "" # Search clear update
             st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
             st.rerun()
           else:
@@ -2011,111 +2023,84 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
       new_pass = st.text_input("Password (পাসওয়ার্ড)")
       new_fname = st.text_input("Full Name (পুরো নাম)")
       new_phone = st.text_input("Phone Number (ফোন নম্বর)")
-      submit_new_ag = st.form_submit_button("➕ Add Agent & Create Account (যোগ করুন)", type="primary")
-      
-      if submit_new_ag:
-        if new_uname.strip() and new_pass.strip() and new_fname.strip():
-          try:
-            default_menus = "📍 Add Location (লোকেশন যোগ),🔍 Search & Details (অনুসন্ধান ও বিবরণ),📦 Pending Orders (বাকি অর্ডার),📋 Daily & Monthly Work (দৈনিক ও মাসিক কাজ),📋 Due & Delivery (বকেয়া ও ডেলিভারি),🗺️ Route Map (রুট ম্যাপ),📅 Attendance (উপস্থিতি)"
-            c.execute(
-                "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit, allowed_menus) VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?)",
-                (new_uname.strip(), new_pass.strip(), "staff", new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), default_menus)
-            )
-            conn.commit()
-            st.success(f"Agent {new_fname.strip()} added successfully!")
-            st.rerun()
-          except sqlite3.IntegrityError:
-            st.error("Username already exists! (এই ইউজারনেমটি আগে থেকেই আছে!)")
-
-    st.write("---")
-    st.write("#### 🔗 Agent Management (এজেন্ট লিংক ও নাম পরিবর্তন)")
-    
-    agents_df = pd.read_sql_query("SELECT username, fullname, phone FROM users WHERE role='staff'", conn)
-    if not agents_df.empty:
-      for idx, row in agents_df.iterrows():
-        a_uname = row['username']
-        a_fname = row['fullname']
-        
-        with st.expander(f"👤 {a_fname} (Username: {a_uname}) - Click to Open", expanded=False):
-          # লিংক তৈরি
-          encoded_uname = urllib.parse.quote(a_uname)
-          join_link = f"{clean_base_url}/?login={encoded_uname}"
-          st.write("**Auto-Login Link (এই লিংকটি কপি করে এজেন্টকে দিন):**")
-          st.code(join_link, language="html")
-          st.markdown(f"🔗 [Test Link / Login Now]({join_link})")
-          
-          # নাম এডিট করার অপশন
-          st.write("✏️ **Edit Agent Name (এজেন্টের নাম পরিবর্তন):**")
-          with st.form(f"edit_name_form_{a_uname}"):
-            new_edit_name = st.text_input("Full Name", value=a_fname)
-            if st.form_submit_button("💾 Update Name"):
-              if new_edit_name.strip():
-                c.execute("UPDATE users SET fullname=? WHERE username=?", (new_edit_name.strip(), a_uname))
-                conn.commit()
-                st.success("Name updated successfully! (নাম পরিবর্তন হয়েছে!)")
-                st.rerun()
-              else:
-                st.error("Name cannot be empty!")
+      submit_new_agent = st.form_submit_button("✅ Add Agent (এজেন্ট যুক্ত করুন)", type="primary")
+      if submit_new_agent:
+          if new_uname.strip() and new_pass.strip() and new_fname.strip():
+              try:
+                  c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, 'staff', ?, ?, ?, 1, 0)",
+                            (new_uname.strip(), new_pass.strip(), new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
+                  conn.commit()
+                  st.success("New agent added successfully! (নতুন এজেন্ট যুক্ত হয়েছে!)")
+                  st.rerun()
+              except sqlite3.IntegrityError:
+                  st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
+          else:
+              st.error("Username, Password and Full Name are required! (সব তথ্য আবশ্যক!)")
+              
+    st.write("#### 📋 Existing Agents & Login Links")
+    c.execute("SELECT username, fullname, password, phone, is_active FROM users WHERE role='staff'")
+    staff_data = c.fetchall()
+    for s in staff_data:
+        s_uname, s_fname, s_pass, s_ph, s_act = s
+        st.markdown(f"**Name:** {s_fname} | **User:** `{s_uname}` | **Pass:** `{s_pass}` | **Phone:** {s_ph}")
+        link = f"{clean_base_url}/?login={s_uname}"
+        st.code(link, language="text")
+        st.write("---")
 
   with set_tab_perm:
-    st.write("#### 🛡️ Agent Menu Permissions (মেনু পারমিশন)")
-    c.execute("SELECT username, fullname, allowed_menus FROM users WHERE role='staff'")
-    for u_name, f_name, a_menus in c.fetchall():
-      with st.expander(f"⚙️ {f_name} ({u_name})"):
-        curr_menus = a_menus.split(',') if a_menus else []
-        with st.form(f"perm_{u_name}"):
-          sel_menus = st.multiselect("Select Menus", all_basic_menus, default=[m for m in curr_menus if m in all_basic_menus])
-          if st.form_submit_button("Save Permissions"):
-            c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (','.join(sel_menus), u_name))
+    st.write("#### 🛡️ Menu Permissions (মেনু পারমিশন)")
+    for s in staff_data:
+        s_uname = s[0]
+        c.execute("SELECT allowed_menus FROM users WHERE username=?", (s_uname,))
+        am_row = c.fetchone()
+        curr_menus = am_row[0].split(",") if am_row and am_row[0] else all_basic_menus
+        sel_menus = st.multiselect(f"Permissions for {s_uname}", all_basic_menus, default=curr_menus, key=f"perm_{s_uname}")
+        if st.button(f"Save Permissions for {s_uname}", key=f"btn_perm_{s_uname}"):
+            c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (",".join(sel_menus), s_uname))
             conn.commit()
-            st.success("Permissions updated!")
-            st.rerun()
+            st.success("Permissions updated successfully!")
 
   with set_tab3:
-    st.write("#### 🚨 Unknown & Blocked Agents (ব্লক/আনব্লক)")
-    c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
-    for u_name, f_name, is_act in c.fetchall():
-      col1, col2 = st.columns([3, 1])
-      col1.write(f"**{f_name}** (`{u_name}`) - {'🟢 Active' if is_act else '🔴 Blocked'}")
-      btn_txt = "Block (ব্লক করুন)" if is_act else "Unblock (আনব্লক করুন)"
-      if col2.button(btn_txt, key=f"blk_{u_name}"):
-        c.execute("UPDATE users SET is_active=? WHERE username=?", (0 if is_act else 1, u_name))
-        conn.commit()
-        st.rerun()
+    st.write("#### 🚨 Block/Unblock Agents (এজেন্ট ব্লক/আনব্লক)")
+    for s in staff_data:
+        s_uname, s_fname, _, _, s_act = s
+        status = "Active" if s_act else "Blocked"
+        st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
+        if s_act:
+            if st.button(f"🚫 Block {s_uname}", key=f"blk_{s_uname}"):
+                c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_uname,))
+                conn.commit()
+                st.rerun()
+        else:
+            if st.button(f"✅ Unblock {s_uname}", key=f"unblk_{s_uname}"):
+                c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_uname,))
+                conn.commit()
+                st.rerun()
+        st.write("---")
 
   with set_tab4:
-    st.write("#### 📂 Backup & Restore (ব্যাকআপ এবং রিস্টোর)")
+    st.write("#### 📂 Database Backup (ডাটাবেস ব্যাকআপ)")
     with open(DB_FILE, "rb") as f:
-      st.download_button("📥 Download Database Backup", f, file_name="mediseller_backup.db")
-    uploaded_db = st.file_uploader("📤 Restore Database (Upload .db file)", type=["db", "sqlite"])
-    if uploaded_db:
-      if st.button("⚠️ Restore Now (রিস্টোর করুন)"):
-        with open(DB_FILE, "wb") as f:
-          f.write(uploaded_db.getbuffer())
-        st.success("Database Restored Successfully!")
-        st.rerun()
+        st.download_button("📥 Download Database Backup (.db)", f, file_name="mediseller_backup.db")
 
   with set_tab5:
     st.write("#### 🗑️ Recycle Bin (রিসাইকেল বিন)")
-    bin_df = pd.read_sql_query("SELECT id, item_type, item_title, deleted_at FROM recycle_bin ORDER BY deleted_at DESC", conn)
-    if not bin_df.empty:
-      st.dataframe(bin_df, use_container_width=True)
-      if st.button("Empty Recycle Bin (সব মুছুন)"):
+    recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
+    st.dataframe(recycle_df, use_container_width=True)
+    if st.button("Clear Recycle Bin"):
         c.execute("DELETE FROM recycle_bin")
         conn.commit()
+        st.success("Recycle Bin Cleared!")
         st.rerun()
-    else:
-      st.info("Recycle bin is empty.")
 
   with set_tab6:
-    st.write("#### 🔑 Admin Password (অ্যাডমিন পাসওয়ার্ড)")
-    with st.form("admin_pass_form"):
-      new_admin_pass = st.text_input("Enter New Admin Password", type="password")
-      if st.form_submit_button("Update Password"):
-        if new_admin_pass.strip():
-          c.execute("UPDATE users SET password=? WHERE username='admin'", (new_admin_pass.strip(),))
-          conn.commit()
-          st.success("Admin Password Updated!")
-        else:
-          st.error("Password cannot be empty!")
-
+    st.write("#### 🔑 Admin Password Update (পাসওয়ার্ড পরিবর্তন)")
+    with st.form("update_admin_pass"):
+        new_pass = st.text_input("New Admin Password", type="password")
+        if st.form_submit_button("Update Password", type="primary"):
+            if new_pass.strip():
+                c.execute("UPDATE users SET password=? WHERE username='admin'", (new_pass.strip(),))
+                conn.commit()
+                st.success("Admin Password Updated Successfully!")
+            else:
+                st.error("Please enter a valid password.")
