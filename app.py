@@ -1044,7 +1044,7 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
         popup="<b>Set Here (এখানে সেট)</b>",
         icon=folium.Icon(color="red", icon="map-marker", prefix="fa")
     ).add_to(pick_map)
-    if gps_lat and gps_lon:
+      if gps_lat and gps_lon:
       folium.CircleMarker(
           location=[gps_lat, gps_lon],          
           radius=8,
