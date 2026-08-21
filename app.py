@@ -2121,6 +2121,3 @@ elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)" and st.
                 st.success("Admin Password Updated Successfully!")
             else:
                 st.error("Please enter a valid password.")
-
-
-
