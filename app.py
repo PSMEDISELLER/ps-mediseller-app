@@ -521,7 +521,7 @@ def generate_html_report(title, df):
     </html>
     """
     return html.encode('utf-8')
-    if "selected_lat" not in st.session_state:
+if "selected_lat" not in st.session_state:
     st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
     st.session_state["selected_lon"] = 87.3320
