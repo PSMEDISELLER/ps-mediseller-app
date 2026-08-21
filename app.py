@@ -393,7 +393,8 @@ CREATE TABLE IF NOT EXISTS task_assignments (
 """)
 c.execute("""
 CREATE TABLE IF NOT EXISTS attendance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    username TEXT NOT NULL,
     date TEXT NOT NULL,
     check_time TEXT NOT NULL,
     status TEXT DEFAULT 'Present',
@@ -454,7 +455,7 @@ if c.fetchone()[0] == 0:
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             ("admin", "admin123", "admin", "Admin", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 1))
   c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            ("delivery", "user123", "staff", "Delivery Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0))
+            ("delivery", "user123", "staff", "Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0))
   conn.commit()
 
 def move_to_recycle_bin(item_type, item_title, item_data_dict):
@@ -564,8 +565,10 @@ if target_login:
     if user_row:
         f_name, r_role, is_active = user_row
         if is_active == 0:
-            st.warning("⚠️ আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
-            st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
+            st.error("⚠️ আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
+            if st.button("🔐 Admin Login / Switch Account", key="login_switch_blocked1"):
+                st.session_state["show_admin_login"] = True
+                st.rerun()
             st.stop()
         else:
             st.session_state["username"] = target_login
@@ -582,6 +585,9 @@ if current_logged_username != "admin":
     res_act = c.fetchone()
     if res_act and res_act[0] == 0:
         st.error("🚫 আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
+        if st.button("🔐 Admin Login / Switch Account", key="login_switch_blocked2"):
+            st.session_state["show_admin_login"] = True
+            st.rerun()
         st.stop()
 
 col_ht1, col_ht2 = st.columns([3, 1])
@@ -618,11 +624,15 @@ with col_ht2:
 
 c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
 curr_user_row = c.fetchone()
-current_fullname = curr_user_row[0] if curr_user_row and curr_user_row[0] else st.session_state['username']
+if curr_user_row and curr_user_row[0] and curr_user_row[0] != "Delivery Agent":
+    display_user_name = curr_user_row[0]
+else:
+    display_user_name = st.session_state['username'].capitalize()
+
 col_u1, _ = st.columns([3, 1])
 with col_u1:
-  # Modification 4: Display ONLY the user name cleanly on the front page, without the "Delivery Agent" tag
-  st.write(f"👤 User: **{current_fullname}**")
+  # ফ্রন্ট পেজে ইউজারের নাম হাইলাইট করা এবং 'ডেলিভারি বয় স্টাফ' সরানো হয়েছে (Problem 5 Fix)
+  st.markdown(f"👤 User: <span style='color: #34d399; font-size: 20px; font-weight: bold;'>{display_user_name}</span>", unsafe_allow_html=True)
 
 c.execute("SELECT COUNT(*) FROM orders WHERE status='Pending'")
 pending_ord_count = c.fetchone()[0]
@@ -670,6 +680,17 @@ if st.session_state.get("show_admin_login", False):
     if cancel_admin:
       st.session_state["show_admin_login"] = False
       st.rerun()
+  with st.expander("পাসওয়ার্ড ভুলে গেছেন? (Forgot Password)"):
+    st.info("অ্যাডমিন পাসওয়ার্ড রিসেট করতে মাস্টার কোড ব্যবহার করুন। (Master Code: PSMEDISELLER)")
+    master_code = st.text_input("Master Code (মাস্টার কোড)", type="password")
+    new_admin_pass = st.text_input("New Admin Password", type="password")
+    if st.button("Reset Admin Password (রিসেট করুন)"):
+        if master_code == "PSMEDISELLER" and new_admin_pass.strip():
+            c.execute("UPDATE users SET password=? WHERE username='admin'", (new_admin_pass.strip(),))
+            conn.commit()
+            st.success("পাসওয়ার্ড সফলভাবে রিসেট হয়েছে! (Password Reset Successful!)")
+        else:
+            st.error("ভুল কোড বা পাসওয়ার্ড! (Invalid Code or Password!)")
 
 st.write("---")
 
@@ -913,13 +934,15 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
       selected_order_party_native = ""
 
   with st.form("order_visit_entry_form", clear_on_submit=True):
-    ord_details = st.text_area("Order Details (অর্ডার বিবরণ)")
+    # Problem 2 & 3 Fix: key set and pop it to clear fully
+    ord_details = st.text_area("Order Details (অর্ডার বিবরণ)", key="ord_details_input_key")
    
     col_ob1, col_ob2 = st.columns(2)
     with col_ob1:
       submitted_order = st.form_submit_button("🛒 Submit Order (অর্ডার জমা)", type="primary")
     with col_ob2:
       submitted_visit = st.form_submit_button("📍 Save Visit (ভিজিট সেভ)")
+      
     if submitted_order:
       if not selected_order_party_native.strip():
         st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
@@ -934,8 +957,11 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
             (selected_order_party_native.strip(), "Order (অর্ডার)", current_date_str)
         )
         conn.commit()
+        st.session_state["order_party_search_text_input"] = ""
+        st.session_state.pop("ord_details_input_key", None)
         st.success("Order submitted successfully! (জমা দেওয়া হয়েছে!)")
         st.rerun()
+        
     if submitted_visit:
       if not selected_order_party_native.strip():
         st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
@@ -946,6 +972,8 @@ if selected_menu == "📍 Add Location (লোকেশন যোগ)":
             (selected_order_party_native.strip(), "Visit (ভিজিট)", current_date_str)
         )
         conn.commit()
+        st.session_state["order_party_search_text_input"] = ""
+        st.session_state.pop("ord_details_input_key", None)
         st.success("Visit saved successfully! (সেভ হয়েছে!)")
         st.rerun()
 
@@ -1082,7 +1110,6 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
   doc_df = df[df["lat"].isna() | df["lon"].isna()]
   mapped_df = df[df["lat"].notna() & df["lon"].notna()]
   
-  # Search Auto Expand Logic
   is_searching = bool(master_search_query.strip())
   
   with st.expander(f"🩺 Non-Map List ({len(doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=is_searching):    
@@ -1470,7 +1497,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
       with col_chk2:
         chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)")
 
-      d_amount = st.text_input("Due Amount (ডিউ টাকা)", auto_due_val)
+      # Problem 2 & 3 Fix: Add keys to form inputs to clear properly
+      d_amount = st.text_input("Due Amount (ডিউ টাকা)", auto_due_val, key="t_due_amt")
       submit_easy_task = st.form_submit_button("🎯 Add Task (কাজ যোগ)", type="primary")
 
       if submit_easy_task:
@@ -1489,6 +1517,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
                 (sel_ag, sel_pt.strip(), t_type_str, d_amount, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
             )
             conn.commit()
+            st.session_state["task_party_search_text_input"] = "" 
+            st.session_state.pop("t_due_amt", None)
             st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
             st.rerun()
           else:
@@ -1544,6 +1574,8 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
                     (row['agent_name'],)
                 )
                 conn.commit()
+                st.session_state.pop(f"sale_amt_{row['id']}", None)
+                st.session_state.pop(f"pay_amt_{row['id']}", None)
                 st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
                 st.rerun()
             
@@ -1569,242 +1601,217 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         GROUP BY t.agent_name, task_date
         ORDER BY task_date DESC
     """, conn)
+    
     if not agent_sum_df.empty:
       if st.session_state["user_role"] == "admin":
         export_sum_df = agent_sum_df.copy()
-        # Mod 5: Completing the truncated line here
         export_sum_df['Agent Name'] = export_sum_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
-        st.dataframe(export_sum_df[['Agent Name', 'task_date', 'total_tasks', 'completed_tasks']], use_container_width=True)
-      for idx, r in agent_sum_df.iterrows():
-          ag_n = r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name']
-          st.markdown(f"**{ag_n}** | Date: `{r['task_date']}` | Completed: `{r['completed_tasks']} / {r['total_tasks']}`")
-          st.write("---")
-    else:
-      st.info("No summary available. (কোনো সামারি নেই।)")
+        export_sum_df['Date'] = export_sum_df['task_date'].apply(lambda x: format_date_display(x))
+        export_sum_df['Total Tasks'] = export_sum_df['total_tasks']
+        export_sum_df['Completed Tasks'] = export_sum_df['completed_tasks']
+        
+        export_sum_df_final = export_sum_df[['Agent Name', 'Date', 'Total Tasks', 'Completed Tasks']]
+        html_agent_sum = generate_html_report("Agent Task Summary Report", export_sum_df_final)
+        st.download_button(
+            label="📥 Download Agent Summary Report",
+            data=html_agent_sum,
+            file_name="mediseller_agent_summary_report.html",
+            mime="text/html",
+            type="primary"
+        )
+        st.write("---")
 
-  with task_tab3:
-    st.write("#### 📜 Completed Tasks History (সম্পন্ন কাজ)")
-    comp_tasks_df = pd.read_sql_query("""
-        SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.sale_amount, t.payment_collected_actual, t.remaining_due, t.created_at
-        FROM task_assignments t
-        LEFT JOIN users u ON t.agent_name = u.username
-        WHERE t.status='Completed'
-        ORDER BY t.id DESC LIMIT 100
-    """, conn)
-    if not comp_tasks_df.empty:
-        for idx, row in comp_tasks_df.iterrows():
-            ag_disp = row['agent_fullname'] if pd.notna(row['agent_fullname']) else row['agent_name']
-            st.markdown(f"**Agent:** {ag_disp} | **Party:** {row['party_name']}")
-            st.markdown(f"**Task:** {row['task_type']} | **Sale:** ₹{row['sale_amount']} | **Collected:** ₹{row['payment_collected_actual']} | **Remaining Due:** ₹{row['remaining_due']}")
-            st.write("---")
-    else:
-        st.info("No completed tasks found. (কোনো সম্পন্ন কাজ নেই।)")
+      for idx, row in agent_sum_df.iterrows():
+        ag_disp = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name']
+        t_date = format_date_display(row['task_date'])
+        tot = row['total_tasks']
+        comp = row['completed_tasks']
 
-  with task_tab4:
-    st.write("#### 💰 Master Due List (বকেয়া তালিকা)")
-    due_df = pd.read_sql_query("SELECT party_name, address, party_phone, current_due FROM locations WHERE current_due > 0 ORDER BY current_due DESC", conn)
-    if not due_df.empty:
-        st.dataframe(due_df.rename(columns={'party_name':'Party Name', 'address':'Address', 'party_phone':'Phone', 'current_due': 'Current Due (₹)'}), use_container_width=True)
-    else:
-        st.info("No dues pending across all parties! (কোনো বকেয়া নেই!)")
+        st.markdown(f"""
+        <div style="background: #1e293b; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+            <p style="margin: 0 0 6px 0; color: #38bdf8 !important; font-weight: 700; font-size: 16px;">👤 Agent: {ag_disp}</p>
+            <p style="margin: 0 0 4px 0; color: #cbd5e1 !important; font-size: 13px;">📅 Date: <b>{t_date}</b></p>
+            <p style="margin: 0 0 4px 0; color: #cbd5e1 !important; font-size: 13px;">📋 Total Tasks: <b>{tot}</b> | ✅ Completed: <b style="color: #34d399;">{comp}</b></p>
+        </div>
+        """, unsafe_allow_html=True)
 
-# =========================================================
-# ROUTE MAP (রুট ম্যাপ) - Exact reconstruction preserving style
-# =========================================================
-elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
-    st.write("### 🗺️ Delivery Route Map (রুট ম্যাপ)")
-    df_locs = pd.read_sql_query("SELECT party_name, lat, lon FROM locations WHERE lat IS NOT NULL AND lon IS NOT NULL", conn)
-    
-    if not df_locs.empty:
-        m_route = folium.Map(location=[df_locs['lat'].mean(), df_locs['lon'].mean()], zoom_start=12)
-        for _, row in df_locs.iterrows():
-            folium.Marker(
-                [row['lat'], row['lon']], 
-                popup=row['party_name'],
-                icon=folium.Icon(color='blue', icon='info-sign')
-            ).add_to(m_route)
-            
-        if gps_lat and gps_lon:
-            folium.Marker(
-                [gps_lat, gps_lon],
-                popup="Your Location",
-                icon=folium.Icon(color='red', icon='user')
-            ).add_to(m_route)
-            
-        st_folium(m_route, width="100%", height=500, key="route_map_interactive")
-    else:
-        st.info("No mapped locations available for routing. (ম্যাপ করার জন্য কোনো লোকেশন নেই।)")
+        c.execute("SELECT allow_resubmit FROM users WHERE username=?", (row['agent_name'],))
+        resub_row = c.fetchone()
+        agent_allowed = bool(resub_row[0]) if resub_row and resub_row[0] is not None else False
 
-# =========================================================
-# ATTENDANCE (উপস্থিতি) - Exact reconstruction preserving style
-# =========================================================
-elif selected_menu == "📅 Attendance (উপস্থিতি)":
-    st.write("### 📅 Daily Attendance (দৈনিক উপস্থিতি)")
-    curr_date = get_ist_time().strftime("%Y-%m-%d")
-    curr_time = get_ist_time().strftime("%H:%M:%S")
-    
-    c.execute("SELECT * FROM attendance WHERE username=? AND date=?", (st.session_state['username'], curr_date))
-    att_record = c.fetchone()
-    
-    if att_record:
-        st.success(f"✅ Your attendance for today ({curr_date}) is already marked at {att_record[3]} IST.")
-    else:
-        if st.button("✋ Mark Present (উপস্থিতি দিন)", type="primary"):
-            c.execute("INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
-                      (st.session_state['username'], curr_date, curr_time, 'Present'))
+        if st.session_state["user_role"] == "admin":
+          resub_toggle = st.checkbox(
+              f"🔓 Allow {ag_disp} to Re-submit completed tasks (রি-সাবমিশনের অনুমতি প্রদান করুন)", 
+              value=agent_allowed, 
+              key=f"resub_perm_{row['agent_name']}_{row['task_date']}"
+          )
+          if resub_toggle != agent_allowed:
+            c.execute("UPDATE users SET allow_resubmit=? WHERE username=?", (1 if resub_toggle else 0, row['agent_name']))
             conn.commit()
-            st.success("Attendance marked successfully! (উপস্থিতি দেওয়া হয়েছে!)")
             st.rerun()
 
-    st.write("---")
-    st.write("#### 📋 My Attendance History (আমার উপস্থিতি রেকর্ড)")
-    my_att_df = pd.read_sql_query("SELECT date as 'Date', check_time as 'Time', status as 'Status' FROM attendance WHERE username=? ORDER BY date DESC", conn, params=(st.session_state['username'],))
-    if not my_att_df.empty:
-        st.dataframe(my_att_df, use_container_width=True)
-    else:
-        st.info("No attendance records found.")
+        comp_tasks_df = pd.read_sql_query("""
+            SELECT id, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due
+            FROM task_assignments
+            WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=? AND status='Completed'
+        """, conn, params=(row['agent_name'], row['task_date']))
 
-# =========================================================
-# LIVE TRACKING (লাইভ ট্র্যাকিং) - Exact reconstruction preserving style
-# =========================================================
-elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)":
-    st.write("### 📊 Agent Live Tracking (লাইভ ট্র্যাকিং)")
-    live_df = pd.read_sql_query("""
-        SELECT a.username, u.fullname, a.lat, a.lon, a.last_updated, a.completed_deliveries
-        FROM agent_live_locations a
-        LEFT JOIN users u ON a.username = u.username
-    """, conn)
+        if not comp_tasks_df.empty:
+            with st.expander(f"✅ Completed Details for {t_date}", expanded=False):
+                st.dataframe(comp_tasks_df, use_container_width=True)
+    else:
+        st.info("No task history available.")
+
+  with task_tab3:
+      st.write("#### 📜 Completed Tasks History")
+      history_df = pd.read_sql_query("""
+          SELECT t.id, t.agent_name, u.fullname, t.party_name, t.task_type, t.sale_amount, t.payment_collected_actual, t.remaining_due, t.created_at 
+          FROM task_assignments t 
+          LEFT JOIN users u ON t.agent_name = u.username 
+          WHERE t.status='Completed' ORDER BY t.id DESC LIMIT 50
+      """, conn)
+      
+      if not history_df.empty:
+          st.dataframe(history_df, use_container_width=True)
+      else:
+          st.info("No completed tasks in recent history.")
+
+  with task_tab4:
+      st.write("#### 💰 Master Due List")
+      dues_df = pd.read_sql_query("SELECT party_name AS Party, party_phone AS Phone, address AS Address, current_due AS Due_Amount FROM locations WHERE current_due > 0 ORDER BY current_due DESC", conn)
+      if not dues_df.empty:
+          st.dataframe(dues_df, use_container_width=True)
+      else:
+          st.success("No dues pending from any party!")
+
+elif selected_menu == "📅 Attendance (উপস্থিতি)":
+    st.write("### 📅 Monthly Attendance (মাসিক উপস্থিতি)")
+    today_str = get_ist_time().strftime("%Y-%m-%d")
     
-    if not live_df.empty and live_df['lat'].notna().any():
-        valid_locs = live_df.dropna(subset=['lat', 'lon'])
-        if not valid_locs.empty:
-            m_live = folium.Map(location=[valid_locs['lat'].mean(), valid_locs['lon'].mean()], zoom_start=13)
-            for _, row in valid_locs.iterrows():
-                ag_n = row['fullname'] if pd.notna(row['fullname']) else row['username']
-                popup_html = f"<b>{ag_n}</b><br>Last seen: {row['last_updated']}<br>Tasks Done: {row['completed_deliveries']}"
-                folium.Marker(
-                    [row['lat'], row['lon']],
-                    popup=popup_html,
-                    icon=folium.Icon(color='green', icon='user')
-                ).add_to(m_live)
-            st_folium(m_live, width="100%", height=500, key="live_tracking_interactive")
+    c.execute("SELECT * FROM attendance WHERE username=? AND date=?", (st.session_state["username"], today_str))
+    att = c.fetchone()
+    
+    st.write("#### 📝 Daily Check-in")
+    if not att:
+        if st.button("✅ Mark Today's Attendance (আজকের হাজিরা দিন)", type="primary"):
+            c.execute("INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)", 
+                      (st.session_state["username"], today_str, get_ist_time().strftime("%H:%M:%S"), "Present"))
+            conn.commit()
+            st.success("Attendance Marked Successfully! (হাজিরা সফলভাবে দেওয়া হয়েছে!)")
+            st.rerun()
     else:
-        st.info("No live location data available yet. (কোনো লাইভ লোকেশন পাওয়া যায়নি।)")
+        st.success(f"✅ Attendance already marked for today at {att[3]} (আজকের হাজিরা সম্পন্ন হয়েছে)")
+        
+    st.write("---")
+    st.write("#### 📊 Monthly Record (মাসের রিপোর্ট)")
+    
+    if st.session_state["user_role"] == "admin":
+        c.execute("SELECT username, fullname FROM users")
+        agents_for_att = c.fetchall()
+        att_agent_dict = {r[0]: (r[1] if r[1] else r[0]) for r in agents_for_att}
+        selected_att_agent = st.selectbox("Select Agent (এজেন্ট নির্বাচন করুন)", list(att_agent_dict.keys()), format_func=lambda x: f"{att_agent_dict[x]} ({x})")
+    else:
+        selected_att_agent = st.session_state["username"]
+        
+    att_df = pd.read_sql_query("SELECT date as Date, check_time as Time, status as Status FROM attendance WHERE username=? ORDER BY date DESC", conn, params=(selected_att_agent,))
+    
+    if not att_df.empty:
+        st.dataframe(att_df, use_container_width=True)
+    else:
+        st.info("No attendance records found. (কোনো রেকর্ড পাওয়া যায়নি।)")
 
-# =========================================================
-# SETTINGS & AGENTS (সেটিংসে) - Modifications 1, 2 & 3 applied here
-# =========================================================
+elif selected_menu == "🗺️ Route Map (রুট ম্যাপ)":
+    st.write("### 🗺️ Route Map (রুট ম্যাপ)")
+    st.info("Select parties below to generate a direct link to Google Maps (গুগল ম্যাপের রুট লিংক পেতে পার্টি নির্বাচন করুন)")
+    
+    c.execute("SELECT party_name, lat, lon FROM locations WHERE lat IS NOT NULL AND lon IS NOT NULL ORDER BY party_name ASC")
+    loc_map = {row[0]: (row[1], row[2]) for row in c.fetchall()}
+    
+    selected_parties = st.multiselect("Select Parties for Route (পার্টি নির্বাচন করুন)", list(loc_map.keys()))
+    
+    if selected_parties:
+        waypoints = []
+        for p in selected_parties:
+            lat, lon = loc_map[p]
+            waypoints.append(f"{lat},{lon}")
+            
+        if len(waypoints) == 1:
+            route_url = f"https://www.google.com/maps/dir/?api=1&destination={waypoints[0]}"
+        else:
+            destination = waypoints[-1]
+            origin = waypoints[0]
+            if len(waypoints) > 2:
+                wp_str = "|".join(waypoints[1:-1])
+                route_url = f"https://www.google.com/maps/dir/?api=1&origin={origin}&destination={destination}&waypoints={wp_str}"
+            else:
+                route_url = f"https://www.google.com/maps/dir/?api=1&origin={origin}&destination={destination}"
+        
+        st.write("Click below to open route directly in Google Maps application.")
+        st.markdown(f'<a href="{route_url}" target="_blank"><button style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; width: 100%;">🧭 Open Route in Google Maps</button></a>', unsafe_allow_html=True)
+    else:
+        st.warning("Select at least one mapped party to generate a route.")
+
+elif selected_menu == "📊 Live Tracking (লাইভ ট্র্যাকিং)":
+    st.write("### 📊 Agent Live Tracking (লাইভ লোকেশন ট্র্যাকিং)")
+    
+    c.execute("SELECT a.username, u.fullname, a.lat, a.lon, a.last_updated FROM agent_live_locations a LEFT JOIN users u ON a.username = u.username")
+    agents = c.fetchall()
+    
+    if not agents:
+        st.info("No location data available yet.")
+    else:
+        agent_names = [f"{r[1] if r[1] else r[0]} ({r[0]})" for r in agents]
+        selected_agent_idx = st.selectbox("Select Agent (এজেন্ট নির্বাচন করুন)", range(len(agents)), format_func=lambda x: agent_names[x])
+        
+        selected_agent = agents[selected_agent_idx]
+        username, fullname, lat, lon, last_upd = selected_agent
+        
+        with st.expander("📍 Location Details", expanded=True):
+            st.write(f"**Agent Name:** {fullname if fullname else username}")
+            st.write(f"**Last Sync Time:** {last_upd}")
+            st.write(f"**Saved GPS Coordinates:** `{lat}, {lon}`")
+            
+            gmaps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            st.markdown(f'<a href="{gmaps_url}" target="_blank"><button style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; width: 100%; margin-top: 10px;">📍 View Location in Google Maps</button></a>', unsafe_allow_html=True)
+
 elif selected_menu == "⚙️ Settings & Agents (সেটিংসে)":
-    st.write("### ⚙️ Settings & Agent Management (সেটিং ও এজেন্ট ম্যানেজমেন্ট)")
-    set_tab1, set_tab2 = st.tabs(["👥 Active Agents (সক্রিয় এজেন্ট)", "🚫 Blocked / Unregistered (ব্লক করা এজেন্ট)"])
-
-    # Base URL dynamic retrieval for Agent Link
-    base_url_js = streamlit_js_eval(js_expressions="window.location.href.split('?')[0]", key="get_base_url_for_links")
-
-    with set_tab1:
-        st.write("#### ➕ Add New Agent (নতুন এজেন্ট যুক্ত করুন)")
-        with st.form("add_agent_form", clear_on_submit=True):
-            col_a1, col_a2 = st.columns(2)
-            with col_a1:
-                new_username = st.text_input("Username (ইউজারনেম - no spaces)", placeholder="e.g. agent01")
-                new_password = st.text_input("Password (পাসওয়ার্ড)", type="password")
-            with col_a2:
-                new_fullname = st.text_input("Full Name (পুরো নাম)", placeholder="e.g. Rahul Das")
-                new_phone = st.text_input("Phone Number (ফোন নম্বর)")
-            
-            # Mod 2: Option Management (মেনু পারমিশন)
-            st.write("**Option Management (মেনু পারমিশন):**")
-            new_allowed_menus = st.multiselect("Select allowed menus for this agent:", all_basic_menus, default=all_basic_menus)
-            
-            submit_new_agent = st.form_submit_button("✅ Create Agent (এজেন্ট তৈরি করুন)", type="primary")
-            if submit_new_agent:
-                if new_username.strip() and new_password.strip() and new_fullname.strip():
-                    menu_string = ",".join(new_allowed_menus)
+    st.write("### ⚙️ Settings & Admin Control")
+    st.write("Only admins have access to this page.")
+    
+    admin_tab1, admin_tab2 = st.tabs(["👥 Agent Management", "💾 Backup & Restore Database"])
+    
+    with admin_tab1:
+        st.write("Manage app users and agents.")
+        users_df = pd.read_sql_query("SELECT username, role, fullname, phone, is_active FROM users", conn)
+        st.dataframe(users_df, use_container_width=True)
+        
+    with admin_tab2:
+        st.write("#### 💾 Database Management")
+        st.warning("⚠️ Restoring a database will overwrite the current data!")
+        
+        col_db1, col_db2 = st.columns(2)
+        with col_db1:
+            st.write("**📥 Download Current DB:**")
+            try:
+                with open(DB_FILE, "rb") as fp:
+                    btn = st.download_button(
+                        label="Download Database File (.db)",
+                        data=fp,
+                        file_name="mediseller_backup.db",
+                        mime="application/octet-stream"
+                    )
+            except Exception as e:
+                st.error("Error creating backup download link.")
+                
+        with col_db2:
+            st.write("**📤 Restore Database Upload:**")
+            uploaded_db = st.file_uploader("Upload Database Backup (.db file)", type=['db'])
+            if uploaded_db is not None:
+                if st.button("⚠️ Restore Database (রেস্টোর করুন)", type="primary"):
                     try:
-                        c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit, allowed_menus) VALUES (?, ?, 'staff', ?, ?, ?, 1, 0, ?)",
-                                  (new_username.strip(), new_password.strip(), new_fullname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), menu_string))
-                        conn.commit()
-                        st.success("Agent created successfully! (এজেন্ট তৈরি হয়েছে!)")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
-                else:
-                    st.error("Username, Password and Full Name are required.")
-
-        st.write("---")
-        st.write("#### 📋 Manage Existing Agents (এজেন্ট ম্যানেজ করুন)")
-        
-        c.execute("SELECT username, fullname, phone, password, allowed_menus FROM users WHERE role='staff' AND is_active=1")
-        active_agents = c.fetchall()
-        
-        if active_agents:
-            for ag in active_agents:
-                with st.expander(f"👤 {ag[1]} (@{ag[0]}) - Click to Edit / Link", expanded=False):
-                    with st.form(f"edit_agent_{ag[0]}"):
-                        st.write(f"**Edit Agent: {ag[0]}**")
-                        e_col1, e_col2 = st.columns(2)
-                        with e_col1:
-                            # Mod 1: Agent Name Edit
-                            edit_fullname = st.text_input("Full Name (নাম)", value=ag[1])
-                            edit_phone = st.text_input("Phone (ফোন)", value=ag[2] if ag[2] else "")
-                        with e_col2:
-                            edit_password = st.text_input("Password (পাসওয়ার্ড)", value=ag[3])
-                        
-                        # Existing permissions reconstruction
-                        curr_menus = ag[4].split(",") if ag[4] else []
-                        valid_curr_menus = [m.strip() for m in curr_menus if m.strip() in all_basic_menus]
-                        
-                        # Mod 2: Option Management edit
-                        edit_menus = st.multiselect(f"Allowed Menus for {ag[0]}", all_basic_menus, default=valid_curr_menus, key=f"menus_{ag[0]}")
-                        
-                        c_b1, c_b2, c_b3 = st.columns(3)
-                        with c_b1:
-                            save_edit = st.form_submit_button("💾 Save Changes", type="primary")
-                        with c_b2:
-                            block_agent = st.form_submit_button("🚫 Block / Delete")
-                        with c_b3:
-                            # Mod 1: Agent Joint Link Generation
-                            generate_link = st.form_submit_button("🔗 Generate Join Link")
-                        
-                        if save_edit:
-                            new_menu_str = ",".join(edit_menus)
-                            c.execute("UPDATE users SET fullname=?, phone=?, password=?, allowed_menus=? WHERE username=?",
-                                      (edit_fullname, edit_phone, edit_password, new_menu_str, ag[0]))
-                            conn.commit()
-                            st.success("Agent details updated! (আপডেট হয়েছে!)")
-                            st.rerun()
-                        if block_agent:
-                            # Mod 2 & 3: Blocking logic (moves to inactive list)
-                            c.execute("UPDATE users SET is_active=0 WHERE username=?", (ag[0],))
-                            conn.commit()
-                            st.warning("Agent Blocked/Deleted successfully!")
-                            st.rerun()
-                        if generate_link:
-                            if base_url_js:
-                                join_url = f"{base_url_js}?login={ag[0]}"
-                                st.info(f"**Join Link for {ag[1]}:**\n\n`{join_url}`\n\n*(Copy and share this link with the agent)*")
-                            else:
-                                st.info(f"**Instructions:** Share the URL of this app and add `?login={ag[0]}` at the end.")
-        else:
-            st.info("No active agents found.")
-
-    with set_tab2:
-        # Mod 3: View Blocked/Deleted Agents and Restore them
-        st.write("#### 🚫 Blocked / Unregistered Agents (ব্লক করা এজেন্ট)")
-        c.execute("SELECT username, fullname, phone FROM users WHERE role='staff' AND is_active=0")
-        blocked_agents = c.fetchall()
-        
-        if blocked_agents:
-            for bg in blocked_agents:
-                cols = st.columns([3, 2, 2])
-                cols[0].write(f"**{bg[1]}** (@{bg[0]})")
-                cols[1].write(f"Phone: {bg[2]}")
-                if cols[2].button("✅ Restore / Unblock (পুনরায় যুক্ত করুন)", key=f"restore_{bg[0]}"):
-                    c.execute("UPDATE users SET is_active=1 WHERE username=?", (bg[0],))
-                    conn.commit()
-                    st.success(f"Agent {bg[1]} has been restored successfully! (যুক্ত করা হয়েছে!)")
-                    st.rerun()
-                st.write("---")
-        else:
-            st.info("No blocked or deleted agents at this moment. (কোনো ব্লক করা এজেন্ট নেই।)")
+                        with open(DB_FILE, "wb") as f:
+                            f.write(uploaded_db.getbuffer())
+                        st.success("Database restored successfully! Please refresh the page.")
+                    except Exception as e:
+                        st.error(f"Error restoring DB: {e}")
 
