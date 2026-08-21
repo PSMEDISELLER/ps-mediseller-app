@@ -1056,7 +1056,7 @@ elif selected_menu == "🔍 Search & Details (অনুসন্ধান ও �
       ).add_to(pick_map)
     folium.LayerControl().add_to(pick_map)
     p_map_data = st_folium(pick_map, width="100%", height=400, key="party_location_picker_map")
-    if p_map_data and p_map_data.get("last_clicked"):
+      if p_map_data and p_map_data.get("last_clicked"):
       clat = p_map_data["last_clicked"]["lat"]
       clon = p_map_data["last_clicked"]["lng"]
       if clat != st.session_state["temp_map_lat"] or clon != st.session_state["temp_map_lon"]:
