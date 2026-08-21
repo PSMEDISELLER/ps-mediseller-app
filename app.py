@@ -1745,15 +1745,15 @@ elif selected_menu == "Settings & Agents (সেটিংসে)":
             curr_menus = am_row[0].split(",") if am_row and am_row[0] else all_basic_menus
             raw_defaults = am_row = c.fetchone()
             
-                           raw_defaults = am_row[0].split(",") if am_row and am_row[0] else []
-                           curr_menus = [m.strip() for m in raw_defaults if m.strip() in all_basic_menus]
+            raw_defaults = am_row[0].split(",") if am_row and am_row[0] else []
+            curr_menus = [m.strip() for m in raw_defaults if m.strip() in all_basic_menus]
 
-                           sel_menus = st.multiselect(
-                               f"Permissions for {s_uname}", 
-                               all_basic_menus, 
-                               default=curr_menus, 
-                               key=f"perm_{s_uname}"
-                         )
+            sel_menus = st.multiselect(
+                f"Permissions for {s_uname}", 
+                all_basic_menus, 
+                default=curr_menus, 
+                key=f"perm_{s_uname}"
+            )
             
             if st.button(f"Save Permissions for {s_uname}", key=f"btn_perm_{s_uname}"):
                 c.execute("UPDATE users SET allowed_menus=? WHERE username = ?", (",".join(sel_menus), s_uname))
