@@ -1659,7 +1659,7 @@ elif selected_menu == "📋 Due & Delivery (বকেয়া ও ডেলি�
         """, conn, params=(row['agent_name'], row['task_date']))
 
         if not comp_tasks_df.empty:
-             with st.expander(f"🔄 Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন - {len(comp_tasks_df)})", expanded=False):
+         with st.expander(f"🔄 Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন - {len(comp_tasks_df)})", expanded=False):
             can_do_resubmit = (st.session_state["user_role"] == "admin") or (st.session_state["username"] == row['agent_name'] and agent_allowed)
             if not can_do_resubmit:
               st.warning("🔒 রি-সাবমিশন করার অনুমতি নেই। শুধুমাত্র অ্যাডমিন বা অ্যাডমিন অনুমতি দিলে এই এজেন্ট কাজ পুনরায় একটিভ করতে পারবে।")
