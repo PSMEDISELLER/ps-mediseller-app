@@ -2081,6 +2081,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
             if st.button("Restore Selected Item"):
                 row = c.execute("SELECT * FROM recycle_bin WHERE id = ?", (selected_id,)).fetchone()
                 if row:
+                    st.write("Full Row from Database:", row)  # পুরো Row দেখতে
                     item_type = row[1]
                     raw_data = row[2]
 
