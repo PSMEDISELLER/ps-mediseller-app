@@ -2128,6 +2128,8 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                             data.get('work_date')
                         ))
                     elif item_type == "Task":
+                        st.write("Debug Data:", data)
+                        
                         c.execute(
                             """
                             INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at) 
