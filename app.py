@@ -2074,103 +2074,101 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
         recycle_rows = c.execute("SELECT id, item_type, item_title, item_data, deleted_at FROM recycle_bin").fetchall()
 
         if recycle_rows:
-        # ২. টেবিলে দেখানোর জন্য Clean Data তৈরি
-        display_data = []
-        options = {}
+            # ২. টেবিলে দেখানোর জন্য Clean Data তৈরি
+            display_data = []
+            options = {}
         
-        for row in recycle_rows:
-            r_id, item_type, item_title, item_data, deleted_at = row
-            display_data.append({
-                "ID": r_id,
-                "Item Type": item_type,
-                "Name / Title": item_title,
-                "Deleted At": deleted_at
-            })
-            label = f"ID: {r_id} | [{item_type}] {item_title}"
-            options[label] = row
+            for row in recycle_rows:
+                r_id, item_type, item_title, item_data, deleted_at = row
+                display_data.append({
+                    "ID": r_id,
+                    "Item Type": item_type,
+                    "Name / Title": item_title,
+                    "Deleted At": deleted_at
+                })
+                label = f"ID: {r_id} | [{item_type}] {item_title}"
+                options[label] = row
 
-        df_recycle = pd.DataFrame(display_data)
-        st.dataframe(df_recycle, use_container_width=True, hide_index=True)
+            df_recycle = pd.DataFrame(display_data)
+            st.dataframe(df_recycle, use_container_width=True, hide_index=True)
 
-        st.markdown("---")
-        st.subheader("🔄 Restore Item")
+            st.markdown("---")
+            st.subheader("🔄 Restore Item")
 
-        selected_label = st.selectbox("Select Item to Restore:", list(options.keys()))
+            selected_label = st.selectbox("Select Item to Restore:", list(options.keys()))
 
-        if st.button("Restore Selected Item", type="primary"):
-            selected_row = options[selected_label]
-            selected_id = selected_row[0]
-            item_type = selected_row[1]
-            raw_data = selected_row[3]
+            if st.button("Restore Selected Item", type="primary"):
+                selected_row = options[selected_label]
+                selected_id = selected_row[0]
+                item_type = selected_row[1]
+                raw_data = selected_row[3]
 
-            data = {}
-            if isinstance(raw_data, dict):
-                data = raw_data
-            elif isinstance(raw_data, str) and raw_data.strip():
-                try:
-                    data = ast.literal_eval(raw_data)
-                except Exception:
+                data = {}
+                if isinstance(raw_data, dict):
+                    data = raw_data
+                elif isinstance(raw_data, str) and raw_data.strip():
                     try:
-                        data = json.loads(raw_data)
+                        data = ast.literal_eval(raw_data)
+                    except Exception:
+                        try:
+                            data = json.loads(raw_data)
                     except Exception:
                         data = {}
 
-            if not data:
-                st.error("Error: Failed to parse item data for restoration!")
-                st.stop()
+                    if not data:
+                        st.error("Error: Failed to parse item data for restoration!")
+                        st.stop()
 
-            if item_type == "Location":
-                c.execute("""
-                    INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon, route_order, current_due)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    data.get('party_name'), data.get('address'), data.get('party_phone'),
-                    data.get('lat'), data.get('lon'), data.get('route_order'), data.get('current_due')
-                ))
+                    if item_type == "Location":
+                        c.execute("""
+                            INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon, route_order, current_due)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            data.get('party_name'), data.get('address'), data.get('party_phone'),
+                            data.get('lat'), data.get('lon'), data.get('route_order'), data.get('current_due')
+                        ))
 
-            elif item_type == "Orders":
-                c.execute("""
-                    INSERT INTO orders (party_name, order_details, order_date, status, payment_collected)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (
-                    data.get('party_name'), data.get('order_details'), data.get('order_date'),
-                    data.get('status', 'Pending'), data.get('payment_collected', '0')
-                ))
+                    elif item_type == "Orders":
+                        c.execute("""
+                            INSERT INTO orders (party_name, order_details, order_date, status, payment_collected)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (
+                            data.get('party_name'), data.get('order_details'), data.get('order_date'),
+                            data.get('status', 'Pending'), data.get('payment_collected', '0')
+                        ))
 
-            elif item_type == "Daily Work":
-                c.execute("""
-                    INSERT INTO daily_work (party_name, activity_type, work_date)
-                    VALUES (?, ?, ?)
-                """, (
-                    data.get('party_name', 'N/A'), data.get('activity_type', 'N/A'), data.get('work_date', '')
-                ))
+                    elif item_type == "Daily Work":
+                        c.execute("""
+                            INSERT INTO daily_work (party_name, activity_type, work_date)
+                            VALUES (?, ?, ?)
+                        """, (
+                            data.get('party_name', 'N/A'), data.get('activity_type', 'N/A'), data.get('work_date', '')
+                        ))
 
-            elif item_type == "Task":
-                c.execute("""
-                    INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    data.get('agent_name'), data.get('party_name'), data.get('task_type'),
-                    data.get('due_amount', '0'), data.get('sale_amount', '0'),
-                    data.get('payment_collected_actual', '0'), data.get('remaining_due', '0'),
-                    data.get('status', 'Pending'), data.get('created_at')
-                ))
+                    elif item_type == "Task":
+                        c.execute("""
+                            INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            data.get('agent_name'), data.get('party_name'), data.get('task_type'),
+                            data.get('due_amount', '0'), data.get('sale_amount', '0'),
+                            data.get('payment_collected_actual', '0'), data.get('remaining_due', '0'),
+                            data.get('status', 'Pending'), data.get('created_at')
+                       ))
 
-            c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
-            conn.commit()
-            st.success(f"Successfully restored '{selected_row[2]}'!")
-            st.rerun()
+                    c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
+                    conn.commit()
+                    st.success(f"Successfully restored '{selected_row[2]}'!")
+                    st.rerun()
 
-        if st.button("🧹 Clear Recycle Bin"):
-            c.execute("DELETE FROM recycle_bin")
-            conn.commit()
-            st.success("Recycle Bin cleared!")
-            st.rerun()
+                if st.button("🧹 Clear Recycle Bin"):
+                    c.execute("DELETE FROM recycle_bin")
+                    conn.commit()
+                    st.success("Recycle Bin cleared!")
+                    st.rerun()
 
-    else:
-        st.info("Recycle Bin is empty.")
-                else:
-                    st.info("No data in recycle bin.")
+            else:
+                st.info("Recycle Bin is empty.")
 
     with set_tab6:
         st.write("#### Admin Password Update (পাসওয়ার্ড পরিবর্তন)")
