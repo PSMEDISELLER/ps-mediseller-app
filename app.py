@@ -2113,7 +2113,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                         try:
                             data = json.loads(raw_data)
                         except Exception:
-                        data = {}
+                            data = {}
 
                     if not data:
                         st.error("Error: Failed to parse item data for restoration!")
