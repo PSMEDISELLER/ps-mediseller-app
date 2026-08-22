@@ -2084,12 +2084,12 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
             
                 if row:
                 # c.execute("INSERT INTO main_table (col1, col2) VALUES (?, ?)", (row[1], row[2]))
-                c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
-                conn.commit()
-                st.success("Restored successfully!")
-                st.rerun()
-            else:
-                st.info("No data in recycle bin.")
+                    c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
+                    conn.commit()
+                    st.success("Restored successfully!")
+                    st.rerun()
+                else:
+                    st.info("No data in recycle bin.")
 
     with set_tab6:
         st.write("#### Admin Password Update (পাসওয়ার্ড পরিবর্তন)")
