@@ -2083,10 +2083,8 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                 row = c.fetchone()
             
                 if row:
-                import json
-    
-    item_type = row[1]
-    data = json.loads(row[2])
+                item_type = row[1]
+                data = json.loads(row[2])
 
            if item_type == "Location":
                c.execute("""
