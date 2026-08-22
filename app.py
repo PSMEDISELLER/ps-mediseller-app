@@ -2112,7 +2112,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                     except Exception:
                         try:
                             data = json.loads(raw_data)
-                    except Exception:
+                        except Exception:
                         data = {}
 
                     if not data:
