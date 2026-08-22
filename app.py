@@ -2079,64 +2079,60 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
             selected_id = st.selectbox("Select ID to Restore:", recycle_df['id'].tolist())
         
             if st.button("Restore Selected Item"):
-                c.execute("SELECT * FROM recycle_bin WHERE id = ?", (selected_id,))
-                row = c.fetchone()
-            
+                row = c.execute("SELECT * FROM recycle_bin WHERE id = ?", (selected_id,)).fetchone()
                 if row:
-                item_type = row[1]
-                data = json.loads(row[2])
+                    item_type = row[1]
+                    data = json.loads(row[2])
 
-           if item_type == "Location":
-               c.execute("""
-               INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon, route_order, current_due) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            data.get('party_name'), 
-            data.get('address'), 
-            data.get('party_phone'), 
-            data.get('lat'), 
-            data.get('lon'), 
-            data.get('route_order', 0), 
-            data.get('current_due', 0)
-        ))
-    elif item_type == "Order":
-        c.execute("""
-            INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) 
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            data.get('party_name'), 
-            data.get('order_details'), 
-            data.get('order_date'), 
-            data.get('status', 'Pending'), 
-            data.get('payment_collected', '0')
-        ))
-    elif item_type == "Daily Work":
-        c.execute("""
-            INSERT INTO daily_work (party_name, activity_type, work_date) 
-            VALUES (?, ?, ?)
-        """, (
-            data.get('party_name'), 
-            data.get('activity_type'), 
-            data.get('work_date')
-        ))
-    elif item_type == "Task":
-        c.execute("""
-            INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            data.get('agent_name'), 
-            data.get('party_name'), 
-            data.get('task_type'), 
-            data.get('due_amount', '0'), 
-            data.get('sale_amount', '0'), 
-            data.get('payment_collected_actual', '0'), 
-            data.get('remaining_due', '0'), 
-            data.get('status', 'Pending'), 
-            data.get('created_at')
-        ))
+                    if item_type == "Location":
+                        c.execute("""
+                            INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon, route_order, current_due) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            data.get('party_name'), 
+                            data.get('address'), 
+                            data.get('party_phone'), 
+                            data.get('lat'), 
+                            data.get('lon'), 
+                            data.get('route_order', 0), 
+                            data.get('current_due', 0)
+                        ))
+                    elif item_type == "Order":
+                        c.execute("""
+                            INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) 
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (
+                            data.get('party_name'), 
+                            data.get('order_details'), 
+                            data.get('order_date'), 
+                            data.get('status', 'Pending'), 
+                            data.get('payment_collected', '0')
+                        ))
+                    elif item_type == "Daily Work":
+                        c.execute("""
+                            INSERT INTO daily_work (party_name, activity_type, work_date) 
+                            VALUES (?, ?, ?)
+                        """, (
+                            data.get('party_name'), 
+                            data.get('activity_type'), 
+                            data.get('work_date')
+                        ))
+                    elif item_type == "Task":
+                        c.execute("""
+                            INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            data.get('agent_name'), 
+                            data.get('party_name'), 
+                            data.get('task_type'), 
+                            data.get('due_amount', '0'), 
+                            data.get('sale_amount', '0'), 
+                            data.get('payment_collected_actual', '0'), 
+                            data.get('remaining_due', '0'), 
+                            data.get('status', 'Pending'), 
+                            data.get('created_at')
+                        ))
 
-    c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
-    conn.commit()
                     c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
                     conn.commit()
                     st.success("Restored successfully!")
