@@ -2084,15 +2084,20 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                     item_type = row[1]
                     raw_data = row[2]
 
+                    import json
                     import ast
+
                     data = {}
-                    try:
-                        data = ast.literal_eval(raw_data)
-                    except:
+                    if isinstance(raw_data, dict):
+                        data = raw_data
+                    elif isinstance(raw_data, str):
                         try:
-                            data = json.loads(raw_data)
-                        except:
-                            data = {}
+                            data = ast.literal_eval(raw_data)
+                        except Exception:
+                            try:
+                                data = json.loads(raw_data)
+                            except Exception:
+                                data = {}
                             
                     if item_type == "Location":
                         c.execute("""
