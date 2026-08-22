@@ -2083,15 +2083,15 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                 if row:
                     st.write("Full Row from Database:", row)  # পুরো Row দেখতে
                     item_type = row[1]
-                    raw_data = row[2]
+                    raw_data = row[3]
 
-                    import json
                     import ast
+                    import json
 
                     data = {}
                     if isinstance(raw_data, dict):
                         data = raw_data
-                    elif isinstance(raw_data, str):
+                    elif isinstance(raw_data, str) and raw_data.strip():
                         try:
                             data = ast.literal_eval(raw_data)
                         except Exception:
