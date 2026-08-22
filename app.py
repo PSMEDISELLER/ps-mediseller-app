@@ -2082,7 +2082,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                 row = c.execute("SELECT * FROM recycle_bin WHERE id = ?", (selected_id,)).fetchone()
                 if row:
                     item_type = row[1]
-                    data = json.loads(row[2])
+                    raw_data = row[2]
 
                     import ast
                     data = {}
