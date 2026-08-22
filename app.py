@@ -2062,6 +2062,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                     f.write(uploaded_file.getbuffer())
                 st.success("Database restored successfully!")
                 st.rerun()
+                
     with set_tab5:
         st.write("#### Recycle Bin (রিসাইকেল বিন)")
         recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
