@@ -2053,7 +2053,15 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
         st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
         with open(DB_FILE, "rb") as f:
             st.download_button("📥 Download Database Backup (.db)", f, file_name="mediseller_backup.db")
-
+            st.write("---")
+        st.write("#### Database Restore")
+        uploaded_file = st.file_uploader("Select Database File (.db)", type=["db"])
+        if uploaded_file is not None:
+            if st.button("Confirm Restore Database"):
+                with open(DB_FILE, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                st.success("Database restored successfully!")
+                st.rerun()
     with set_tab5:
         st.write("#### Recycle Bin (রিসাইকেল বিন)")
         recycle_df = pd.read_sql_query("SELECT * FROM recycle_bin ORDER BY id DESC", conn)
