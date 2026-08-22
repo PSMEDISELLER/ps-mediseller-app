@@ -2087,7 +2087,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                     import ast
                     try:
                         data = json.loads(raw_data)
-                    except
+                    except:
                         try:
                             data = ast.literal_eval(raw_data)
                         except:
