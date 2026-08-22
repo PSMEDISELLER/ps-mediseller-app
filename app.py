@@ -2072,6 +2072,24 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
             conn.commit()
             st.success("Recycle Bin Cleared!")
             st.rerun()
+       st.write("---")
+       st.subheader("Restore Item")
+    
+       if not recycle_df.empty:
+           selected_id = st.selectbox("Select ID to Restore:", recycle_df['id'].tolist())
+        
+           if st.button("Restore Selected Item"):
+            c.execute("SELECT * FROM recycle_bin WHERE id = ?", (selected_id,))
+            row = c.fetchone()
+            
+            if row:
+                # c.execute("INSERT INTO main_table (col1, col2) VALUES (?, ?)", (row[1], row[2]))
+                c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
+                conn.commit()
+                st.success("Restored successfully!")
+                st.rerun()
+    else:
+        st.info("No data in recycle bin.")
 
     with set_tab6:
         st.write("#### Admin Password Update (পাসওয়ার্ড পরিবর্তন)")
