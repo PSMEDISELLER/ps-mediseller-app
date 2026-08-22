@@ -2124,14 +2124,16 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                             data.get('payment_collected', '0')
                         ))
                     elif item_type == "Daily Work":
+                        st.write("Daily Work Data:", data)  # ডেটা চেক করার জন্য
                         c.execute("""
                             INSERT INTO daily_work (party_name, activity_type, work_date) 
                             VALUES (?, ?, ?)
                         """, (
-                            data.get('party_name'), 
-                            data.get('activity_type'), 
-                            data.get('work_date')
-                        ))
+                            data.get('party_name', "N/A"), 
+                            data.get('activity_type', "N/A"), 
+                            data.get('work_date', ""),
+                             ),
+                        )
                     elif item_type == "Task":
                         st.write("Debug Data:", data)
                         
