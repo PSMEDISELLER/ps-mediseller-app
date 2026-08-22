@@ -2084,6 +2084,15 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                     item_type = row[1]
                     data = json.loads(row[2])
 
+                    import ast
+                    try:
+                        data = json.loads(raw_data)
+                    except
+                        try:
+                            data = ast.literal_eval(raw_data)
+                        except:
+                            data = {}
+                            
                     if item_type == "Location":
                         c.execute("""
                             INSERT OR IGNORE INTO locations (party_name, address, party_phone, lat, lon, route_order, current_due) 
