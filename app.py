@@ -1856,6 +1856,32 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                             st.dataframe(agent_att_df, use_container_width=True)
                         else:
                             st.info(f"No attendance records found for {display_name}.")
+
+                # --- ADMIN DELETE ATTENDANCE SECTION ---
+                st.write("---")
+                st.write("#### 🗑️ Delete Agent Attendance Record (Admin Only)")
+                col_del1, col_del2 = st.columns(2)
+                with col_del1:
+                    del_agent = st.selectbox(
+                        "Select Agent:", 
+                        options=[s[0] for s in staff_list], 
+                        format_func=lambda x: agent_name_map.get(x, x),
+                        key="del_agent_select"
+                    )
+                with col_del2:
+                    del_date = st.date_input("Select Date to Delete:", value=get_ist_time().date(), key="del_date_select")
+
+                if st.button("🗑️ Delete Selected Attendance Record", type="primary", key="btn_del_att"):
+                    del_date_str = del_date.strftime("%Y-%m-%d")
+                    c.execute("SELECT COUNT(*) FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
+                    record_exists = c.fetchone()[0]
+                    if record_exists > 0:
+                        c.execute("DELETE FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
+                        conn.commit()
+                        st.success(f"Successfully deleted attendance record for {agent_name_map.get(del_agent, del_agent)} on {format_date_display(del_date_str)}!")
+                        st.rerun()
+                    else:
+                        st.warning(f"No attendance record found for {agent_name_map.get(del_agent, del_agent)} on {format_date_display(del_date_str)}.")
             else:
                 st.info("No delivery staff agents found.")
 
