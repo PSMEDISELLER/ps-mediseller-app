@@ -2022,7 +2022,8 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
             c.execute("SELECT allowed_menus FROM users WHERE username=?", (s_uname,))
             am_row = c.fetchone()
             curr_menus = am_row[0].split(",") if am_row and am_row[0] else all_basic_menus
-            sel_menus = st.multiselect(f"Permissions for {s_fname} ({s_uname})", all_basic_menus, default=curr_menus, key=f"perm_{s_uname}")
+            valid_defaults = [menu.strip() for menu in curr_menus if menu.strip() in all_basic_menus]
+            sel_menus = st.multiselect(f"Permissions for {s_fname} ({s_uname})", all_basic_menus, default=valid_defaults, key=f"perm_{s_uname}")
             if st.button(f"Save Permissions for {s_uname}", key=f"btn_perm_{s_uname}"):
                 c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (",".join(sel_menus), s_uname))
                 conn.commit()
