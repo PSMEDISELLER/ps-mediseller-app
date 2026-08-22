@@ -2132,7 +2132,8 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                             """
                             INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due, status, created_at) 
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
+                        """, 
+                            (
                             data.get('agent_name'), 
                             data.get('party_name'), 
                             data.get('task_type'), 
