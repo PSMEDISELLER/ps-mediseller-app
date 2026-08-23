@@ -1397,6 +1397,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
     ])
 
     with task_tab1:  
+        with task_tab1:
         if st.session_state["user_role"] == "admin":
             full_tasks_df = pd.read_sql_query("""
                 SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address 
@@ -1429,7 +1430,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         import streamlit.components.v1 as components
 
-        # --- Single Box Voice & Search Injector ---
+        # --- Stable Voice Injector for Normal Inputs ---
         voice_injector_html = r"""
         <script>
         function setReactInputValue(input, value) {
@@ -1437,41 +1438,47 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             nativeInputValueSetter.call(input, value);
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
-            input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
         }
 
         function injectMics() {
-            // Streamlit-এর সিলেক্ট বক্সের ইনপুট ফিল্ডগুলো টার্গেট করা
-            const selectInputs = window.parent.document.querySelectorAll('div[data-baseweb="select"] input');
-            selectInputs.forEach(input => {
-                let parentWrapper = input.closest('div[data-baseweb="select"]');
-                if (parentWrapper && !parentWrapper.querySelector('.smart-mic')) {
-                    parentWrapper.style.position = 'relative';
+            const inputs = window.parent.document.querySelectorAll('input');
+            inputs.forEach(input => {
+                let labelText = input.getAttribute('aria-label') || '';
+                let isPartySearch = labelText.includes('Party Search') || input.placeholder?.includes('Type party') || input.placeholder?.includes('Type name');
+                let isAmountInput = labelText.includes('টাকা') || labelText.includes('পেমেন্ট') || labelText.includes('Sale') || labelText.includes('Due');
+
+                if ((isPartySearch || isAmountInput) && !input.parentElement.querySelector('.smart-mic')) {
+                    input.parentElement.style.position = 'relative';
                     
                     let btn = window.parent.document.createElement('div');
                     btn.innerHTML = '🎙️';
                     btn.className = 'smart-mic';
                     btn.style.position = 'absolute';
-                    btn.style.right = '35px';
+                    btn.style.right = '10px';
                     btn.style.top = '50%';
                     btn.style.transform = 'translateY(-50%)';
                     btn.style.cursor = 'pointer';
                     btn.style.fontSize = '18px';
                     btn.style.zIndex = '100';
-                    btn.title = 'Speak to search in English';
+                    btn.title = 'Speak to type';
                     
-                    parentWrapper.appendChild(btn);
+                    input.parentElement.appendChild(btn);
 
                     btn.onclick = function(e) {
                         e.preventDefault();
-                        e.stopPropagation();
                         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
                             alert("Speech recognition not supported.");
                             return;
                         }
                         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                         const recognition = new SpeechRecognition();
-                        recognition.lang = 'en-US'; // ইংরেজিতে সার্চ করার জন্য
+                        
+                        if (isPartySearch) {
+                            recognition.lang = 'en-US'; // ইংরেজিতে পার্টির নাম সার্চ করার জন্য
+                        } else {
+                            recognition.lang = 'en-IN'; // টাকার অংকের জন্য
+                        }
+                        
                         recognition.interimResults = true;
 
                         recognition.onstart = function() {
@@ -1484,7 +1491,17 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                             for (let i = 0; i < event.results.length; ++i) {
                                 finalStr += event.results[i][0].transcript;
                             }
-                            setReactInputValue(input, finalStr.trim());
+                            
+                            if (isAmountInput) {
+                                let match = finalStr.match(/\d+/);
+                                if (match) {
+                                    setReactInputValue(input, match[0]);
+                                } else {
+                                    setReactInputValue(input, finalStr.replace(/[^0-9]/g, ''));
+                                }
+                            } else {
+                                setReactInputValue(input, finalStr.trim());
+                            }
                         };
 
                         recognition.onend = function() {
@@ -1500,43 +1517,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     }
                 }
             });
-
-            // টাকার ঘরগুলোর জন্য মাইক্রোফোন ইনজেক্ট করা
-            const normalInputs = window.parent.document.querySelectorAll('input:not([data-baseweb="select"] input)');
-            normalInputs.forEach(input => {
-                let labelText = input.getAttribute('aria-label') || '';
-                let isAmountInput = labelText.includes('টাকা') || labelText.includes('পেমেন্ট') || labelText.includes('Sale') || labelText.includes('Due');
-
-                if (isAmountInput && !input.parentElement.querySelector('.smart-mic')) {
-                    input.parentElement.style.position = 'relative';
-                    let btn = window.parent.document.createElement('div');
-                    btn.innerHTML = '🎙️';
-                    btn.className = 'smart-mic';
-                    btn.style.position = 'absolute';
-                    btn.style.right = '10px';
-                    btn.style.top = '50%';
-                    btn.style.transform = 'translateY(-50%)';
-                    btn.style.cursor = 'pointer';
-                    btn.style.fontSize = '18px';
-                    btn.style.zIndex = '100';
-                    
-                    input.parentElement.appendChild(btn);
-
-                    btn.onclick = function(e) {
-                        e.preventDefault();
-                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                        const recognition = new SpeechRecognition();
-                        recognition.lang = 'en-IN';
-                        recognition.onstart = () => btn.innerHTML = '🔴';
-                        recognition.onresult = function(event) {
-                            let val = event.results[0][0].transcript.replace(/[^0-9]/g, '');
-                            setReactInputValue(input, val);
-                        };
-                        recognition.onend = () => btn.innerHTML = '🎙️';
-                        recognition.start();
-                    }
-                }
-            });
         }
         setInterval(injectMics, 1000);
         </script>
@@ -1546,15 +1526,33 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         # --- UI Starts ---
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         
-        # এখানে শুধুমাত্র একটি মাত্র সার্চেবল ড্রপডাউন বক্স রাখা হয়েছে
-        sel_pt = st.selectbox(
-            "Select Party", 
-            options=all_parties if all_parties else ["No party available"],
-            key="task_select_party_box",
+        # ১. টাইপিং ও ভয়েস সার্চ করার জন্য স্টেবল টেক্সট ইনপুট বক্স
+        search_query = st.text_input(
+            "Party Search", 
+            value="", 
+            placeholder="Type party name or click 🎙️...", 
+            key="party_search_text_box",
             label_visibility="collapsed"
         )
         
-        if sel_pt == "No party available":
+        # ইউজার যা টাইপ বা বলবে সে অনুযায়ী পার্টি ফিল্টার করা হবে
+        if search_query.strip():
+            q_term = f"%{search_query.strip()}%"
+            c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
+            filtered_parties = [r[0] for r in c.fetchall()]
+        else:
+            filtered_parties = all_parties
+
+        # ২. ফিল্টার করা লিস্ট থেকে সিলেক্ট করার ড্রপডাউন বক্স
+        if filtered_parties:
+            sel_pt = st.selectbox(
+                "Select Party from list", 
+                options=filtered_parties,
+                key="task_select_party_box",
+                label_visibility="collapsed"
+            )
+        else:
+            st.warning("কোনো পার্টি পাওয়া যায়নি! (No party found!)")
             sel_pt = ""
 
         # Auto Due Fetching
