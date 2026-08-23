@@ -2056,24 +2056,41 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                 st.success("Permissions updated successfully!")
 
     with set_tab3:
-        st.write("#### Block/Unblock Agents (এজেন্ট ব্লক/আনব্লক)")
-        c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
-        staff_data = c.fetchall()
-        for s in staff_data:
-            s_uname, s_fname, s_act = s
-            status = "Active" if s_act else "Blocked"
-            st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
-            if s_act:
-                if st.button(f"🚫 Block {s_uname}", key=f"blk_{s_uname}"):
-                    c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_uname,))
-                    conn.commit()
-                    st.rerun()
-            else:
-                if st.button(f"✅ Unblock {s_uname}", key=f"unblk_{s_uname}"):
-                    c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_uname,))
-                    conn.commit()
-                    st.rerun()
-            st.write("---")
+        st.write("#### Manage Agents (Block / Unblock / Delete)")
+c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
+staff_data = c.fetchall()
+
+for s in staff_data:
+    s_uname, s_fname, s_act = s
+    status = "Active" if s_act else "Blocked"
+    st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if s_act:
+            if st.button(f"🚫 Block {s_uname}", key=f"blk_{s_uname}"):
+                c.execute(
+                    "UPDATE users SET is_active=0 WHERE username=?", (s_uname,)
+                )
+                conn.commit()
+                st.rerun()
+        else:
+            if st.button(f"✅ Unblock {s_uname}", key=f"unblk_{s_uname}"):
+                c.execute(
+                    "UPDATE users SET is_active=1 WHERE username=?", (s_uname,)
+                )
+                conn.commit()
+                st.rerun()
+
+    with col2:
+        if st.button(f"🗑️ Delete {s_uname}", key=f"del_{s_uname}"):
+            c.execute("DELETE FROM users WHERE username=?", (s_uname,))
+            conn.commit()
+            st.success(f"Agent '{s_uname}' deleted successfully!")
+            st.rerun()
+
+    st.write("---")
 
     with set_tab4:
         st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
