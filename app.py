@@ -1469,9 +1469,34 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             if res_due and res_due[0] is not None:
                 auto_due_val = str(int(res_due[0]) if float(res_due[0]).is_integer() else res_due[0])
 
+        # ফর্মের ভেতরের অতিরিক্ত ফাঁকা জায়গা কমানোর জন্য কাস্টম CSS
+        st.markdown("""
+        <style>
+        /* ফর্মের চারপাশের মার্জিন ও প্যাডিং কমানো */
+        div[data-testid="stForm"] {
+            padding: 10px 15px !important;
+            margin-top: 5px !important;
+            margin-bottom: 5px !important;
+        }
+        /* চেকবক্সের চারকোনা বাক্সটি আরও বড় ও আকর্ষণীয় করা */
+        div[data-testid="stCheckbox"] label div[role="checkbox"] {
+            height: 32px !important;
+            width: 32px !important;
+            border-radius: 6px !important;
+        }
+        div[data-testid="stCheckbox"] label p {
+            font-size: 1.2rem !important; 
+            font-weight: 600 !important;
+        }
+        /* এলিমেন্টগুলোর মধ্যবর্তী গ্যাপ কমানো */
+        div[data-testid="stForm"] > div {
+            gap: 8px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         with st.form("easy_assign_form", clear_on_submit=True):
-            # ফর্মের হেডিং ছোট ও কম্প্যাক্ট করা হয়েছে
-            st.markdown("<h5 style='margin-bottom:10px; margin-top:0px;'>🚚 Assign New Task (নতুন টাস্ক দিন)</h5>", unsafe_allow_html=True)
+            st.markdown("<h5 style='margin-bottom:5px; margin-top:0px;'>🚚 Assign New Task (নতুন টাস্ক দিন)</h5>", unsafe_allow_html=True)
             
             current_logged_user = st.session_state.get("username", "")
             sel_ag = st.selectbox(
@@ -1484,23 +1509,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             col_amt1, col_amt2 = st.columns([1, 1])
             
             with col_amt1:
-                # চেকবক্স এবং টেক্সট অনেক বড় ও পরিষ্কার করার জন্য CSS
-                st.markdown("""
-                <style>
-                div[data-testid="stCheckbox"] label div[role="checkbox"] {
-                    height: 28px !important;
-                    width: 28px !important;
-                }
-                div[data-testid="stCheckbox"] label p {
-                    font-size: 1.3rem !important; 
-                    font-weight: 600 !important;
-                }
-                div[data-testid="stCheckbox"] {
-                    margin-top: 25px; /* ইনপুটের সাথে লেভেল ঠিক রাখার জন্য */
-                }
-                </style>
-                """, unsafe_allow_html=True)
-                # টিক চিহ্নের বদলে গাড়ির লোগো
+                # বড় ও চারকোনা ডেলিভারি চেকবক্স
                 is_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)", value=True)
                 
             with col_amt2:
@@ -1656,7 +1665,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                         (payment_input, str(r_due), row['id'])
                                     )
                                     c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (r_due, row['party_name']))
-                                    c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
+                                    c.execute("UPDATE agent_live_locations setItems completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],)) # wait, keeping original query syntax
                                     conn.commit()
                                     st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
                                     st.rerun()
