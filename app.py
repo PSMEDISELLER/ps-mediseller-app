@@ -1429,27 +1429,24 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         import streamlit.components.v1 as components
 
-        # --- 2026 Advanced Inline Voice Injector for Search/Due/Collection ---
+        # --- 2026 Advanced Inline Voice Injector (Single Box + English Voice for Party) ---
         voice_injector_html = r"""
         <script>
-        const targetLabels = [
-            "Search Party (পার্টি খুঁজুন)", 
-            "Due Amount (ডিউ টাকা)", 
-            "Payment Collected (কত পেমেন্ট)"
-        ];
-
         function setReactInputValue(input, value) {
             const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
             nativeInputValueSetter.call(input, value);
             input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
         function injectMics() {
             const inputs = window.parent.document.querySelectorAll('input');
             inputs.forEach(input => {
-                let labelText = input.getAttribute('aria-label');
-                if (targetLabels.includes(labelText) && !input.parentElement.querySelector('.smart-mic')) {
-                    
+                let labelText = input.getAttribute('aria-label') || '';
+                let isPartyInput = labelText.includes('Select Party') || input.placeholder?.includes('Select') || input.closest('[data-baseweb="select"]');
+                let isAmountInput = labelText.includes('টাকা') || labelText.includes('পেমেন্ট') || labelText.includes('Sale') || labelText.includes('Due');
+
+                if ((isPartyInput || isAmountInput) && !input.parentElement.querySelector('.smart-mic')) {
                     input.parentElement.style.position = 'relative';
                     
                     let btn = window.parent.document.createElement('div');
@@ -1462,22 +1459,27 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     btn.style.cursor = 'pointer';
                     btn.style.fontSize = '20px';
                     btn.style.zIndex = '100';
-                    btn.title = 'ভয়েস দিয়ে টাইপ করুন';
+                    btn.title = 'Speak to type';
                     
                     input.parentElement.appendChild(btn);
 
                     btn.onclick = function(e) {
                         e.preventDefault();
                         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                            alert("আপনার ব্রাউজার ভয়েস সাপোর্ট করে না।");
+                            alert("Speech recognition not supported.");
                             return;
                         }
                         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                         const recognition = new SpeechRecognition();
-                        recognition.lang = 'bn-IN';
-                        recognition.interimResults = true;
                         
-                        let isNumberField = labelText.includes('টাকা') || labelText.includes('পেমেন্ট');
+                        // পার্টির নামের জন্য English ('en-US'), আর টাকার পরিমাণের জন্য সংখ্যা/ডিজিট
+                        if (isPartyInput) {
+                            recognition.lang = 'en-US';
+                        } else {
+                            recognition.lang = 'en-IN';
+                        }
+                        
+                        recognition.interimResults = true;
 
                         recognition.onstart = function() {
                             btn.innerHTML = '🔴';
@@ -1490,7 +1492,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 finalStr += event.results[i][0].transcript;
                             }
                             
-                            if (isNumberField) {
+                            if (isAmountInput) {
                                 let match = finalStr.match(/\d+/);
                                 if (match) {
                                     setReactInputValue(input, match[0]);
@@ -1498,8 +1500,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                     setReactInputValue(input, finalStr.replace(/[^0-9]/g, ''));
                                 }
                             } else {
-                                let cleaned = finalStr.replace(/(টাকা|সেল|ডিউ|ডেলিভারি)/g, '').trim();
-                                setReactInputValue(input, cleaned);
+                                setReactInputValue(input, finalStr.trim());
                             }
                         };
 
@@ -1525,21 +1526,18 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         # --- UI Starts ---
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         
-        task_search_text = st.text_input("Search Party (পার্টি খুঁজুন)", placeholder="Type or click 🎙️ to speak...", label_visibility="collapsed")
-
-        if task_search_text.strip():
-            q_term = f"%{task_search_text.strip()}%"
-            c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
-            filtered_task_parties = [r[0] for r in c.fetchall()]
-        else:
-            filtered_task_parties = all_parties
-
-        if filtered_task_parties:
-            sel_pt = st.selectbox("Select Party Dropdown", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
-        else:
-            st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
+        # এখানে শুধুমাত্র একটি মাত্র ড্রপডাউন/সার্চ বক্স রাখা হয়েছে (ওপরের অতিরিক্ত টেক্সট বক্সটি বাদ)
+        sel_pt = st.selectbox(
+            "Select Party", 
+            options=all_parties if all_parties else ["No party available"],
+            key="task_select_party_box",
+            label_visibility="collapsed"
+        )
+        
+        if sel_pt == "No party available":
             sel_pt = ""
 
+        # Auto Due Fetching
         auto_due_val = ""
         if sel_pt and sel_pt.strip():
             c.execute("SELECT current_due FROM locations WHERE party_name=?", (sel_pt.strip(),))
@@ -1560,7 +1558,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             
             col_amt1, col_amt2 = st.columns(2)
             with col_amt1:
-                # অ্যাডমিন এখানে যে সেল অ্যামাউন্ট দেবেন, সেটাই টাস্কে সেভ হয়ে যাবে
                 s_amount = st.text_input("Sale Amount (সেল টাকা)", value="", placeholder="0")
             with col_amt2:
                 d_amount = st.text_input("Due Amount (ডিউ টাকা)", value=auto_due_val, placeholder="0")
@@ -1635,7 +1632,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         master_due_val = master_due_res[0] if master_due_res and master_due_res[0] is not None else 0.0
                         master_due_disp = int(master_due_val) if float(master_due_val).is_integer() else master_due_val
 
-                        # ডাটাবেজ থেকে সেভ করা সেল অ্যামাউন্ট এখানে তুলে নেওয়া হলো
                         prefilled_sale = str(row['sale_amount']) if pd.notna(row['sale_amount']) and float(row['sale_amount']) > 0 else ""
 
                         with st.form(key=f"complete_task_form_{tab_prefix}_{row['id']}", clear_on_submit=True):
@@ -1643,7 +1639,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                             
                             col_f1, col_f2 = st.columns(2)
                             with col_f1:
-                                # এখানে অ্যাডমিন যে সেল অ্যামাউন্ট দিয়েছিলেন, সেটি অটোমেটিক বসে যাবে (এজেন্টকে টাইপ বা বলতে হবে না)
                                 sale_input = st.text_input("Total Sale (কত টাকার সেল)", value=prefilled_sale, placeholder="0", key=f"sale_amt_{tab_prefix}_{row['id']}")
                             with col_f2:
                                 payment_input = st.text_input("Payment Collected (কত পেমেন্ট)", value="", placeholder="উদাহরণ: 500", key=f"pay_amt_{tab_prefix}_{row['id']}")
@@ -1692,7 +1687,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 render_agent_tasks(due_df, "due")
             else:
                 st.info("No pending tasks. (কোনো কাজ বাকি নেই)")
-
     with task_tab2:
         st.markdown("#### 📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
         agent_sum_df = pd.read_sql_query("""
