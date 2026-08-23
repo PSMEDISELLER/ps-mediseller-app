@@ -1925,7 +1925,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         else:
             st.info("No completed tasks history found.")
 
-    with task_tab4
+    with task_tab4:
         st.write("#### 💰 Master Due List & Management (পার্টি ডিউ ম্যানেজমেন্ট)")
 
         # --- 1. Party Search & Month Filter Section ---
