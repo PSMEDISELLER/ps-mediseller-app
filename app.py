@@ -1397,6 +1397,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
     ])
 
     with task_tab1:  
+        with task_tab1:
         if st.session_state["user_role"] == "admin":
             full_tasks_df = pd.read_sql_query("""
                 SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address 
@@ -1429,7 +1430,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         import streamlit.components.v1 as components
 
-        # --- Stable Voice Injector for Normal Inputs ---
+        # --- Voice Injector for Search & Amount Inputs ---
         voice_injector_html = r"""
         <script>
         function setReactInputValue(input, value) {
@@ -1443,7 +1444,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             const inputs = window.parent.document.querySelectorAll('input');
             inputs.forEach(input => {
                 let labelText = input.getAttribute('aria-label') || '';
-                let isPartySearch = labelText.includes('Party Search') || input.placeholder?.includes('Type party') || input.placeholder?.includes('Type name');
+                let isPartySearch = labelText.includes('Party Search') || input.placeholder?.includes('Type or speak') || input.placeholder?.includes('Type name');
                 let isAmountInput = labelText.includes('টাকা') || labelText.includes('পেমেন্ট') || labelText.includes('Sale') || labelText.includes('Due');
 
                 if ((isPartySearch || isAmountInput) && !input.parentElement.querySelector('.smart-mic')) {
@@ -1473,7 +1474,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         const recognition = new SpeechRecognition();
                         
                         if (isPartySearch) {
-                            recognition.lang = 'en-US'; // ইংরেজিতে পার্টির নাম সার্চ করার জন্য
+                            recognition.lang = 'en-US'; // পার্টির নামের জন্য ইংরেজি
                         } else {
                             recognition.lang = 'en-IN'; // টাকার অংকের জন্য
                         }
@@ -1525,34 +1526,33 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         # --- UI Starts ---
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         
-        # ১. টাইপিং ও ভয়েস সার্চ করার জন্য স্টেবল টেক্সট ইনপুট বক্স
+        # ১. শুরুতে শুধুমাত্র এই সার্চ বক্সটিই দেখাবে (কোনো পার্টির লিস্ট দেখাবে না)
         search_query = st.text_input(
             "Party Search", 
             value="", 
-            placeholder="Type party name or click 🎙️...", 
+            placeholder="Type or speak party name...", 
             key="party_search_text_box",
             label_visibility="collapsed"
         )
         
-        # ইউজার যা টাইপ বা বলবে সে অনুযায়ী পার্টি ফিল্টার করা হবে
-        if search_query.strip():
+        sel_pt = ""
+        # ২. ইউজার যখন সার্চ বা ভয়েস ইনপুট দেবে, শুধুমাত্র তখনই ম্যাচিং পার্টিগুলোর ড্রপডাউন আসবে
+        if search_query and search_query.strip():
             q_term = f"%{search_query.strip()}%"
             c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
             filtered_parties = [r[0] for r in c.fetchall()]
+            
+            if filtered_parties:
+                sel_pt = st.selectbox(
+                    "Select Party Result", 
+                    options=filtered_parties,
+                    key="task_select_party_box",
+                    label_visibility="collapsed"
+                )
+            else:
+                st.warning("কোনো পার্টি পাওয়া যায়নি! (No party found!)")
         else:
-            filtered_parties = all_parties
-
-        # ২. ফিল্টার করা লিস্ট থেকে সিলেক্ট করার ড্রপডাউন বক্স
-        if filtered_parties:
-            sel_pt = st.selectbox(
-                "Select Party from list", 
-                options=filtered_parties,
-                key="task_select_party_box",
-                label_visibility="collapsed"
-            )
-        else:
-            st.warning("কোনো পার্টি পাওয়া যায়নি! (No party found!)")
-            sel_pt = ""
+            st.info("💡 ওপরে পার্টির নাম লিখে বা ভয়েসে সার্চ করুন।")
 
         # Auto Due Fetching
         auto_due_val = ""
