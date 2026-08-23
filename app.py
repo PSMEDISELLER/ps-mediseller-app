@@ -1721,9 +1721,14 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     export_comp_df['Completed Date'] = export_comp_df['created_at'].apply(lambda x: format_date_display(x))
                 
                     export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (Rs.)', 'Collection Amount (Rs.)', 'Task Remaining Due (Rs.)', 'Master Total Due (Rs.)', 'Completed Date']]
-                
+                   
+                    # PDF-এর জন্য ডেটা পরিষ্কার করা হচ্ছে
+                    pdf_clean_df = export_comp_df_final.copy()
+                    for col in pdf_clean_df.columns:
+                        pdf_clean_df[col] = pdf_clean_df[col].astype(str).apply(clean_text_for_pdf)
+                        
                     # HTML রিপোর্ট তৈরি
-                    html_comp_tasks = generate_html_report(f"Completed Tasks - {selected_date} ({selected_agent})", export_comp_df_final)
+                    html_comp_tasks = generate_html_report(f"Completed Tasks - {selected_date} ({clean_agent_title})", pdf_clean_df)
                 
                     col_tc1, col_tc2 = st.columns(2)
                     with col_tc1:
@@ -1737,7 +1742,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 st.download_button(
                                     label="📥 Download PDF Report",
                                     data=pdf_bytes,
-                                    file_name=f"tasks_report_{selected_date}_{selected_agent}.pdf",
+                                    file_name=f"tasks_report_{selected_date}_{selected_agent_title}.pdf",
                                     mime="application/pdf",
                                     type="primary"
                                 )
