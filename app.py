@@ -1710,6 +1710,16 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 st.warning("⚠️ No completed tasks found for the selected date and agent. (এই তারিখে/এজেন্টের কোনো কাজ নেই)")
             else:
                 if st.session_state["user_role"] == "admin":
+                    import re
+
+                    # বাংলা টেক্সট ফিল্টার করার ফাংশন
+                    def clean_text_for_pdf(text):
+                        if not isinstance(text, str):
+                            return str(text) if text is not None else ""
+                        cleaned = re.sub(r'[\u0980-\u09FF]+', '', text)
+                        cleaned = re.sub(r'\(\s*\)', '', cleaned).strip()
+                        return cleaned if cleaned else text
+                        
                     export_comp_df = final_filtered_df.copy()
                     export_comp_df['Agent Name'] = export_comp_df['display_agent']
                     export_comp_df['Party Name'] = export_comp_df['party_name']
