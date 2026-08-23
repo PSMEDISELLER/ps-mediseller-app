@@ -1397,6 +1397,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
     ])
     
     with task_tab1:
+        with task_tab1:
         if st.session_state["user_role"] == "admin":
             full_tasks_df = pd.read_sql_query("""
                 SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address 
@@ -1429,13 +1430,13 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         
-        # Initialize search state if not present
-        if "task_party_search_text_input_key" not in st.session_state:
-            st.session_state["task_party_search_text_input_key"] = ""
+        # [Error Fix] - Dynamic key counter to safely clear search box without StreamlitAPIException
+        if "task_search_reset_counter" not in st.session_state:
+            st.session_state["task_search_reset_counter"] = 0
 
         task_search_text = st.text_input(
             "Search Party for Task", 
-            key="task_party_search_text_input_key", 
+            key=f"task_party_search_{st.session_state['task_search_reset_counter']}", 
             placeholder="Type name, address or keyword...", 
             label_visibility="collapsed"
         )
@@ -1452,12 +1453,12 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             sel_pt = st.radio(
                 "Matching Task Parties",
                 filtered_task_parties[:10],
-                key="task_floating_suggestions_radio",
+                key=f"task_floating_radio_{st.session_state['task_search_reset_counter']}",
                 label_visibility="collapsed"
             )
         else:
             if filtered_task_parties:
-                sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
+                sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key=f"task_select_box_{st.session_state['task_search_reset_counter']}")
             else:
                 st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
                 sel_pt = ""
@@ -1470,7 +1471,9 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 auto_due_val = str(int(res_due[0]) if float(res_due[0]).is_integer() else res_due[0])
 
         with st.form("easy_assign_form", clear_on_submit=True):
-            st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
+            # ফর্মের হেডিং ছোট ও কম্প্যাক্ট করা হয়েছে
+            st.markdown("<h5 style='margin-bottom:10px; margin-top:0px;'>🚚 Assign New Task (নতুন টাস্ক দিন)</h5>", unsafe_allow_html=True)
+            
             current_logged_user = st.session_state.get("username", "")
             sel_ag = st.selectbox(
                 "Select Agent (এজেন্ট সিলেক্ট করুন)",
@@ -1479,26 +1482,31 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 format_func=lambda x: agent_name_map.get(x, x)
             )
             
-            # 'Amount Details' লেখাটি মুছে দেওয়া হয়েছে জায়গা বাঁচানোর জন্য
             col_amt1, col_amt2 = st.columns([1, 1])
             
             with col_amt1:
-                # ডেলিভারি চেকবক্সটি একটু বড় ও পরিষ্কার করার জন্য HTML স্টাইলিং অ্যাড করা হয়েছে
+                # চেকবক্স এবং টেক্সট অনেক বড় ও পরিষ্কার করার জন্য CSS
                 st.markdown("""
                 <style>
-                .stCheckbox label {
-                    font-size: 1.1rem !important; 
-                    font-weight: 500 !important;
-                    margin-top: 25px; /* একটু নিচে নামানোর জন্য */
+                div[data-testid="stCheckbox"] label div[role="checkbox"] {
+                    height: 28px !important;
+                    width: 28px !important;
+                }
+                div[data-testid="stCheckbox"] label p {
+                    font-size: 1.3rem !important; 
+                    font-weight: 600 !important;
+                }
+                div[data-testid="stCheckbox"] {
+                    margin-top: 25px; /* ইনপুটের সাথে লেভেল ঠিক রাখার জন্য */
                 }
                 </style>
                 """, unsafe_allow_html=True)
-                is_delivery = st.checkbox("✔️ Delivery (ডেলিভারি)", value=True)
+                # টিক চিহ্নের বদলে গাড়ির লোগো
+                is_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)", value=True)
                 
             with col_amt2:
                 d_amount = st.text_input("Old Due Amount (পুরনো ডিউ)", value=auto_due_val)
 
-            # Normal button without primary highlight box
             submit_easy_task = st.form_submit_button("✔️ Add Task (কাজ যোগ)")
             
             if submit_easy_task:
@@ -1510,7 +1518,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     except ValueError:
                         o_due = 0.0
 
-                    n_bill = 0.0 # Bill is now set to 0 by default
+                    n_bill = 0.0 # Bill is 0 by default
                     t_type_str = "Delivery (ডেলিভারি)" if is_delivery else "Due Collection (ডিউ কালেকশন)"
 
                     c.execute(
@@ -1519,12 +1527,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     )
                     conn.commit()
                     
-                    # Force completely clear all fields
-                    st.session_state["task_party_search_text_input_key"] = ""
-                    if "task_floating_suggestions_radio" in st.session_state:
-                        del st.session_state["task_floating_suggestions_radio"]
-                    if "task_select_party_box" in st.session_state:
-                        del st.session_state["task_select_party_box"]
+                    # [Error Fix] - Safely resetting the search form without causing StreamlitAPIException
+                    st.session_state["task_search_reset_counter"] += 1
                     
                     st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
                     st.rerun()
@@ -1541,7 +1545,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             ORDER BY t.created_at DESC
         """, conn)
 
-        # সব সময় ট্যাব দুটি দেখানোর জন্য if not pending_tasks_df.empty কন্ডিশনের বাইরে নিয়ে আসা হলো
         tab_delivery, tab_due = st.tabs(["📦 Delivery Tasks (ডেলিভারি)", "💰 Due Collection Tasks (ডিউ কালেকশন)"])
         
         if not pending_tasks_df.empty:
@@ -1566,7 +1569,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                             s_amt = float(row['sale_amount']) if 'sale_amount' in row and pd.notna(row['sale_amount']) and str(row['sale_amount']).strip() else 0.0
                             master_due = o_due + s_amt
                             
-                            # Advanced clean formatting without markdown highlights
                             st.markdown(f"""
                                 <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
                                     <span style='font-size: 14px; color: #555;'><b>Party:</b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;|&nbsp; 
@@ -1627,7 +1629,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         for idx, row in ag_rows.iterrows():
                             o_due = float(row['due_amount']) if pd.notna(row['due_amount']) and str(row['due_amount']).strip() else 0.0
                             
-                            # Advanced clean formatting without markdown highlights
                             st.markdown(f"""
                                 <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
                                     <span style='font-size: 14px; color: #555;'><b>Party:</b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;|&nbsp; 
