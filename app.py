@@ -1679,21 +1679,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             completed_tasks_df['month_year'] = completed_tasks_df['created_datetime'].dt.strftime('%B %Y') # মাস এবং বছর বের করা
             completed_tasks_df['display_agent'] = completed_tasks_df['agent_fullname'].fillna(completed_tasks_df['agent_name'])
 
-            st.markdown("""
-                <style>
-                /* ডেট পিকার ক্যালেন্ডারের ব্যাকগ্রাউন্ড ও লেখা সাদা/কালো করার জন্য */
-                [data-baseweb="calendar"] {
-                    background-color: #ffffff !important;
-                    color: #000000 !important;
-                }
-                [data-baseweb="calendar"] div, [data-baseweb="calendar"] span, [data-baseweb="calendar"] button {
-                    color: #000000 !important;
-                }
-                [data-baseweb="popover"] {
-                    background-color: #ffffff !important;
-                }
-                </style>
-            """, unsafe_allow_html=True)
             st.markdown("##### 🔍 Filter Records (তারিখ ও এজেন্ট অনুযায়ী খুঁজুন)")
             col_f1, col_f2 = st.columns(2)
         
