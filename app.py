@@ -1971,8 +1971,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     conn.commit()
                     st.success("Due updated successfully! (ডিউ আপডেট হয়েছে!)")
                     st.rerun()
-            else:
-                st.info("No parties found matching your search. (কোনো পার্টি পাওয়া যায়নি)")
+        else:
+            st.info("No parties found matching your search. (কোনো পার্টি পাওয়া যায়নি)")
 
     with col_md2:
         st.write("##### Due Summary & Records (ডিউ তালিকা)")
