@@ -1431,8 +1431,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         import re
 
         # --- State Initialization ---
-        if "task_party_search_text_input_key" not in st.session_state:
-            st.session_state["task_party_search_text_input_key"] = ""
+        if "voice_party_val" not in st.session_state:
+            st.session_state["voice_party_val"] = ""
         if "voice_sale_amt_key" not in st.session_state:
             st.session_state["voice_sale_amt_key"] = ""
         if "voice_due_amt_key" not in st.session_state:
@@ -1445,7 +1445,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             
             spoken_lower = spoken_text.lower()
             
-            # অ্যামাউন্ট খোঁজার স্মার্ট লজিক
+            # অ্যামাউন্ট খোঁজার লজিক
             nums = [(m.group(), m.start(), m.end()) for m in re.finditer(r'\d+', spoken_lower)]
             sale_val = ""
             due_val = ""
@@ -1488,12 +1488,12 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                             best_score = common
                             best_party = p
                             
-            st.session_state["task_party_search_text_input_key"] = best_party
+            st.session_state["voice_party_val"] = best_party
             st.rerun()
 
         # --- UI Starts ---
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-        task_search_text = st.text_input("Search Party for Task", key="task_party_search_text_input_key", placeholder="Type name, address or keyword...", label_visibility="collapsed")
+        task_search_text = st.text_input("Search Party for Task", value=st.session_state["voice_party_val"], placeholder="Type name, address or keyword...", label_visibility="collapsed")
 
         if task_search_text.strip():
             q_term = f"%{task_search_text.strip()}%"
@@ -1524,79 +1524,77 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             if res_due and res_due[0] is not None:
                 show_due = str(int(res_due[0]) if float(res_due[0]).is_integer() else res_due[0])
 
+        # --- 2026 Advanced Live Voice Assistant JS ---
+        voice_assistant_html = """
+        <div style="background: rgba(59, 130, 246, 0.1); padding: 10px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3); margin-bottom: 15px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="smartMicBtn" onclick="startSmartListening()" type="button" style="background-color: #3b82f6; color: white; border: none; padding: 7px 15px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: 0.2s;">
+                    🎙️ ভয়েস কমান্ড (Voice)
+                </button>
+                <span id="smartStatus" style="font-size: 12px; color: #9ca3af; font-weight: 500;">ক্লিক করে বলুন...</span>
+            </div>
+            <p id="liveText" style="color: #10b981; font-size: 14px; margin: 8px 0 0 0; min-height: 20px; font-weight: 600;"></p>
+        </div>
+        <script>
+        function startSmartListening() {
+            const status = document.getElementById('smartStatus');
+            const liveText = document.getElementById('liveText');
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                status.innerText = "ব্রাউজার সাপোর্ট করে না।";
+                return;
+            }
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'bn-IN';
+            recognition.interimResults = true;
+            
+            let finalStr = '';
+
+            recognition.onstart = function() {
+                status.innerText = "শুনছি... (বলুন)";
+                liveText.innerText = "";
+                document.getElementById('smartMicBtn').style.backgroundColor = '#ef4444';
+            };
+
+            recognition.onresult = function(event) {
+                let interim = '';
+                let final = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final += event.results[i][0].transcript;
+                        finalStr += event.results[i][0].transcript;
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                liveText.innerText = finalStr + interim;
+            };
+
+            recognition.onerror = function(event) {
+                status.innerText = "ত্রুটি: " + event.error;
+                document.getElementById('smartMicBtn').style.backgroundColor = '#3b82f6';
+            };
+
+            recognition.onend = function() {
+                document.getElementById('smartMicBtn').style.backgroundColor = '#3b82f6';
+                if(finalStr.trim() !== '') {
+                    status.innerText = "প্রসেস হচ্ছে...";
+                    const url = new URL(window.parent.location.href);
+                    url.searchParams.set('smart_voice_cmd', finalStr.trim());
+                    window.parent.location.href = url.href;
+                } else {
+                    status.innerText = "কিছু শোনা যায়নি।";
+                }
+            };
+
+            recognition.start();
+        }
+        </script>
+        """
+        components.html(voice_assistant_html, height=85)
+
         with st.form("easy_assign_form", clear_on_submit=True):
             st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
-            
-            # --- 2026 Advanced Live Typing Voice JS (No Freezing) ---
-            voice_assistant_html = """
-            <div style="background: rgba(59, 130, 246, 0.1); padding: 10px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3); margin-bottom: 15px; margin-top: -5px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <button id="smartMicBtn" onclick="startSmartListening()" type="button" style="background-color: #3b82f6; color: white; border: none; padding: 7px 15px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: 0.2s;">
-                        🎙️ ভয়েস কমান্ড (Voice)
-                    </button>
-                    <span id="smartStatus" style="font-size: 12px; color: #9ca3af; font-weight: 500;">ক্লিক করে বলুন...</span>
-                </div>
-                <p id="liveText" style="color: #10b981; font-size: 14px; margin: 8px 0 0 0; min-height: 20px; font-weight: 600;"></p>
-            </div>
-            <script>
-            function startSmartListening() {
-                const status = document.getElementById('smartStatus');
-                const liveText = document.getElementById('liveText');
-                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                    status.innerText = "ব্রাউজার সাপোর্ট করে না।";
-                    return;
-                }
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                const recognition = new SpeechRecognition();
-                recognition.lang = 'bn-IN';
-                recognition.interimResults = true;
-                
-                let finalStr = '';
-
-                recognition.onstart = function() {
-                    status.innerText = "শুনছি... (বলুন)";
-                    liveText.innerText = "";
-                    document.getElementById('smartMicBtn').style.backgroundColor = '#ef4444'; // Red when recording
-                };
-
-                recognition.onresult = function(event) {
-                    let interim = '';
-                    let final = '';
-                    for (let i = event.resultIndex; i < event.results.length; ++i) {
-                        if (event.results[i].isFinal) {
-                            final += event.results[i][0].transcript;
-                            finalStr += event.results[i][0].transcript;
-                        } else {
-                            interim += event.results[i][0].transcript;
-                        }
-                    }
-                    // ব্রাউজারের ভিতরেই লাইভ টাইপিং (স্ট্রীমলিট জ্যাম হবে না)
-                    liveText.innerText = finalStr + interim;
-                };
-
-                recognition.onerror = function(event) {
-                    status.innerText = "ত্রুটি: " + event.error;
-                    document.getElementById('smartMicBtn').style.backgroundColor = '#3b82f6';
-                };
-
-                recognition.onend = function() {
-                    document.getElementById('smartMicBtn').style.backgroundColor = '#3b82f6';
-                    if(finalStr.trim() !== '') {
-                        status.innerText = "প্রসেস হচ্ছে...";
-                        // কথা বলা পুরোপুরি শেষ হলেই কেবল পাইথনে ডেটা পাঠানো হবে
-                        const url = new URL(window.parent.location.href);
-                        url.searchParams.set('smart_voice_cmd', finalStr.trim());
-                        window.parent.location.href = url.href;
-                    } else {
-                        status.innerText = "কিছু শোনা যায়নি।";
-                    }
-                };
-
-                recognition.start();
-            }
-            </script>
-            """
-            components.html(voice_assistant_html, height=85)
 
             current_logged_user = st.session_state["username"]
             sel_ag = st.selectbox(
@@ -1606,7 +1604,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 format_func=lambda x: agent_name_map.get(x, x)
             )
             
-            # কাজের ধরণের চেকবক্স সরিয়ে দেওয়া হয়েছে, শুধুমাত্র অ্যামাউন্ট বক্স থাকবে
             col_amt1, col_amt2 = st.columns(2)
             with col_amt1:
                 s_amount = st.text_input("Sale Amount (সেল টাকা)", value=st.session_state["voice_sale_amt_key"], placeholder="0")
@@ -1629,7 +1626,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     except ValueError:
                         d_val = 0.0
 
-                    # স্মার্ট টাস্ক টাইপ ডিটেকশন (অ্যামাউন্টের উপর ভিত্তি করে)
                     if s_val > 0 and d_val > 0:
                         t_type_str = "Delivery & Due (ডেলিভারি ও ডিউ)"
                     elif s_val > 0:
@@ -1637,7 +1633,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     elif d_val > 0:
                         t_type_str = "Due Collection (ডিউ কালেকশন)"
                     else:
-                        t_type_str = "Delivery (ডেলিভারি)" # Default
+                        t_type_str = "Delivery (ডেলিভারি)"
                         
                     final_s_amt = str(s_val) if s_val > 0 else "0"
                     final_d_amt = str(d_val) if d_val > 0 else "0"
@@ -1648,8 +1644,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     )
                     conn.commit()
                     
-                    # ক্লিয়ার স্টেট
-                    st.session_state["task_party_search_text_input_key"] = ""
+                    st.session_state["voice_party_val"] = ""
                     st.session_state["voice_sale_amt_key"] = ""
                     st.session_state["voice_due_amt_key"] = ""
                     
@@ -1728,7 +1723,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         with pen_tab_delivery:
             if not pending_tasks_df.empty:
-                # যে কোনো কাজে ডেলিভারি থাকলেই (দুটো থাকলেও) এখানে আসবে
                 deliv_df = pending_tasks_df[pending_tasks_df['task_type'].str.contains('Delivery|ডেলিভারি', na=False, case=False)]
                 render_agent_tasks(deliv_df, "deliv")
             else:
@@ -1736,7 +1730,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         with pen_tab_due:
             if not pending_tasks_df.empty:
-                # শুধুমাত্র ডিউ কালেকশন হলে এখানে আসবে (ডেলিভারি থাকলে আসবে না)
                 due_df = pending_tasks_df[
                     pending_tasks_df['task_type'].str.contains('Due|ডিউ|কালেকশন', na=False, case=False) & 
                     ~pending_tasks_df['task_type'].str.contains('Delivery|ডেলিভারি', na=False, case=False)
