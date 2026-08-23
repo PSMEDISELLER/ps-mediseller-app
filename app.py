@@ -1719,7 +1719,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         cleaned = re.sub(r'[\u0980-\u09FF]+', '', text)
                         cleaned = re.sub(r'\(\s*\)', '', cleaned).strip()
                         return cleaned if cleaned else text
-                        
+
                     export_comp_df = final_filtered_df.copy()
                     export_comp_df['Agent Name'] = export_comp_df['display_agent']
                     export_comp_df['Party Name'] = export_comp_df['party_name']
@@ -1729,36 +1729,37 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     export_comp_df['Task Remaining Due (Rs.)'] = export_comp_df['remaining_due']
                     export_comp_df['Master Total Due (Rs.)'] = export_comp_df['master_due']
                     export_comp_df['Completed Date'] = export_comp_df['created_at'].apply(lambda x: format_date_display(x))
-                
+                    
                     export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (Rs.)', 'Collection Amount (Rs.)', 'Task Remaining Due (Rs.)', 'Master Total Due (Rs.)', 'Completed Date']]
-                   
-                    # PDF-এর জন্য ডেটা পরিষ্কার করা হচ্ছে
+                    
+                    # ডেটা পরিষ্কার করা হচ্ছে
                     pdf_clean_df = export_comp_df_final.copy()
                     for col in pdf_clean_df.columns:
-                        pdf_clean_df[col] = pdf_clean_df[col].astype(str).apply(clean_text_for_pdf)
-                        
+                        pdf_clean_df[col] = pdf_clean_df[col].apply(clean_text_for_pdf)
+
+                    clean_agent_title = clean_text_for_pdf(selected_agent)
+                    
                     # HTML রিপোর্ট তৈরি
                     html_comp_tasks = generate_html_report(f"Completed Tasks - {selected_date} ({clean_agent_title})", pdf_clean_df)
-                
+                    
                     col_tc1, col_tc2 = st.columns(2)
                     with col_tc1:
-                        # HTML কে PDF-এ রূপান্তর
                         if pisa:
                             pdf_buffer = BytesIO()
                             pisa_status = pisa.CreatePDF(html_comp_tasks, dest=pdf_buffer)
-                        
+                            
                             if not pisa_status.err:
                                 pdf_bytes = pdf_buffer.getvalue()
                                 st.download_button(
                                     label="📥 Download PDF Report",
                                     data=pdf_bytes,
-                                    file_name=f"tasks_report_{selected_date}_{selected_agent_title}.pdf",
+                                    file_name=f"tasks_report_{selected_date}_{clean_agent_title}.pdf",
                                     mime="application/pdf",
                                     type="primary"
                                 )
                             else:
                                 st.error("PDF তৈরিতে সমস্যা হয়েছে।")
-                            
+                                
                     with col_tc2:
                         if st.button("🗑️ Clear Filtered Tasks History", type="secondary"):
                             for _, r in final_filtered_df.iterrows():
