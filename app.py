@@ -1964,7 +1964,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         if due_parties:
             selected_due_party = st.selectbox("Select Party:", due_parties, key="admin_due_update_party")
             c.execute("SELECT current_due FROM locations WHERE party_name=?", (selected_due_party,))
-            curr_d = c.f etchone()
+            curr_d = c.fetchone()
             curr_d_val = curr_d[0] if (curr_d and curr_d[0] is not None) else 0.0
         
             with st.form("update_due_form"):
