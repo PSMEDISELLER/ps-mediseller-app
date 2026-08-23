@@ -1797,8 +1797,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     else:
                         st.info("ডিলিট করার মতো কোনো মাসের ডেটা পাওয়া যায়নি।")
 
-    else:
-        st.info("No completed tasks history available yet. (কোনো সম্পন্ন কাজ নেই)")
         else:
             st.info("No completed tasks history found.")
 
