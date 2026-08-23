@@ -1651,8 +1651,20 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
     with task_tab3:
         st.markdown("#### ✅ Completed Tasks History (সম্পন্ন কাজ)")
+    
+        # PDF তৈরির জন্য প্রয়োজনীয় লাইব্রেরি ইম্পোর্ট
+        from io import BytesIO
+        try:
+            from xhtml2pdf import pisa
+        except ImportError:
+            st.error("⚠️ `xhtml2pdf` লাইব্রেরি পাওয়া যায়নি! দয়া করে requirements.txt ফাইলে `xhtml2pdf` যুক্ত করুন।")
+            pisa = None
+
+        # ডেটাবেস থেকে 'মাস্টার ডিউ' (l.current_due) সহ সমস্ত তথ্য নিয়ে আসা হচ্ছে
         completed_tasks_df = pd.read_sql_query("""
-            SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.remaining_due, t.created_at, l.address 
+            SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, 
+                   t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, 
+                   t.remaining_due, t.created_at, l.address, l.current_due as master_due
             FROM task_assignments t 
             LEFT JOIN users u ON t.agent_name = u.username 
             LEFT JOIN locations l ON t.party_name = l.party_name 
@@ -1661,49 +1673,132 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         """, conn)
 
         if not completed_tasks_df.empty:
-            if st.session_state["user_role"] == "admin":
-                export_comp_df = completed_tasks_df.copy()
-                export_comp_df['Agent Name'] = export_comp_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
-                export_comp_df['Party Name'] = export_comp_df['party_name']
-                export_comp_df['Task Type'] = export_comp_df['task_type']
-                export_comp_df['Due Amount (₹)'] = export_comp_df['due_amount']
-                export_comp_df['Sale Amount (₹)'] = export_comp_df['sale_amount']
-                export_comp_df['Collection Amount (₹)'] = export_comp_df['payment_collected_actual']
-                export_comp_df['Remaining Due (₹)'] = export_comp_df['remaining_due']
-                export_comp_df['Completed Date'] = export_comp_df['created_at'].apply(lambda x: format_date_display(x))
-                export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Remaining Due (₹)', 'Completed Date']]
-                html_comp_tasks = generate_html_report("Completed Tasks History", export_comp_df_final)
-                col_tc1, col_tc2 = st.columns(2)
-                with col_tc1:
-                    st.download_button(
-                        label="📥 Download Completed Tasks Report",
-                        data=html_comp_tasks,
-                        file_name="mediseller_completed_tasks_report.html",
-                        mime="text/html",
-                        type="primary"
-                    )
-                with col_tc2:
-                    if st.button("🗑️ Clear All Completed Tasks History", type="secondary"):
-                        for _, r in completed_tasks_df.iterrows():
-                            move_to_recycle_bin("Task", r['party_name'], dict(r))
-                        c.execute("DELETE FROM task_assignments WHERE status='Completed'")
-                        conn.commit()
-                        st.success("All completed tasks moved to Recycle Bin!")
-                        st.rerun()
-                st.write("---")
+            # তারিখ ফিল্টার করার জন্য Date ফরম্যাটে রূপান্তর
+            completed_tasks_df['created_datetime'] = pd.to_datetime(completed_tasks_df['created_at'], errors='coerce')
+            completed_tasks_df['created_date'] = completed_tasks_df['created_datetime'].dt.date
+            completed_tasks_df['month_year'] = completed_tasks_df['created_datetime'].dt.strftime('%B %Y') # মাস এবং বছর বের করা
+            completed_tasks_df['display_agent'] = completed_tasks_df['agent_fullname'].fillna(completed_tasks_df['agent_name'])
 
-            for idx, row in completed_tasks_df.iterrows():
-                ag_c_name = row['agent_fullname'] if pd.notna(row['agent_fullname']) and row['agent_fullname'] else row['agent_name']
-                st.markdown(f"**Agent:** `{ag_c_name}` | **Party:** `{row['party_name']}` | **Task:** `{row['task_type']}`")
-                st.markdown(f"Sale: `₹{row['sale_amount']}` | Collected: `₹{row['payment_collected_actual']}` | Remaining Due: `₹{row['remaining_due']}`")
+            st.markdown("##### 🔍 Filter Records (তারিখ ও এজেন্ট অনুযায়ী খুঁজুন)")
+            col_f1, col_f2 = st.columns(2)
+        
+            with col_f1:
+                min_date = completed_tasks_df['created_date'].min()
+                max_date = completed_tasks_df['created_date'].max()
+                selected_date = st.date_input("Select Date (তারিখ সিলেক্ট করুন)", value=max_date, min_value=min_date, max_value=max_date)
+
+            # প্রথমে তারিখ অনুযায়ী ডেটা ফিল্টার
+            date_filtered_df = completed_tasks_df[completed_tasks_df['created_date'] == selected_date]
+
+            with col_f2:
+                if not date_filtered_df.empty:
+                    agent_list = ["All Agents (সব এজেন্ট)"] + date_filtered_df['display_agent'].unique().tolist()
+                else:
+                    agent_list = ["All Agents (সব এজেন্ট)"]
+            
+                selected_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন)", agent_list)
+
+            # এজেন্ট অনুযায়ী চূড়ান্ত ফিল্টার
+            if selected_agent != "All Agents (সব এজেন্ট)":
+                final_filtered_df = date_filtered_df[date_filtered_df['display_agent'] == selected_agent]
+            else:
+                final_filtered_df = date_filtered_df
+
+            st.write("---")
+
+            if final_filtered_df.empty:
+                st.warning("⚠️ No completed tasks found for the selected date and agent. (এই তারিখে/এজেন্টের কোনো কাজ নেই)")
+            else:
                 if st.session_state["user_role"] == "admin":
-                    if st.button("🗑️ Delete Task Record", key=f"del_comp_task_{row['id']}"):
-                        move_to_recycle_bin("Task", row['party_name'], dict(row))
-                        c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
-                        conn.commit()
-                        st.success("Moved to Recycle Bin!")
-                        st.rerun()
-                st.write("---")
+                    export_comp_df = final_filtered_df.copy()
+                    export_comp_df['Agent Name'] = export_comp_df['display_agent']
+                    export_comp_df['Party Name'] = export_comp_df['party_name']
+                    export_comp_df['Task Type'] = export_comp_df['task_type']
+                    export_comp_df['Sale Amount (Rs.)'] = export_comp_df['sale_amount']
+                    export_comp_df['Collection Amount (Rs.)'] = export_comp_df['payment_collected_actual']
+                    export_comp_df['Task Remaining Due (Rs.)'] = export_comp_df['remaining_due']
+                    export_comp_df['Master Total Due (Rs.)'] = export_comp_df['master_due']
+                    export_comp_df['Completed Date'] = export_comp_df['created_at'].apply(lambda x: format_date_display(x))
+                
+                    export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (Rs.)', 'Collection Amount (Rs.)', 'Task Remaining Due (Rs.)', 'Master Total Due (Rs.)', 'Completed Date']]
+                
+                    # HTML রিপোর্ট তৈরি
+                    html_comp_tasks = generate_html_report(f"Completed Tasks - {selected_date} ({selected_agent})", export_comp_df_final)
+                
+                    col_tc1, col_tc2 = st.columns(2)
+                    with col_tc1:
+                        # HTML কে PDF-এ রূপান্তর
+                        if pisa:
+                            pdf_buffer = BytesIO()
+                            pisa_status = pisa.CreatePDF(html_comp_tasks, dest=pdf_buffer)
+                        
+                            if not pisa_status.err:
+                                pdf_bytes = pdf_buffer.getvalue()
+                                st.download_button(
+                                    label="📥 Download PDF Report",
+                                    data=pdf_bytes,
+                                    file_name=f"tasks_report_{selected_date}_{selected_agent}.pdf",
+                                    mime="application/pdf",
+                                    type="primary"
+                                )
+                            else:
+                                st.error("PDF তৈরিতে সমস্যা হয়েছে।")
+                            
+                    with col_tc2:
+                        if st.button("🗑️ Clear Filtered Tasks History", type="secondary"):
+                            for _, r in final_filtered_df.iterrows():
+                                move_to_recycle_bin("Task", r['party_name'], dict(r))
+                                c.execute("DELETE FROM task_assignments WHERE id=?", (r['id'],))
+                            conn.commit()
+                            st.success("Filtered tasks moved to Recycle Bin!")
+                            st.rerun()
+                    st.write("---")
+
+                # লিস্ট আকারে দেখানো
+                for idx, row in final_filtered_df.iterrows():
+                    ag_c_name = row['display_agent']
+                    st.markdown(f"**Agent:** `{ag_c_name}` | **Party:** `{row['party_name']}` | **Task:** `{row['task_type']}`")
+                
+                    master_due_text = f" | Master Due: `₹{row['master_due']}`" if pd.notna(row['master_due']) else ""
+                    st.markdown(f"Sale: `₹{row['sale_amount']}` | Collected: `₹{row['payment_collected_actual']}` | Task Due: `₹{row['remaining_due']}`{master_due_text}")
+                
+                    if st.session_state["user_role"] == "admin":
+                        if st.button("🗑️ Delete Task Record", key=f"del_comp_task_{row['id']}"):
+                            move_to_recycle_bin("Task", row['party_name'], dict(row))
+                            c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
+                            conn.commit()
+                            st.success("Moved to Recycle Bin!")
+                            st.rerun()
+                    st.write("---")
+        
+            # --- মাসিক ডেটা ডিলিট করার ম্যানুয়াল অপশন (শুধুমাত্র এডমিনের জন্য) ---
+            if st.session_state["user_role"] == "admin":
+                st.markdown("---")
+                with st.expander("⚠️ Monthly Bulk Delete (মাসিক ভিত্তিতে ডেটা মুছুন)"):
+                    st.warning("এখান থেকে কোনো মাসের ডেটা ডিলিট করলে সেটি সরাসরি রিসাইকেল বিনে চলে যাবে। আপনি নিজে নিচের বাটন না চাপা পর্যন্ত সিস্টেম নিজে থেকে কিছুই ডিলিট করবে না।")
+                
+                    # ডেটাবেস থেকে শুধু সেই মাসগুলো বের করা হচ্ছে যেগুলোতে কাজ সম্পন্ন হয়েছে
+                    unique_months = completed_tasks_df['month_year'].dropna().unique().tolist()
+                
+                    if unique_months:
+                        selected_month_to_delete = st.selectbox("Select Month to Delete (যে মাসের ডেটা মুছতে চান):", unique_months)
+                    
+                        if st.button(f"🗑️ Delete All Data for {selected_month_to_delete}", type="primary"):
+                            # ওই নির্দিষ্ট মাসের ডেটাগুলো ফিল্টার করা
+                            month_df_to_delete = completed_tasks_df[completed_tasks_df['month_year'] == selected_month_to_delete]
+                        
+                            for _, r in month_df_to_delete.iterrows():
+                                move_to_recycle_bin("Task", r['party_name'], dict(r))
+                                c.execute("DELETE FROM task_assignments WHERE id=?", (r['id'],))
+                            
+                            conn.commit()
+                            st.success(f"{selected_month_to_delete} মাসের সমস্ত ডেটা সফলভাবে ডিলিট হয়ে রিসাইকেল বিনে চলে গেছে!")
+                            st.rerun()
+                    else:
+                        st.info("ডিলিট করার মতো কোনো মাসের ডেটা পাওয়া যায়নি।")
+
+    else:
+        st.info("No completed tasks history available yet. (কোনো সম্পন্ন কাজ নেই)")
         else:
             st.info("No completed tasks history found.")
 
