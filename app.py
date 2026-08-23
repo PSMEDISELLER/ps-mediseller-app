@@ -1429,18 +1429,16 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         
-        # Search Box with Advanced Microphone UI Look
-        col_search, col_mic = st.columns([10, 1])
-        with col_search:
-            task_search_text = st.text_input(
-                "Search Party for Task", 
-                value=st.session_state.get("task_party_search_text_input_key", ""), 
-                placeholder="Type name, address... (Use mobile mic for voice search)", 
-                key="task_party_search_text_input_key", 
-                label_visibility="collapsed"
-            )
-        with col_mic:
-            st.markdown('<div style="font-size: 26px; text-align: center; color: #ef4444; padding-top: 2px;" title="Voice Search (Use Mobile Keyboard Mic)">🎙️</div>', unsafe_allow_html=True)
+        # Initialize search state if not present
+        if "task_party_search_text_input_key" not in st.session_state:
+            st.session_state["task_party_search_text_input_key"] = ""
+
+        task_search_text = st.text_input(
+            "Search Party for Task", 
+            key="task_party_search_text_input_key", 
+            placeholder="Type name, address or keyword...", 
+            label_visibility="collapsed"
+        )
 
         if task_search_text.strip():
             q_term = f"%{task_search_text.strip()}%"
@@ -1473,7 +1471,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         with st.form("easy_assign_form", clear_on_submit=True):
             st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
-            current_logged_user = st.session_state["username"]
+            current_logged_user = st.session_state.get("username", "")
             sel_ag = st.selectbox(
                 "Select Agent (এজেন্ট সিলেক্ট করুন)",
                 all_agents,
@@ -1481,22 +1479,22 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 format_func=lambda x: agent_name_map.get(x, x)
             )
             
-            # Eye-catching Delivery Checkbox
-            st.markdown("""
-                <div style="background-color: #e0f2fe; padding: 12px; border-radius: 8px; border-left: 5px solid #0284c7; margin-bottom: 15px;">
-                    <strong style="color: #0369a1; font-size: 16px;">📦 Delivery Task (ডেলিভারি)</strong><br>
-                    <span style="color: #475569; font-size: 13px;">পার্টির যদি কোনো নতুন বিল বা সেল থাকে, তাহলে নিচের বক্সে টিক দিন।</span>
-                </div>
-            """, unsafe_allow_html=True)
+            st.write("**Amount Details (টাকার পরিমাণ):**")
+            col_amt1, col_amt2 = st.columns(2)
             
-            chk_delivery = st.checkbox("✅ Yes, this is a Delivery (এটি ডেলিভারি টাস্ক)", key="chk_del_task")
-            
-            d_amount = st.text_input("Old Due Amount (পুরনো ডিউ)", value=auto_due_val)
+            with col_amt1:
+                # Removed New Bill text input, added clean tick option
+                st.markdown("<div style='padding-top: 35px;'></div>", unsafe_allow_html=True)
+                is_delivery = st.checkbox("✔️ Delivery (ডেলিভারি)", value=True)
+                
+            with col_amt2:
+                d_amount = st.text_input("Old Due Amount (পুরনো ডিউ)", value=auto_due_val)
 
-            submit_easy_task = st.form_submit_button("➕ Add Task (কাজ যোগ করুন)", type="primary")
+            # Normal button without primary highlight box
+            submit_easy_task = st.form_submit_button("✔️ Add Task (কাজ যোগ)")
             
             if submit_easy_task:
-                if not sel_pt.strip():
+                if not sel_pt or not sel_pt.strip():
                     st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
                 else:
                     try:
@@ -1504,25 +1502,22 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     except ValueError:
                         o_due = 0.0
 
-                    # Automatic Routing logic
-                    if chk_delivery:
-                        t_type_str = "Delivery (ডেলিভারি)"
-                        sale_str = "Pending" # Placeholder for delivery, actual sale entered by agent
-                    else:
-                        t_type_str = "Due Collection (ডিউ কালেকশন)"
-                        sale_str = "0"
+                    n_bill = 0.0 # Bill is now set to 0 by default
+                    t_type_str = "Delivery (ডেলিভারি)" if is_delivery else "Due Collection (ডিউ কালেকশন)"
 
                     c.execute(
                         "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (sel_ag, sel_pt.strip(), t_type_str, str(o_due), sale_str, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+                        (sel_ag, sel_pt.strip(), t_type_str, str(o_due), str(n_bill), "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
                     )
                     conn.commit()
                     
-                    # Clear Search fields automatically after submission
+                    # Force completely clear all fields
                     st.session_state["task_party_search_text_input_key"] = ""
                     if "task_floating_suggestions_radio" in st.session_state:
                         del st.session_state["task_floating_suggestions_radio"]
-                        
+                    if "task_select_party_box" in st.session_state:
+                        del st.session_state["task_select_party_box"]
+                    
                     st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
                     st.rerun()
 
@@ -1553,34 +1548,33 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         ag_rows = del_df[del_df['agent_name'] == ag_username]
                         ag_disp_name = ag_rows.iloc[0]['agent_fullname'] if pd.notna(ag_rows.iloc[0]['agent_fullname']) else ag_username
                         
-                        with st.expander(f"👤 {ag_disp_name} ( {len(ag_rows)} Delivery Tasks )", expanded=False):
+                        with st.expander(f"👤 Agent: {ag_disp_name} ({len(ag_rows)} Delivery Tasks)", expanded=False):
                             for idx, row in ag_rows.iterrows():
                                 o_due = float(row['due_amount']) if pd.notna(row['due_amount']) and str(row['due_amount']).strip() else 0.0
+                                s_amt = float(row['sale_amount']) if 'sale_amount' in row and pd.notna(row['sale_amount']) and str(row['sale_amount']).strip() else 0.0
+                                master_due = o_due + s_amt
                                 
-                                # Beautiful Card UI for Task
+                                # Advanced clean formatting without markdown highlights
                                 st.markdown(f"""
-                                <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px; border-radius: 6px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                                        <span style="font-weight: bold; font-size: 15px; color: #1e293b;">🏢 {row['party_name']}</span>
-                                        <span style="background-color: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">📦 {row['task_type']}</span>
+                                    <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
+                                        <span style='font-size: 14px; color: #555;'><b>Party:</b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;|&nbsp; 
+                                        <span style='font-size: 14px; color: #555;'><b>Task:</b></span> <span style='font-size: 14px; color: #000;'>{row['task_type']}</span><br>
+                                        <span style='font-size: 14px; color: #555;'><b>বর্তমান বিল / পুরনো ডিউ (Master Due):</b></span> <span style='font-size: 15px; font-weight: bold; color: #d90429;'>₹{master_due}</span>
                                     </div>
-                                    <div style="font-size: 14px; color: #475569; margin-bottom: 4px;">
-                                        <strong>💰 Old Due (পুরনো ডিউ):</strong> ₹{o_due}
-                                    </div>
-                                    <div style="font-size: 12px; color: #64748b;">
-                                        📍 {row['address'] if pd.notna(row['address']) else 'No address'} {(' | 📞 ' + str(row['party_phone'])) if pd.notna(row['party_phone']) else ''}
-                                    </div>
-                                </div>
                                 """, unsafe_allow_html=True)
+                                
+                                if pd.notna(row['address']) and row['address']:
+                                    ph_str = f" | 📞 Ph: {row['party_phone']}" if pd.notna(row['party_phone']) else ""
+                                    st.markdown(f"<div style='font-size: 13px; color: #666; margin-bottom: 12px;'>📍 {row['address']}{ph_str}</div>", unsafe_allow_html=True)
 
                                 with st.form(key=f"complete_task_form_del_{row['id']}", clear_on_submit=True):
                                     col_f1, col_f2 = st.columns(2)
                                     with col_f1:
-                                        sale_input = st.text_input("Sale Amount (কত টাকার সেল)", value="0", key=f"sale_amt_{row['id']}")
+                                        sale_input = st.text_input("Sale Amount (কত টাকা সেল)", value=str(s_amt), key=f"sale_amt_{row['id']}")
                                     with col_f2:
-                                        payment_input = st.text_input("Payment Collected (কত টাকা পেমেন্ট)", value=str(o_due), key=f"pay_amt_del_{row['id']}")
+                                        payment_input = st.text_input("Payment Collected (কত টাকা পেমেন্ট)", value=str(master_due), key=f"pay_amt_del_{row['id']}")
                                         
-                                    submit_complete = st.form_submit_button("✓ Complete Task (সম্পন্ন করুন)", type="primary")
+                                    submit_complete = st.form_submit_button("✓ Complete Task (সম্পন্ন)", type="primary")
                                     if submit_complete:
                                         try:
                                             final_sale = float(sale_input) if sale_input.strip() else 0.0
@@ -1600,12 +1594,13 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                         st.rerun()
 
                                 if st.session_state["user_role"] == "admin":
-                                    if st.button("🗑️ Delete Task", key=f"del_pend_task_del_{row['id']}"):
+                                    if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_pend_task_del_{row['id']}"):
                                         move_to_recycle_bin("Task", row['party_name'], dict(row))
                                         c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
                                         conn.commit()
+                                        st.success("Task moved to Recycle Bin!")
                                         st.rerun()
-                                st.write("-")
+                                st.write("---")
 
             # --- DUE COLLECTION TAB ---
             with tab_due:
@@ -1616,30 +1611,27 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         ag_rows = due_df[due_df['agent_name'] == ag_username]
                         ag_disp_name = ag_rows.iloc[0]['agent_fullname'] if pd.notna(ag_rows.iloc[0]['agent_fullname']) else ag_username
                         
-                        with st.expander(f"👤 {ag_disp_name} ( {len(ag_rows)} Due Collection Tasks )", expanded=False):
+                        with st.expander(f"👤 Agent: {ag_disp_name} ({len(ag_rows)} Due Collection Tasks)", expanded=False):
                             for idx, row in ag_rows.iterrows():
                                 o_due = float(row['due_amount']) if pd.notna(row['due_amount']) and str(row['due_amount']).strip() else 0.0
                                 
-                                # Beautiful Card UI for Task
+                                # Advanced clean formatting without markdown highlights
                                 st.markdown(f"""
-                                <div style="background-color: #fdfbf7; border-left: 4px solid #f59e0b; padding: 12px; border-radius: 6px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                                        <span style="font-weight: bold; font-size: 15px; color: #1e293b;">🏢 {row['party_name']}</span>
-                                        <span style="background-color: #fef3c7; color: #b45309; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">💰 {row['task_type']}</span>
+                                    <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
+                                        <span style='font-size: 14px; color: #555;'><b>Party:</b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;|&nbsp; 
+                                        <span style='font-size: 14px; color: #555;'><b>Task:</b></span> <span style='font-size: 14px; color: #000;'>{row['task_type']}</span><br>
+                                        <span style='font-size: 14px; color: #555;'><b>Total Due (মোট ডিউ):</b></span> <span style='font-size: 15px; font-weight: bold; color: #d90429;'>₹{o_due}</span>
                                     </div>
-                                    <div style="font-size: 14px; color: #475569; margin-bottom: 4px;">
-                                        <strong>💰 Total Due (মোট ডিউ):</strong> ₹{o_due}
-                                    </div>
-                                    <div style="font-size: 12px; color: #64748b;">
-                                        📍 {row['address'] if pd.notna(row['address']) else 'No address'} {(' | 📞 ' + str(row['party_phone'])) if pd.notna(row['party_phone']) else ''}
-                                    </div>
-                                </div>
                                 """, unsafe_allow_html=True)
+                                
+                                if pd.notna(row['address']) and row['address']:
+                                    ph_str = f" | 📞 Ph: {row['party_phone']}" if pd.notna(row['party_phone']) else ""
+                                    st.markdown(f"<div style='font-size: 13px; color: #666; margin-bottom: 12px;'>📍 {row['address']}{ph_str}</div>", unsafe_allow_html=True)
 
                                 with st.form(key=f"complete_task_form_due_{row['id']}", clear_on_submit=True):
                                     payment_input = st.text_input("Payment Collected (কত টাকা পেমেন্ট)", value=str(o_due), key=f"pay_amt_due_{row['id']}")
                                     
-                                    submit_complete = st.form_submit_button("✓ Complete Task (সম্পন্ন করুন)", type="primary")
+                                    submit_complete = st.form_submit_button("✓ Complete Task (সম্পন্ন)", type="primary")
                                     if submit_complete:
                                         try:
                                             p_amt = float(payment_input) if payment_input.strip() else 0.0
@@ -1658,12 +1650,13 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                         st.rerun()
 
                                 if st.session_state["user_role"] == "admin":
-                                    if st.button("🗑️ Delete Task", key=f"del_pend_task_due_{row['id']}"):
+                                    if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_pend_task_due_{row['id']}"):
                                         move_to_recycle_bin("Task", row['party_name'], dict(row))
                                         c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
                                         conn.commit()
+                                        st.success("Task moved to Recycle Bin!")
                                         st.rerun()
-                                st.write("-")
+                                st.write("---")
     with task_tab2:
         st.markdown("#### 📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
         agent_sum_df = pd.read_sql_query("""
