@@ -1429,7 +1429,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         import streamlit.components.v1 as components
 
-        # --- Voice Injector for Search & Amount Inputs ---
+        # --- Enhanced Voice Injector Script ---
         voice_injector_html = r"""
         <script>
         function setReactInputValue(input, value) {
@@ -1444,7 +1444,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             inputs.forEach(input => {
                 let labelText = input.getAttribute('aria-label') || '';
                 let isPartySearch = labelText.includes('Party Search') || input.placeholder?.includes('Type or speak') || input.placeholder?.includes('Type name');
-                let isAmountInput = labelText.includes('টাকা') || labelText.includes('পেমেন্ট') || labelText.includes('Sale') || labelText.includes('Due');
+                let isAmountInput = labelText.includes('টাকা') || labelText.includes('পেমেন্ট') || labelText.includes('Sale');
 
                 if ((isPartySearch || isAmountInput) && !input.parentElement.querySelector('.smart-mic')) {
                     input.parentElement.style.position = 'relative';
@@ -1466,18 +1466,13 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     btn.onclick = function(e) {
                         e.preventDefault();
                         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                            alert("Speech recognition not supported.");
+                            alert("Speech recognition not supported in this browser.");
                             return;
                         }
                         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                         const recognition = new SpeechRecognition();
                         
-                        if (isPartySearch) {
-                            recognition.lang = 'en-US'; // পার্টির নামের জন্য ইংরেজি
-                        } else {
-                            recognition.lang = 'en-IN'; // টাকার অংকের জন্য
-                        }
-                        
+                        recognition.lang = 'en-IN'; // উন্নত এবং নির্ভুল ভয়েস কমান্ডের জন্য
                         recognition.interimResults = true;
 
                         recognition.onstart = function() {
@@ -1525,7 +1520,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         # --- UI Starts ---
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         
-        # ১. শুরুতে শুধুমাত্র এই সার্চ বক্সটিই দেখাবে (কোনো পার্টির লিস্ট দেখাবে না)
+        # সার্চ বক্স ও ড্রপডাউন সিস্টেম
         search_query = st.text_input(
             "Party Search", 
             value="", 
@@ -1534,24 +1529,23 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             label_visibility="collapsed"
         )
         
-        sel_pt = ""
-        # ২. ইউজার যখন সার্চ বা ভয়েস ইনপুট দেবে, শুধুমাত্র তখনই ম্যাচিং পার্টিগুলোর ড্রপডাউন আসবে
         if search_query and search_query.strip():
             q_term = f"%{search_query.strip()}%"
             c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
             filtered_parties = [r[0] for r in c.fetchall()]
-            
-            if filtered_parties:
-                sel_pt = st.selectbox(
-                    "Select Party Result", 
-                    options=filtered_parties,
-                    key="task_select_party_box",
-                    label_visibility="collapsed"
-                )
-            else:
-                st.warning("কোনো পার্টি পাওয়া যায়নি! (No party found!)")
         else:
-            st.info("💡 ওপরে পার্টির নাম লিখে বা ভয়েসে সার্চ করুন।")
+            filtered_parties = all_parties
+
+        if filtered_parties:
+            sel_pt = st.selectbox(
+                "Select Party from list", 
+                options=filtered_parties,
+                key="task_select_party_box",
+                label_visibility="collapsed"
+            )
+        else:
+            st.warning("কোনো পার্টি পাওয়া যায়নি! (No party found!)")
+            sel_pt = ""
 
         # Auto Due Fetching
         auto_due_val = ""
@@ -1576,7 +1570,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             with col_amt1:
                 s_amount = st.text_input("Sale Amount (সেল টাকা)", value="", placeholder="0")
             with col_amt2:
-                d_amount = st.text_input("Due Amount (ডিউ টাকা)", value=auto_due_val, placeholder="0")
+                # ডিউ এমাউন্ট ফিল্ডটি শুধুমাত্র শো করার জন্য (টাইপিং বা ভয়েস মুক্ত)
+                d_amount = st.text_input("Due Amount (ডিউ টাকা)", value=auto_due_val, disabled=True, placeholder="0")
 
             submit_easy_task = st.form_submit_button("➕ Add Task (কাজ যোগ)", type="primary")
             
@@ -1646,12 +1641,16 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         c.execute("SELECT current_due FROM locations WHERE party_name=?", (row['party_name'],))
                         master_due_res = c.fetchone()
                         master_due_val = master_due_res[0] if master_due_res and master_due_res[0] is not None else 0.0
-                        master_due_disp = int(master_due_val) if float(master_due_val).is_integer() else master_due_val
+                        
+                        # মাস্টার ডিউ এবং নতুন বিলের এমাউন্ট একসাথে ক্যালকুলেশন
+                        task_sale_val = float(row['sale_amount']) if pd.notna(row['sale_amount']) else 0.0
+                        total_effective_due = float(master_due_val) + task_sale_val
+                        total_due_disp = int(total_effective_due) if float(total_effective_due).is_integer() else total_effective_due
 
                         prefilled_sale = str(row['sale_amount']) if pd.notna(row['sale_amount']) and float(row['sale_amount']) > 0 else ""
 
                         with st.form(key=f"complete_task_form_{tab_prefix}_{row['id']}", clear_on_submit=True):
-                            st.info(f"💰 **Master Current Due: ₹{master_due_disp}**")
+                            st.info(f"💰 **Master Total Due (Old Due + New Bill): ₹{total_due_disp}**")
                             
                             col_f1, col_f2 = st.columns(2)
                             with col_f1:
@@ -1664,9 +1663,9 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 try:
                                     s_amt = float(sale_input) if sale_input.strip() else 0.0
                                     p_amt = float(payment_input) if payment_input.strip() else 0.0
-                                    r_due = float(master_due_val) + s_amt - p_amt
+                                    r_due = total_effective_due - p_amt
                                 except ValueError:
-                                    r_due = float(master_due_val)
+                                    r_due = total_effective_due
                                 c.execute(
                                     "UPDATE task_assignments SET status='Completed', sale_amount=?, payment_collected_actual=?, remaining_due=? WHERE id=?",
                                     (str(s_amt), str(p_amt), str(r_due), row['id'])
