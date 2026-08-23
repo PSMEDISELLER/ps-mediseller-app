@@ -1395,25 +1395,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         "✅ Completed Tasks History (সম্পন্ন কাজ)",
         "💰 Master Due List (ডিউ লিস্ট)"
     ])
-
-    st.markdown('<div class="main-title">Delivery & Due Plan (ডেলিভারি ও ডিউ প্ল্যান)</div>', unsafe_allow_html=True)
-    c.execute("SELECT username, fullname FROM users")
-    users_data = c.fetchall()
-    all_agents = [r[0] for r in users_data]
-    agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in users_data}
-
-    c.execute("SELECT party_name, lat, lon FROM locations ORDER BY party_name ASC")
-    loc_data = c.fetchall()
-    party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
-    all_parties = [r[0] for r in loc_data]
-
-    task_tab1, task_tab2, task_tab3, task_tab4 = st.tabs([
-        "🚀 Active Tasks (চলমান কাজ)",
-        "📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
-        "✅ Completed Tasks History (সম্পন্ন কাজ)",
-        "💰 Master Due List (ডিউ লিস্ট)"
-    ])
-
     with task_tab1:
         if st.session_state["user_role"] == "admin":
             full_tasks_df = pd.read_sql_query("""
