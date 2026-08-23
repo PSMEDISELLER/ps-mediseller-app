@@ -1925,37 +1925,77 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         else:
             st.info("No completed tasks history found.")
 
-    with task_tab4:
-        st.write("#### 💰 Master Due List & Management (পার্টি ডিউ ম্যানেজমেন্ট)")
-        col_md1, col_md2 = st.columns([1, 2])
-        with col_md1:
-            st.write("##### Update Due (ডিউ আপডেট)")
-            due_parties = [p for p in all_parties]
-            if due_parties:
-                selected_due_party = st.selectbox("Select Party:", due_parties, key="admin_due_update_party")
-                c.execute("SELECT current_due FROM locations WHERE party_name=?", (selected_due_party,))
-                curr_d = c.fetchone()
-                curr_d_val = curr_d[0] if (curr_d and curr_d[0] is not None) else 0.0
-                with st.form("update_due_form"):
-                    new_due_val = st.text_input("Current Due Amount (বর্তমান ডিউ)", str(curr_d_val))
-                    if st.form_submit_button("Update Due", type="primary"):
-                        try:
-                            nd_val = float(new_due_val)
-                        except ValueError:
-                            nd_val = 0.0
-                        c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (nd_val, selected_due_party))
-                        conn.commit()
-                        st.success("Due updated successfully! (ডিউ আপডেট হয়েছে!)")
-                        st.rerun()
-            else:
-                st.info("No parties available.")
-        with col_md2:
-            st.write("##### Parties with Pending Due (বাকি ডিউ তালিকা)")
-            due_df = pd.read_sql_query("SELECT party_name AS 'Party Name', current_due AS 'Due Amount (₹)', party_phone AS 'Phone' FROM locations WHERE current_due > 0 ORDER BY current_due DESC", conn)
-            if not due_df.empty:
-                st.dataframe(due_df, use_container_width=True)
-            else:
-                st.success("No parties have any pending dues! (কারো ডিউ বাকি নেই!)")
+    st.write("#### 💰 Master Due List & Management (পার্টি ডিউ ম্যানেজমেন্ট)")
+
+# --- 1. Party Search & Month Filter Section ---
+col_f1, col_f2 = st.columns(2)
+with col_f1:
+    if "master_due_search_key" not in st.session_state:
+        st.session_state["master_due_search_key"] = ""
+    party_search_query = st.text_input("🔍 Search Party (পার্টি সার্চ করুন)", placeholder="Type party name...", key="master_due_search_input")
+
+with col_f2:
+    # মাসের তালিকা বা বর্তমান মাস সিলেক্ট করার জন্য
+    import datetime
+    current_year_month = datetime.datetime.now().strftime("%Y-%m")
+    selected_month = st.selectbox("📅 Select Month (মাস সিলেক্ট করুন)", [current_year_month, "All Months (সব মাস)"], key="master_due_month_select")
+
+st.write("---")
+
+col_md1, col_md2 = st.columns([1, 2])
+with col_md1:
+    st.write("##### Update Due (ডিউ আপডেট)")
+    
+    # ফিল্টার করা পার্টির তালিকা তৈরি
+    if party_search_query.strip():
+        q_term = f"%{party_search_query.strip()}%"
+        c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (q_term,))
+        due_parties = [r[0] for r in c.fetchall()]
+    else:
+        due_parties = [p for p in all_parties]
+
+    if due_parties:
+        selected_due_party = st.selectbox("Select Party:", due_parties, key="admin_due_update_party")
+        c.execute("SELECT current_due FROM locations WHERE party_name=?", (selected_due_party,))
+        curr_d = c.fetchone()
+        curr_d_val = curr_d[0] if (curr_d and curr_d[0] is not None) else 0.0
+        
+        with st.form("update_due_form"):
+            new_due_val = st.text_input("Current Due Amount (বর্তমান ডিউ)", str(curr_d_val))
+            if st.form_submit_button("Update Due", type="primary"):
+                try:
+                    nd_val = float(new_due_val)
+                except ValueError:
+                    nd_val = 0.0
+                c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (nd_val, selected_due_party))
+                conn.commit()
+                st.success("Due updated successfully! (ডিউ আপডেট হয়েছে!)")
+                st.rerun()
+    else:
+        st.info("No parties found matching your search. (কোনো পার্টি পাওয়া যায়নি)")
+
+with col_md2:
+    st.write("##### Due Summary & Records (ডিউ তালিকা)")
+    # আপনি যদি এখানে সিলেক্টিভ মাসের কোনো রিপোর্ট বা টেবিল দেখাতে চান, তবে নিচের কুয়েরি ব্যবহার করতে পারেন:
+    if selected_month != "All Months (সব মাস)":
+        # উদাহরণস্বরূপ মাসভিত্তিক ডেটা ফিল্টার করার লজিক (যদি টেবিলে তারিখ থাকে)
+        st.info(f"Showing records for: {selected_month}")
+    else:
+        st.info("Showing all time records.")
+    
+    # এখানে পার্টির বর্তমান ডিউ লিস্ট বা টেবিল দেখাতে পারেন
+    if party_search_query.strip():
+        c.execute("SELECT party_name, current_due FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{party_search_query.strip()}%",))
+    else:
+        c.execute("SELECT party_name, current_due FROM locations ORDER BY party_name ASC LIMIT 10")
+    
+    parties_due_data = c.fetchall()
+    if parties_due_data:
+        import pandas as pd
+        df_due_show = pd.DataFrame(parties_due_data, columns=["Party Name", "Current Due (₹)"])
+        st.dataframe(df_due_show, use_container_width=True, hide_index=True)
+    else:
+        st.warning("No data available.")
 
 elif selected_menu == "Route Map (রুট ম্যাপ)":
     st.write("### Route Map & Locations (রুট ম্যাপ)")
