@@ -1396,7 +1396,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         "💰 Master Due List (ডিউ লিস্ট)"
     ])
 
-    with task_tab1:  
+    with task_tab1:
         if st.session_state["user_role"] == "admin":
             full_tasks_df = pd.read_sql_query("""
                 SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address 
@@ -1427,137 +1427,32 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 )
                 st.write("---")
 
-        import streamlit.components.v1 as components
-
-        # --- Enhanced Voice Injector Script ---
-        voice_injector_html = r"""
-        <script>
-        function setReactInputValue(input, value) {
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-            nativeInputValueSetter.call(input, value);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
-        function injectMics() {
-            const inputs = window.parent.document.querySelectorAll('input');
-            inputs.forEach(input => {
-                let labelText = input.getAttribute('aria-label') || '';
-                let isPartySearch = labelText.includes('Party Search') || input.placeholder?.includes('Type or speak') || input.placeholder?.includes('Type name');
-                let isAmountInput = labelText.includes('টাকা') || labelText.includes('পেমেন্ট') || labelText.includes('Sale');
-
-                if ((isPartySearch || isAmountInput) && !input.parentElement.querySelector('.smart-mic')) {
-                    input.parentElement.style.position = 'relative';
-                    
-                    let btn = window.parent.document.createElement('div');
-                    btn.innerHTML = '🎙️';
-                    btn.className = 'smart-mic';
-                    btn.style.position = 'absolute';
-                    btn.style.right = '10px';
-                    btn.style.top = '50%';
-                    btn.style.transform = 'translateY(-50%)';
-                    btn.style.cursor = 'pointer';
-                    btn.style.fontSize = '18px';
-                    btn.style.zIndex = '100';
-                    btn.title = 'Speak to type';
-                    
-                    input.parentElement.appendChild(btn);
-
-                    btn.onclick = function(e) {
-                        e.preventDefault();
-                        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                            alert("Speech recognition not supported in this browser.");
-                            return;
-                        }
-                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                        const recognition = new SpeechRecognition();
-                        
-                        recognition.lang = 'en-IN'; // উন্নত এবং নির্ভুল ভয়েস কমান্ডের জন্য
-                        recognition.interimResults = true;
-
-                        recognition.onstart = function() {
-                            btn.innerHTML = '🔴';
-                            input.focus();
-                        };
-
-                        recognition.onresult = function(event) {
-                            let finalStr = '';
-                            for (let i = 0; i < event.results.length; ++i) {
-                                finalStr += event.results[i][0].transcript;
-                            }
-                            
-                            if (isAmountInput) {
-                                let match = finalStr.match(/\d+/);
-                                if (match) {
-                                    setReactInputValue(input, match[0]);
-                                } else {
-                                    setReactInputValue(input, finalStr.replace(/[^0-9]/g, ''));
-                                }
-                            } else {
-                                setReactInputValue(input, finalStr.trim());
-                            }
-                        };
-
-                        recognition.onend = function() {
-                            btn.innerHTML = '🎙️';
-                        };
-
-                        recognition.onerror = function(event) {
-                            btn.innerHTML = '⚠️';
-                            setTimeout(() => btn.innerHTML = '🎙️', 2000);
-                        };
-
-                        recognition.start();
-                    }
-                }
-            });
-        }
-        setInterval(injectMics, 1000);
-        </script>
-        """
-        components.html(voice_injector_html, height=0, width=0)
+        # --- State Initialization ---
+        if "chk_delivery_key" not in st.session_state:
+            st.session_state["chk_delivery_key"] = False
+        if "chk_due_key" not in st.session_state:
+            st.session_state["chk_due_key"] = False
 
         # --- UI Starts ---
-        st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
+        st.write("🔍 **Search & Select Party (পার্টি সার্চ করে সিলেক্ট করুন):**")
         
-        # সার্চ বক্স ও ড্রপডাউন সিস্টেম
-        search_query = st.text_input(
-            "Party Search", 
-            value="", 
-            placeholder="Type or speak party name...", 
-            key="party_search_text_box",
-            label_visibility="collapsed"
-        )
-        
-        if search_query and search_query.strip():
-            q_term = f"%{search_query.strip()}%"
-            c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
-            filtered_parties = [r[0] for r in c.fetchall()]
-        else:
-            filtered_parties = all_parties
+        # Streamlit-এর Selectbox ডিফল্টভাবেই Searchable। ক্লিক করে টাইপ করলেই পার্টি ফিল্টার হয়ে যাবে।
+        party_options = [""] + all_parties
+        sel_pt = st.selectbox("Select Party (ড্রপডাউনে ক্লিক করে নাম লিখুন)", party_options, label_visibility="collapsed")
 
-        if filtered_parties:
-            sel_pt = st.selectbox(
-                "Select Party from list", 
-                options=filtered_parties,
-                key="task_select_party_box",
-                label_visibility="collapsed"
-            )
-        else:
-            st.warning("কোনো পার্টি পাওয়া যায়নি! (No party found!)")
-            sel_pt = ""
-
-        # Auto Due Fetching
-        auto_due_val = ""
+        # অটোমেটিক ডিউ ফেচ করা (টাইপ করার কোনো ইনপুট নেই, শুধু ডিসপ্লে হবে)
+        current_party_due = 0.0
         if sel_pt and sel_pt.strip():
             c.execute("SELECT current_due FROM locations WHERE party_name=?", (sel_pt.strip(),))
             res_due = c.fetchone()
             if res_due and res_due[0] is not None:
-                auto_due_val = str(int(res_due[0]) if float(res_due[0]).is_integer() else res_due[0])
+                current_party_due = float(res_due[0])
+        
+        current_due_disp = int(current_party_due) if current_party_due.is_integer() else current_party_due
 
         with st.form("easy_assign_form", clear_on_submit=True):
             st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
-
+            
             current_logged_user = st.session_state["username"]
             sel_ag = st.selectbox(
                 "Select Agent (এজেন্ট সিলেক্ট করুন)",
@@ -1566,49 +1461,48 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 format_func=lambda x: agent_name_map.get(x, x)
             )
             
+            st.write("**Work Type (কাজের ধরণ):**")
+            col_chk1, col_chk2 = st.columns(2)
+            with col_chk1:
+                chk_delivery = st.checkbox("📦 Delivery (ডেলিভারি)", key="chk_delivery_key")
+            with col_chk2:
+                chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)", key="chk_due_key")
+
+            # --- Sale Input & Due Display ---
             col_amt1, col_amt2 = st.columns(2)
             with col_amt1:
-                s_amount = st.text_input("Sale Amount (সেল টাকা)", value="", placeholder="0")
+                s_amount = st.text_input("Sale Amount (নতুন বিলের টাকা)", placeholder="উদাহরণ: 1500")
             with col_amt2:
-                # ডিউ এমাউন্ট ফিল্ডটি শুধুমাত্র শো করার জন্য (টাইপিং বা ভয়েস মুক্ত)
-                d_amount = st.text_input("Due Amount (ডিউ টাকা)", value=auto_due_val, disabled=True, placeholder="0")
+                # এখানে শুধু ডিউ দেখানো হবে, কোনো টেক্সট ইনপুট নেই
+                st.info(f"⏳ **Previous Due (পুরনো ডিউ): ₹{current_due_disp}**")
 
             submit_easy_task = st.form_submit_button("➕ Add Task (কাজ যোগ)", type="primary")
             
             if submit_easy_task:
-                if not sel_pt or not sel_pt.strip():
+                if not sel_pt.strip():
                     st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
                 else:
-                    try:
-                        s_val = float(s_amount) if s_amount.strip() else 0.0
-                    except ValueError:
-                        s_val = 0.0
+                    selected_tasks = []
+                    if chk_delivery:
+                        selected_tasks.append("Delivery (ডেলিভারি)")
+                    if chk_due:
+                        selected_tasks.append("Due Collection (ডিউ কালেকশন)")
                         
-                    try:
-                        d_val = float(d_amount) if d_amount.strip() else 0.0
-                    except ValueError:
-                        d_val = 0.0
-
-                    if s_val > 0 and d_val > 0:
-                        t_type_str = "Delivery & Due (ডেলিভারি ও ডিউ)"
-                    elif s_val > 0:
-                        t_type_str = "Delivery (ডেলিভারি)"
-                    elif d_val > 0:
-                        t_type_str = "Due Collection (ডিউ কালেকশন)"
+                    if selected_tasks:
+                        t_type_str = " & ".join(selected_tasks)
+                        final_s_amt = s_amount if s_amount.strip() else "0"
+                        final_d_amt = str(current_party_due)  # অটোমেটিক ডিউ সেভ হয়ে যাবে
+                        
+                        c.execute(
+                            "INSERT INTO task_assignments (agent_name, party_name, task_type, sale_amount, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (sel_ag, sel_pt.strip(), t_type_str, final_s_amt, final_d_amt, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+                        )
+                        conn.commit()
+                        
+                        st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
+                        st.rerun()
                     else:
-                        t_type_str = "Delivery (ডেলিভারি)"
-                        
-                    final_s_amt = str(s_val) if s_val > 0 else "0"
-                    final_d_amt = str(d_val) if d_val > 0 else "0"
-                    
-                    c.execute(
-                        "INSERT INTO task_assignments (agent_name, party_name, task_type, sale_amount, due_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (sel_ag, sel_pt.strip(), t_type_str, final_s_amt, final_d_amt, "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
-                    )
-                    conn.commit()
-                    
-                    st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
-                    st.rerun()
+                        st.error("Please select at least one task type (Delivery or Due Collection).")
 
         st.write("---")
         st.write("#### Active Pending Tasks (কর্মচারী অনুযায়ী কাজ)")
@@ -1616,7 +1510,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         pen_tab_delivery, pen_tab_due = st.tabs(["📦 Delivery Tasks (ডেলিভারি)", "💰 Due Collection (ডিউ)"])
         
         pending_tasks_df = pd.read_sql_query("""
-            SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.sale_amount, t.due_amount, t.created_at, l.address, l.party_phone 
+            SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.created_at, l.address, l.party_phone 
             FROM task_assignments t 
             LEFT JOIN users u ON t.agent_name = u.username 
             LEFT JOIN locations l ON t.party_name = l.party_name 
@@ -1624,7 +1518,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             ORDER BY t.created_at DESC
         """, conn)
 
-        def render_agent_tasks(df_subset, tab_prefix):
+        def render_agent_tasks(df_subset, tab_prefix, hide_sale=False):
             if df_subset.empty:
                 st.info("No pending tasks in this section. (এই বিভাগে কোনো কাজ বাকি নেই)")
                 return
@@ -1632,40 +1526,70 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             for ag_username in unique_agents_in_tasks:
                 ag_rows = df_subset[df_subset['agent_name'] == ag_username]
                 ag_disp_name = ag_rows.iloc[0]['agent_fullname'] if pd.notna(ag_rows.iloc[0]['agent_fullname']) else ag_username
+                
                 with st.expander(f"👤 {ag_disp_name} ({len(ag_rows)} Tasks) - Click to Open", expanded=False):
                     for idx, row in ag_rows.iterrows():
                         st.markdown(f"**Party:** `{row['party_name']}` | **Task:** `{row['task_type']}`")
                         if pd.notna(row['address']) and row['address']:
                             st.markdown(f"📍 Address: {row['address']} {(' | Ph: ' + str(row['party_phone'])) if pd.notna(row['party_phone']) else ''}")
 
+                        # পার্টি টেবিল থেকে Master Due (পুরনো ডিউ) ফেচ করা
                         c.execute("SELECT current_due FROM locations WHERE party_name=?", (row['party_name'],))
                         master_due_res = c.fetchone()
-                        master_due_val = master_due_res[0] if master_due_res and master_due_res[0] is not None else 0.0
+                        master_due_val = float(master_due_res[0]) if master_due_res and master_due_res[0] is not None else 0.0
+                        master_due_disp = int(master_due_val) if master_due_val.is_integer() else master_due_val
                         
-                        # মাস্টার ডিউ এবং নতুন বিলের এমাউন্ট একসাথে ক্যালকুলেশন
-                        task_sale_val = float(row['sale_amount']) if pd.notna(row['sale_amount']) else 0.0
-                        total_effective_due = float(master_due_val) + task_sale_val
-                        total_due_disp = int(total_effective_due) if float(total_effective_due).is_integer() else total_effective_due
-
-                        prefilled_sale = str(row['sale_amount']) if pd.notna(row['sale_amount']) and float(row['sale_amount']) > 0 else ""
+                        # নতুন বিলের অ্যামাউন্ট (Task Assign-এর সময় যেটা দেওয়া হয়েছিল)
+                        task_sale_str = row['sale_amount'] if pd.notna(row['sale_amount']) and row['sale_amount'] else "0"
+                        try:
+                            assigned_sale = float(task_sale_str)
+                        except ValueError:
+                            assigned_sale = 0.0
+                        assigned_sale_disp = int(assigned_sale) if assigned_sale.is_integer() else assigned_sale
+                        
+                        # মোট কালেকশন হবে (পুরনো ডিউ + নতুন বিল)
+                        total_collectible = master_due_val + assigned_sale
+                        total_collectible_disp = int(total_collectible) if total_collectible.is_integer() else total_collectible
 
                         with st.form(key=f"complete_task_form_{tab_prefix}_{row['id']}", clear_on_submit=True):
-                            st.info(f"💰 **Master Total Due (Old Due + New Bill): ₹{total_due_disp}**")
                             
-                            col_f1, col_f2 = st.columns(2)
-                            with col_f1:
-                                sale_input = st.text_input("Total Sale (কত টাকার সেল)", value=prefilled_sale, placeholder="0", key=f"sale_amt_{tab_prefix}_{row['id']}")
-                            with col_f2:
-                                payment_input = st.text_input("Payment Collected (কত পেমেন্ট)", value="", placeholder="উদাহরণ: 500", key=f"pay_amt_{tab_prefix}_{row['id']}")
+                            # ভিউ: ডেলিভারি ট্যাবে বিস্তারিত বিল শো করবে, ডিউ ট্যাবে শুধু ডিউ শো করবে
+                            if tab_prefix == "deliv":
+                                st.markdown(
+                                    f"<div style='background-color:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:12px;'>"
+                                    f"<div style='color:#64748b; font-size:14px;'>⏳ পুরনো ডিউ (Old Due): <b>₹{master_due_disp}</b></div>"
+                                    f"<div style='color:#3b82f6; font-size:14px;'>📦 বর্তমান বিল (Current Bill): <b>₹{assigned_sale_disp}</b></div>"
+                                    f"<hr style='margin:5px 0;'>"
+                                    f"<div style='color:#ef4444; font-size:16px;'>💰 মোট কালেকশন হবে (Total): <b>₹{total_collectible_disp}</b></div>"
+                                    f"</div>", 
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                st.info(f"💰 **Total Due (মোট ডিউ): ₹{master_due_disp}**")
+                            
+                            if hide_sale:
+                                payment_input = st.text_input("Payment Collected (কত পেমেন্ট পেলেন)", value="", placeholder="উদাহরণ: 500", key=f"pay_amt_{tab_prefix}_{row['id']}")
+                                sale_input = "0"
+                            else:
+                                col_f1, col_f2 = st.columns(2)
+                                with col_f1:
+                                    # নতুন বিলের অ্যামাউন্ট অটোমেটিক ইনপুট বক্সে দেওয়া থাকবে
+                                    sale_input = st.text_input("Total Sale (ফাইনাল সেল)", value=str(assigned_sale_disp) if assigned_sale_disp > 0 else "", placeholder="উদাহরণ: 500", key=f"sale_amt_{tab_prefix}_{row['id']}")
+                                with col_f2:
+                                    payment_input = st.text_input("Payment Collected (কত পেমেন্ট পেলেন)", value="", placeholder="উদাহরণ: 500", key=f"pay_amt_{tab_prefix}_{row['id']}")
                             
                             submit_complete = st.form_submit_button("✓ Complete Task", type="primary")
+                            
                             if submit_complete:
                                 try:
-                                    s_amt = float(sale_input) if sale_input.strip() else 0.0
-                                    p_amt = float(payment_input) if payment_input.strip() else 0.0
-                                    r_due = total_effective_due - p_amt
+                                    s_amt = float(sale_input) if str(sale_input).strip() else 0.0
+                                    p_amt = float(payment_input) if str(payment_input).strip() else 0.0
+                                    
+                                    # রিমেইনিং ডিউ = মাস্টার ডিউ + ফাইনাল সেল - পেমেন্ট
+                                    r_due = float(master_due_val) + s_amt - p_amt
                                 except ValueError:
-                                    r_due = total_effective_due
+                                    r_due = float(master_due_val)
+                                    
                                 c.execute(
                                     "UPDATE task_assignments SET status='Completed', sale_amount=?, payment_collected_actual=?, remaining_due=? WHERE id=?",
                                     (str(s_amt), str(p_amt), str(r_due), row['id'])
@@ -1678,7 +1602,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 st.rerun()
 
                         if st.session_state["user_role"] == "admin":
-                            if st.button("🗑️ Delete", key=f"del_pend_task_{tab_prefix}_{row['id']}"):
+                            if st.button("🗑️ Delete Task", key=f"del_pend_task_{tab_prefix}_{row['id']}"):
                                 move_to_recycle_bin("Task", row['party_name'], dict(row))
                                 c.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
                                 conn.commit()
@@ -1689,17 +1613,14 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         with pen_tab_delivery:
             if not pending_tasks_df.empty:
                 deliv_df = pending_tasks_df[pending_tasks_df['task_type'].str.contains('Delivery|ডেলিভারি', na=False, case=False)]
-                render_agent_tasks(deliv_df, "deliv")
+                render_agent_tasks(deliv_df, "deliv", hide_sale=False)
             else:
                 st.info("No pending tasks. (কোনো কাজ বাকি নেই)")
 
         with pen_tab_due:
             if not pending_tasks_df.empty:
-                due_df = pending_tasks_df[
-                    pending_tasks_df['task_type'].str.contains('Due|ডিউ|কালেকশন', na=False, case=False) & 
-                    ~pending_tasks_df['task_type'].str.contains('Delivery|ডেলিভারি', na=False, case=False)
-                ]
-                render_agent_tasks(due_df, "due")
+                due_df = pending_tasks_df[pending_tasks_df['task_type'].str.contains('Due|ডিউ', na=False, case=False)]
+                render_agent_tasks(due_df, "due", hide_sale=True)
             else:
                 st.info("No pending tasks. (কোনো কাজ বাকি নেই)")
     with task_tab2:
