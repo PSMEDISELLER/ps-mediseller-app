@@ -1967,7 +1967,7 @@ elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)"
     else:
         st.info("No live agent location data available yet.")
 
-    elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
+elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
     st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
     c.execute("SELECT COUNT(*) FROM users WHERE role='staff'")
     total_staff_count = c.fetchone()[0]
