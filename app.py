@@ -1396,7 +1396,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         "💰 Master Due List (ডিউ লিস্ট)"
     ])
 
-    with task_tab1:
+    with task_tab1:  
         if st.session_state["user_role"] == "admin":
             full_tasks_df = pd.read_sql_query("""
                 SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address 
@@ -1430,7 +1430,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         import streamlit.components.v1 as components
         import re
 
-        # --- State Initialization (Direct Widget Key Mapping) ---
+        # --- State Initialization ---
         if "task_party_search_text_input_key" not in st.session_state:
             st.session_state["task_party_search_text_input_key"] = ""
         if "voice_sale_amt_key" not in st.session_state:
@@ -1448,12 +1448,9 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             del st.query_params["smart_voice_cmd"]
             
             spoken_lower = spoken_text.lower()
-            
-            # 1. টাস্ক টাইপ ডিটেক্ট (Directly update widget state)
             st.session_state["chk_delivery_key"] = bool(re.search(r'ডেলিভারি|delivery', spoken_lower))
             st.session_state["chk_due_key"] = bool(re.search(r'ডিউ|বাকি|due|কালেকশন', spoken_lower))
             
-            # 2. স্মার্ট অ্যামাউন্ট ক্যাপচার
             nums = [(m.group(), m.start(), m.end()) for m in re.finditer(r'\d+', spoken_lower)]
             sale_val = ""
             due_val = ""
@@ -1473,12 +1470,11 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     if st.session_state["chk_due_key"] and not st.session_state["chk_delivery_key"]:
                         due_val = nums[0][0]
                     else:
-                        sale_val = nums[0][0] 
+                        sale_val = nums[0][0]
             
             st.session_state["voice_sale_amt_key"] = sale_val
             st.session_state["voice_due_amt_key"] = due_val
 
-            # 3. অ্যাডভান্সড পার্টি ম্যাচিং
             party_text = spoken_lower
             remove_words = ["ডেলিভারি", "delivery", "ডিউ", "due", "সেল", "sale", "কালেকশন", "টাকা", "এবং", "ও", "আর"]
             for rw in remove_words:
@@ -1521,14 +1517,12 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 key="task_floating_suggestions_radio",
                 label_visibility="collapsed"
             )
+        elif filtered_task_parties:
+            sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
         else:
-            if filtered_task_parties:
-                sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key="task_select_party_box")
-            else:
-                st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
-                sel_pt = ""
+            st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
+            sel_pt = ""
 
-        # অটোমেটিক ডিউ চেক
         if sel_pt and sel_pt.strip() and not st.session_state["voice_due_amt_key"]:
             c.execute("SELECT current_due FROM locations WHERE party_name=?", (sel_pt.strip(),))
             res_due = c.fetchone()
@@ -1538,7 +1532,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         with st.form("easy_assign_form", clear_on_submit=True):
             st.write("#### ➕ Assign New Task (নতুন টাস্ক দিন)")
             
-            # --- Small Voice Button Inside Form (WITH LIVE TYPING) ---
             voice_assistant_html = """
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; margin-top: -5px;">
                 <button id="smartMicBtn" onclick="startSmartListening()" type="button" style="background-color: #3b82f6; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -1556,7 +1549,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                 const recognition = new SpeechRecognition();
                 recognition.lang = 'bn-IN';
-                recognition.interimResults = true; // লাইভ টাইপিং অন
+                recognition.interimResults = true;
                 recognition.maxAlternatives = 1;
 
                 recognition.onstart = function() {
@@ -1577,7 +1570,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         }
                     }
                     
-                    // কথা বলার সাথে সাথেই লেখা দেখাবে
                     status.innerText = finalTranscript + interimTranscript;
                     
                     if (finalTranscript !== '') {
@@ -1622,7 +1614,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             with col_chk2:
                 chk_due = st.checkbox("💰 Due Collection (ডিউ কালেকশন)", key="chk_due_key")
 
-            # --- Sale & Due Amount side by side ---
             col_amt1, col_amt2 = st.columns(2)
             with col_amt1:
                 s_amount = st.text_input("Sale Amount (সেল টাকা)", key="voice_sale_amt_key")
@@ -1652,7 +1643,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         )
                         conn.commit()
                         
-                        # সফল সাবমিটের পর সমস্ত ডেটা রিসেট করা
                         st.session_state["task_party_search_text_input_key"] = ""
                         st.session_state["voice_sale_amt_key"] = ""
                         st.session_state["voice_due_amt_key"] = ""
@@ -1667,7 +1657,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         st.write("---")
         st.write("#### Active Pending Tasks (কর্মচারী অনুযায়ী কাজ)")
         
-        # --- দুটি আলাদা ট্যাব তৈরি করা হলো ---
         pen_tab_delivery, pen_tab_due = st.tabs(["📦 Delivery Tasks (ডেলিভারি)", "💰 Due Collection (ডিউ)"])
         
         pending_tasks_df = pd.read_sql_query("""
@@ -1679,7 +1668,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             ORDER BY t.created_at DESC
         """, conn)
 
-        # Helper Function: কাজগুলো রেন্ডার করার জন্য
         def render_agent_tasks(df_subset, tab_prefix):
             if df_subset.empty:
                 st.info("No pending tasks in this section. (এই বিভাগে কোনো কাজ বাকি নেই)")
@@ -1694,13 +1682,11 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         if pd.notna(row['address']) and row['address']:
                             st.markdown(f"📍 Address: {row['address']} {(' | Ph: ' + str(row['party_phone'])) if pd.notna(row['party_phone']) else ''}")
 
-                        # পার্টি টেবিল থেকে Master Due ફેচ করা
                         c.execute("SELECT current_due FROM locations WHERE party_name=?", (row['party_name'],))
                         master_due_res = c.fetchone()
                         master_due_val = master_due_res[0] if master_due_res and master_due_res[0] is not None else 0.0
                         master_due_disp = int(master_due_val) if float(master_due_val).is_integer() else master_due_val
 
-                        # ফর্মের Key যেন ট্যাবের সাথে আলাদা থাকে তাই tab_prefix যোগ করা হলো
                         with st.form(key=f"complete_task_form_{tab_prefix}_{row['id']}", clear_on_submit=True):
                             st.info(f"💰 **Master Current Due: ₹{master_due_disp}**")
                             
@@ -1738,7 +1724,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 st.rerun()
                         st.write("---")
 
-        # Delivery Tab-এ রেন্ডার
         with pen_tab_delivery:
             if not pending_tasks_df.empty:
                 deliv_df = pending_tasks_df[pending_tasks_df['task_type'].str.contains('Delivery|ডেলিভারি', na=False, case=False)]
@@ -1746,15 +1731,12 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             else:
                 st.info("No pending tasks. (কোনো কাজ বাকি নেই)")
 
-        # Due Collection Tab-এ রেন্ডার
         with pen_tab_due:
             if not pending_tasks_df.empty:
                 due_df = pending_tasks_df[pending_tasks_df['task_type'].str.contains('Due|ডিউ', na=False, case=False)]
                 render_agent_tasks(due_df, "due")
             else:
                 st.info("No pending tasks. (কোনো কাজ বাকি নেই)")
-        else:
-            st.info("No active pending tasks. (কোনো পেন্ডিং টাস্ক নেই।)")
 
     with task_tab2:
         st.markdown("#### 📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
