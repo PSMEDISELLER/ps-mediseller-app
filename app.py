@@ -1512,7 +1512,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
         st.write("---")
         st.write("#### Active Pending Tasks (কর্মচারী অনুযায়ী কাজ)")
-                    st.info("No pending tasks at the moment. (কোনো টাস্ক নেই)")
+        st.info("No pending tasks at the moment. (কোনো টাস্ক নেই)")
         
         # Added sale_amount in SELECT query
         pending_tasks_df = pd.read_sql_query("""
