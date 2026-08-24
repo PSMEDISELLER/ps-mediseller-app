@@ -473,12 +473,15 @@ if "remaining_due" not in existing_cols_task:
     c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
 conn.commit()
 # ===
-# USER SESSION & LOGIN RESTORE FIX
+# SAFE USER SESSION RESTORE (NO LOOP)
 # ===
 query_params = st.query_params
-target_login = query_params.get("login")
 
-# যদি ইউআরএল-এ লগইন না থাকে, তবে সেশন বা লোকালস্টোরেজ থেকে চেক করা
+# ইউআরএল থেকে সেফলি ইউজারনেম নেওয়া
+target_login = query_params.get("login")
+if isinstance(target_login, list):
+    target_login = target_login[0]
+
 if not target_login:
     if "username" in st.session_state and st.session_state["username"]:
         target_login = st.session_state["username"]
@@ -499,18 +502,13 @@ if user_row:
     f_name, r_role, is_active = user_row
     if is_active == 0:
         st.warning("⚠️ আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
-        st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
         st.stop()
     else:
         st.session_state["username"] = target_login
         st.session_state["user_role"] = r_role
-        if query_params.get("login") != target_login:
-            st.query_params["login"] = target_login
-            st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
 else:
     st.session_state["username"] = "delivery"
     st.session_state["user_role"] = "staff"
-    st.query_params["login"] = "delivery"
 
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
