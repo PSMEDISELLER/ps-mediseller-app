@@ -63,10 +63,27 @@ pwa_manifest_html = f"""
 <script>
 try {{
     const base_url = window.location.href.split('?')[0];
+    
+    // ব্রাউজার বা ক্রোম থেকে বর্তমান ইউজারনেম ধরে রাখা
+    const urlParams = new URLSearchParams(window.location.search);
+    let current_user = urlParams.get('login');
+    
+    if (current_user) {{
+        localStorage.setItem('ps_mediseller_user', current_user);
+    }} else {{
+        let saved_user = localStorage.getItem('ps_mediseller_user');
+        if (saved_user && saved_user !== "null" && saved_user !== "None") {{
+            current_user = saved_user;
+        }}
+    }}
+    
+    // যার যার ইউজারনেম অনুযায়ী স্টার্ট ইউআরএল সেট করা
+    const start_url_path = current_user ? base_url + "?login=" + current_user : base_url;
+
     const manifest = {{
         "name": "P.S MEDISELLER",
         "short_name": "Mediseller",
-        "start_url": base_url,
+        "start_url": start_url_path,
         "display": "standalone",
         "background_color": "#0f172a",
         "theme_color": "#0f172a",
