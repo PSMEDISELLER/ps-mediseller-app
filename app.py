@@ -1739,7 +1739,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         """, conn)
 
         if not agent_sum_df.empty:
-            if st.session_state["user_role"] == "admin":
+            if st.session_state.get("user_role") == "admin":
                 export_sum_df = agent_sum_df.copy()
                 export_sum_df['Agent Name'] = export_sum_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
                 export_sum_df['Date'] = export_sum_df['task_date'].apply(lambda x: format_date_display(x))
@@ -1761,6 +1761,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 t_date = format_date_display(row['task_date'])
                 tot = row['total_tasks']
                 comp = row['completed_tasks']
+                
                 st.markdown(f"""
                 <div style="background: #1e293b; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
                     <p style="margin: 0 0 6px 0; color: #38bdf8 !important; font-weight: 700; font-size: 16px;">👤 Agent: {ag_disp}</p>
@@ -1771,13 +1772,15 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
 
                 c.execute("SELECT allow_resubmit FROM users WHERE username=?", (row['agent_name'],))
                 resub_row = c.fetchone()
-                agent_allowed = bool(resub_row[0]) if resub_row and resub_row[0] is not None else False
+                
+                # বাগ ফিক্স ১: সঠিকভাবে 1 বা 0 চেক করা
+                agent_allowed = True if resub_row and str(resub_row[0]) == '1' else False
 
-                if st.session_state["user_role"] == "admin":
+                if st.session_state.get("user_role") == "admin":
                     resub_toggle = st.checkbox(
                         f"🔄 Allow {ag_disp} to Re-submit completed tasks (রি-সাবমিশনের অনুমতি প্রদান করুন)",
                         value=agent_allowed,
-                        key=f"resub_perm_{row['agent_name']}_{row['task_date']}"
+                        key=f"resub_perm_{row['agent_name']}_{row['task_date']}_{idx}"
                     )
                     if resub_toggle != agent_allowed:
                         c.execute("UPDATE users SET allow_resubmit=? WHERE username=?", (1 if resub_toggle else 0, row['agent_name']))
@@ -1791,31 +1794,40 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 """, conn, params=(row['agent_name'], row['task_date']))
 
                 if not comp_tasks_df.empty:
-                    with st.expander(f"⚙️ Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন - {len(comp_tasks_df)})", expanded=False):
-                        can_do_resubmit = (st.session_state["user_role"] == "admin") or (st.session_state["username"] == row['agent_name'] and agent_allowed)
+                    with st.expander(f"⚙️ Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন - {len(comp_tasks_df)})", expanded=False):
+                        
+                        # বাগ ফিক্স ২: নাম মেলানোর সময় স্পেস ক্লিয়ার করা (.strip())
+                        current_user = str(st.session_state.get("username", "")).strip()
+                        db_agent_name = str(row['agent_name']).strip()
+                        current_role = st.session_state.get("user_role", "")
+                        
+                        can_do_resubmit = (current_role == "admin") or (current_user == db_agent_name and agent_allowed)
+                        
                         if not can_do_resubmit:
-                            st.warning("⚠️ রি-সাবমিশন করার অনুমতি নেই। শুধুমাত্র অ্যাডমিন বা অ্যাডমিন অনুমতি দিলে এই এজেন্ট কাজ পুনরায় একটিভ করতে পারবে।")
+                            st.warning("⚠️ রি-সাবমিশন করার অনুমতি নেই। শুধুমাত্র অ্যাডমিন বা অ্যাডমিন অনুমতি দিলে এই এজেন্ট কাজ পুনরায় একটিভ করতে পারবে।")
+                        
                         for _, ct_row in comp_tasks_df.iterrows():
                             st.markdown(f"**Party:** `{ct_row['party_name']}` | **Type:** `{ct_row['task_type']}` | **Collected:** `₹{ct_row['payment_collected_actual']}`")
+                            
                             if can_do_resubmit:
-                                if st.button(f"🔄 Move to Active Tasks (পুনরায় একটিভ করুন)", key=f"btn_resubmit_{ct_row['id']}"):
+                                # বাগ ফিক্স ৩: বাটনের 'key' ইউনিক করা হয়েছে
+                                if st.button(f"🔄 Move to Active Tasks (পুনরায় একটিভ করুন)", key=f"btn_resub_unique_{ct_row['id']}_{idx}"):
                                     c.execute("UPDATE task_assignments SET status='Pending' WHERE id=?", (ct_row['id'],))
                                     c.execute("UPDATE agent_live_locations SET completed_deliveries = CASE WHEN completed_deliveries > 0 THEN completed_deliveries - 1 ELSE 0 END WHERE username=?", (row['agent_name'],))
                                     conn.commit()
-                                    st.success("Task moved back to Active Tasks! (কাজটি সফলভাবে পুনরায় একটিভ টাস্কে পাঠানো হয়েছে!)")
+                                    st.success("Task moved back to Active Tasks! (কাজটি সফলভাবে পুনরায় একটিভ টাস্কে পাঠানো হয়েছে!)")
                                     st.rerun()
-                            st.write("---")
+                        st.write("---")
 
-                if st.session_state["user_role"] == "admin":
-                    if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{row['agent_name']}_{row['task_date']}"):
+                if st.session_state.get("user_role") == "admin":
+                    if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{row['agent_name']}_{row['task_date']}_{idx}"):
                         c.execute("DELETE FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], row['task_date']))
                         conn.commit()
-                        st.success("Deleted successfully! (ডিলিট হয়েছে!)")
+                        st.success("Deleted successfully! (ডিলিট হয়েছে!)")
                         st.rerun()
                 st.write("---")
         else:
             st.info("No summary records found.")
-
     with task_tab3:
         st.markdown("#### ✅ Completed Tasks History (সম্পন্ন কাজ)")
     
