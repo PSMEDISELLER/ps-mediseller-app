@@ -30,29 +30,31 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
-/* সব ধরণের ডিভাইডার, কালো দাগ ও ফাঁকা শেপ পুরোপুরি মুছে ফেলা */
+/* সব ধরনের ডিভাইডার ও অনাকাঙ্ক্ষিত কালো দাগ হাইড করা */
 hr, 
 div[data-testid="stDivider"], 
-div[data-testid="stMarkdownContainer"] hr,
 div[data-testid="stElementContainer"]:has(hr) {
     display: none !important;
-    visibility: hidden !important;
     height: 0px !important;
     margin: 0px !important;
     padding: 0px !important;
 }
 
-/* ব্যানার ইমেজের সাইজ ঠিক করা */
+/* ব্যানারের নিচের ফাঁকা জায়গা কমিয়ে লেখা উপরে তোলা */
 div[data-testid="stImage"] img {
     height: 140px !important;
     object-fit: cover !important;
     border-radius: 8px;
+    margin-bottom: -20px !important;
+}
+
+/* পুরো পেজের উপাদানের ভেতরের গ্যাপ কমানো */
+div[data-testid="stVerticalBlock"] > div {
+    gap: 0.2rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
-
-st.image("banner.jpg", use_container_width=True)
-# ===
+# === 
 # IST TIME & DATE FORMAT HELPERS
 # ===
 def get_ist_time():
