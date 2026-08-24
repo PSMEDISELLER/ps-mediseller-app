@@ -472,7 +472,6 @@ if "payment_collected_actual" not in existing_cols_task:
 if "remaining_due" not in existing_cols_task:
     c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
 conn.commit()
-
 # ===
 # USER SESSION & LOGIN RESTORE FIX
 # ===
