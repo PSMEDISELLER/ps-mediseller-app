@@ -1733,13 +1733,16 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             SELECT t.agent_name, u.fullname as agent_fullname, SUBSTR(t.created_at, 1, 10) as task_date, 
                    COUNT(t.id) as total_tasks, SUM(CASE WHEN t.status='Completed' THEN 1 ELSE 0 END) as completed_tasks 
             FROM task_assignments t 
-            LEFT JOIN users u ON LOWER(t.agent_name) = LOWER(u.username) 
+            LEFT JOIN users u ON LOWER(TRIM(t.agent_name)) = LOWER(TRIM(u.username)) 
             GROUP BY t.agent_name, task_date 
             ORDER BY task_date DESC
         """, conn)
 
         if not agent_sum_df.empty:
-            if str(st.session_state.get("user_role", "")).lower() == "admin":
+            current_role = str(st.session_state.get("user_role", "")).strip().lower()
+            is_admin = (current_role == "admin")
+
+            if is_admin:
                 export_sum_df = agent_sum_df.copy()
                 export_sum_df['Agent Name'] = export_sum_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
                 export_sum_df['Date'] = export_sum_df['task_date'].apply(lambda x: format_date_display(x))
@@ -1770,21 +1773,29 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 </div>
                 """, unsafe_allow_html=True)
 
-                # ইউজারনেম অথবা ফুলনেম উভয় দিয়েই পারমিশন চেক
-                c.execute("SELECT allow_resubmit FROM users WHERE LOWER(username)=LOWER(?) OR LOWER(fullname)=LOWER(?)", (row['agent_name'], row['agent_name']))
+                agent_identifier = str(row['agent_name']).strip()
+                
+                # এজেন্টের অনুমতি স্ট্যাটাস চেক
+                c.execute("""
+                    SELECT allow_resubmit FROM users 
+                    WHERE LOWER(TRIM(username))=LOWER(?) OR LOWER(TRIM(fullname))=LOWER(?)
+                """, (agent_identifier, agent_identifier))
                 resub_row = c.fetchone()
                 
                 agent_allowed = True if resub_row and str(resub_row[0]) in ['1', 'True', 'true'] else False
 
-                if str(st.session_state.get("user_role", "")).lower() == "admin":
+                # অ্যাডমিন হলে অনুমতি প্রদান/বাতিল করার টিকচিহ্ন অপশন
+                if is_admin:
                     resub_toggle = st.checkbox(
                         f"🔄 Allow {ag_disp} to Re-submit completed tasks (রি-সাবমিশনের অনুমতি প্রদান করুন)",
                         value=agent_allowed,
-                        key=f"resub_perm_{row['agent_name']}_{row['task_date']}_{idx}"
+                        key=f"resub_perm_{agent_identifier}_{row['task_date']}_{idx}"
                     )
                     if resub_toggle != agent_allowed:
-                        c.execute("UPDATE users SET allow_resubmit=? WHERE LOWER(username)=LOWER(?) OR LOWER(fullname)=LOWER(?)", 
-                                  (1 if resub_toggle else 0, row['agent_name'], row['agent_name']))
+                        c.execute("""
+                            UPDATE users SET allow_resubmit=? 
+                            WHERE LOWER(TRIM(username))=LOWER(?) OR LOWER(TRIM(fullname))=LOWER(?)
+                        """, (1 if resub_toggle else 0, agent_identifier, agent_identifier))
                         conn.commit()
                         st.rerun()
 
@@ -1797,34 +1808,28 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 if not comp_tasks_df.empty:
                     with st.expander(f"⚙️ Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন - {len(comp_tasks_df)})", expanded=False):
                         
-                        current_user = str(st.session_state.get("username", "")).strip().lower()
-                        current_role = str(st.session_state.get("user_role", "")).strip().lower()
-                        db_agent_name = str(row['agent_name']).strip().lower()
-                        db_agent_fname = str(row['agent_fullname'] if pd.notna(row['agent_fullname']) else "").strip().lower()
-                        
-                        # অ্যাডমিন নাকি নিজ টাস্ক তা সুনির্দিষ্টভাবে পরীক্ষা করা
-                        is_admin = (current_role == "admin")
-                        is_own_task = (current_user == db_agent_name) or (current_user == db_agent_fname)
-                        
-                        can_do_resubmit = is_admin or (is_own_task and agent_allowed)
+                        # অ্যাডমিন অথবা অ্যাডমিন অনুমোদিত যে কেউ বাটন দেখতে পাবে
+                        can_do_resubmit = is_admin or agent_allowed
                         
                         if not can_do_resubmit:
                             st.warning("⚠️ রি-সাবমিশন করার অনুমতি নেই। শুধুমাত্র অ্যাডমিন বা অ্যাডমিন অনুমতি দিলে এই এজেন্ট কাজ পুনরায় একটিভ করতে পারবে।")
-                        
-                        for _, ct_row in comp_tasks_df.iterrows():
-                            st.markdown(f"**Party:** `{ct_row['party_name']}` | **Type:** `{ct_row['task_type']}` | **Collected:** `₹{ct_row['payment_collected_actual']}`")
-                            
-                            if can_do_resubmit:
-                                if st.button(f"🔄 Move to Active Tasks (পুনরায় একটিভ করুন)", key=f"btn_resub_fix_{ct_row['id']}_{idx}"):
+                        else:
+                            for _, ct_row in comp_tasks_df.iterrows():
+                                st.markdown(f"**Party:** `{ct_row['party_name']}` | **Type:** `{ct_row['task_type']}` | **Collected:** `₹{ct_row['payment_collected_actual']}`")
+                                if st.button(f"🔄 Move to Active Tasks (পুনরায় একটিভ করুন)", key=f"btn_resub_ok_{ct_row['id']}_{idx}"):
                                     c.execute("UPDATE task_assignments SET status='Pending' WHERE id=?", (ct_row['id'],))
-                                    c.execute("UPDATE agent_live_locations SET completed_deliveries = CASE WHEN completed_deliveries > 0 THEN completed_deliveries - 1 ELSE 0 END WHERE LOWER(username)=LOWER(?)", (row['agent_name'],))
+                                    c.execute("""
+                                        UPDATE agent_live_locations 
+                                        SET completed_deliveries = CASE WHEN completed_deliveries > 0 THEN completed_deliveries - 1 ELSE 0 END 
+                                        WHERE LOWER(TRIM(username))=LOWER(?)
+                                    """, (agent_identifier,))
                                     conn.commit()
                                     st.success("Task moved back to Active Tasks! (কাজটি সফলভাবে পুনরায় একটিভ টাস্কে পাঠানো হয়েছে!)")
                                     st.rerun()
-                        st.write("---")
+                                st.write("---")
 
-                if str(st.session_state.get("user_role", "")).lower() == "admin":
-                    if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{row['agent_name']}_{row['task_date']}_{idx}"):
+                if is_admin:
+                    if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{agent_identifier}_{row['task_date']}_{idx}"):
                         c.execute("DELETE FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], row['task_date']))
                         conn.commit()
                         st.success("Deleted successfully! (ডিলিট হয়েছে!)")
