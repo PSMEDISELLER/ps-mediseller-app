@@ -2586,80 +2586,102 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
         else:
             st.warning("এখনো কোনো স্টাফ/এজেন্ট যুক্ত করা হয়নি।")
     with set_tab_perm:
-        st.write("#### Menu Permissions (মেনু পারমিশন)")
-
-        # স্টাফ ডাটা ফেচ করা
-        c.execute("SELECT username, fullname FROM users WHERE role='staff'")
-        staff_data = c.fetchall()
+        import streamlit as st
+        import time
         
-        for s in staff_data:
-            s_uname, s_fname = s
-            
-            # ডাটাবেজ থেকে বর্তমান পারমিশন আনা
-            c.execute("SELECT allowed_menus FROM users WHERE username=?", (s_uname,))
-            am_row = c.fetchone()
-            
-            # বর্তমান মেনু লিস্ট তৈরি
-            curr_menus = am_row[0].split(",") if am_row and am_row[0] else all_basic_menus
-            valid_defaults = [menu.strip() for menu in curr_menus if menu.strip() in all_basic_menus]
-            
-            # মাল্টিসিলেক্ট উইজেট
-            sel_menus = st.multiselect(
-                f"Permissions for {s_fname} ({s_uname})", 
-                all_basic_menus, 
-                default=valid_defaults, 
-                key=f"perm_{s_uname}"
-            )
-            
-            # পারমিশন সেভ করার বাটন
-            if st.button(f"Save Permissions for {s_uname}", key=f"btn_perm_{s_uname}"):
-                # সিলেক্ট করা মেনুগুলোকে কমা দিয়ে যুক্ত করে স্ট্রিং বানানো
-                updated_menus_str = ",".join(sel_menus)
-                
-                # ডাটাবেজ আপডেট
-                c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (updated_menus_str, s_uname))
-                conn.commit()
-                
-                st.success(f"Permissions updated successfully for {s_fname}!")
-                
-                # পরিবর্তন সাথে সাথে অ্যাপে কার্যকর করতে রিরান করা
-                st.rerun()
-    with set_tab3:
-        st.write("#### Manage Agents (Block / Unblock / Delete)")
-        c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
-        staff_data = c.fetchall()
-
-        for s in staff_data:
-            s_uname, s_fname, s_act = s
-            status = "Active" if s_act else "Blocked"
-            st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if s_act:
-                    if st.button(f"🚫 Block {s_uname}", key=f"blk_{s_uname}"):
-                        c.execute(
-                            "UPDATE users SET is_active=0 WHERE username=?", (s_uname,)
+        st.write("### ⚙️ Menu Permissions (মেনু পারমিশন)")
+        st.divider() # একটি সুন্দর বিভাজক রেখা দেওয়ার জন্য
+        
+        try:
+            # স্টাফ ডাটা ফেচ করা
+            c.execute("SELECT username, fullname FROM users WHERE role='staff'")
+            staff_data = c.fetchall()
+        
+            if not staff_data:
+                st.info("কোনো স্টাফ একাউন্ট পাওয়া যায়নি।")
+            else:
+                for s in staff_data:
+                    s_uname, s_fname = s
+                    
+                    # UI গোছানো রাখার জন্য expander ব্যবহার করা হলো
+                    with st.expander(f"👤 {s_fname} ({s_uname}) - পারমিশন সেট করুন"):
+                        
+                        # ডাটাবেজ থেকে বর্তমান পারমিশন আনা
+                        c.execute("SELECT allowed_menus FROM users WHERE username=?", (s_uname,))
+                        am_row = c.fetchone()
+                        
+                        # বর্তমান মেনু লিস্ট তৈরি
+                        curr_menus = am_row[0].split(",") if am_row and am_row[0] else all_basic_menus
+                        valid_defaults = [menu.strip() for menu in curr_menus if menu.strip() in all_basic_menus]
+                        
+                        # মাল্টিসিলেক্ট উইজেট
+                        sel_menus = st.multiselect(
+                            "যে মেনুগুলোর এক্সেস দিতে চান তা নির্বাচন করুন:", 
+                            all_basic_menus, 
+                            default=valid_defaults, 
+                            key=f"perm_{s_uname}"
                         )
-                        conn.commit()
-                        st.rerun()
-                else:
-                    if st.button(f"✅ Unblock {s_uname}", key=f"unblk_{s_uname}"):
-                        c.execute(
-                            "UPDATE users SET is_active=1 WHERE username=?", (s_uname,)
-                        )
-                        conn.commit()
-                        st.rerun()
-
-            with col2:
-                if st.button(f"🗑️ Delete {s_uname}", key=f"del_{s_uname}"):
-                    c.execute("DELETE FROM users WHERE username=?", (s_uname,))
-                    conn.commit()
-                    st.success(f"Agent '{s_uname}' deleted successfully!")
-                    st.rerun()
-
-            st.write("---")
+                        
+                        # পারমিশন সেভ করার বাটন
+                        if st.button(f"Save Permissions", key=f"btn_perm_{s_uname}", use_container_width=True):
+                            try:
+                                # সিলেক্ট করা মেনুগুলোকে কমা দিয়ে যুক্ত করে স্ট্রিং বানানো
+                                updated_menus_str = ",".join(sel_menus)
+                                
+                                # ডাটাবেজ আপডেট
+                                c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (updated_menus_str, s_uname))
+                                conn.commit()
+                                
+                                # সফল মেসেজ দেখানো
+                                st.success(f"✅ {s_fname}-এর পারমিশন সফলভাবে আপডেট হয়েছে!")
+                                
+                                # মেসেজটি ১ সেকেন্ড স্ক্রিনে রাখার জন্য (যাতে ইউজার দেখতে পায়)
+                                time.sleep(1) 
+                                
+                                # পরিবর্তন সাথে সাথে অ্যাপে কার্যকর করতে রিরান করা
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"ডাটাবেজ আপডেট করতে সমস্যা হয়েছে: {e}")
+        
+        except Exception as e:
+            st.error(f"স্টাফদের তথ্য আনতে সমস্যা হয়েছে: {e}")
+            with set_tab3:
+                st.write("#### Manage Agents (Block / Unblock / Delete)")
+                c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
+                staff_data = c.fetchall()
+        
+                for s in staff_data:
+                    s_uname, s_fname, s_act = s
+                    status = "Active" if s_act else "Blocked"
+                    st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
+        
+                    col1, col2 = st.columns(2)
+        
+                    with col1:
+                        if s_act:
+                            if st.button(f"🚫 Block {s_uname}", key=f"blk_{s_uname}"):
+                                c.execute(
+                                    "UPDATE users SET is_active=0 WHERE username=?", (s_uname,)
+                                )
+                                conn.commit()
+                                st.rerun()
+                        else:
+                            if st.button(f"✅ Unblock {s_uname}", key=f"unblk_{s_uname}"):
+                                c.execute(
+                                    "UPDATE users SET is_active=1 WHERE username=?", (s_uname,)
+                                )
+                                conn.commit()
+                                st.rerun()
+        
+                    with col2:
+                        if st.button(f"🗑️ Delete {s_uname}", key=f"del_{s_uname}"):
+                            c.execute("DELETE FROM users WHERE username=?", (s_uname,))
+                            conn.commit()
+                            st.success(f"Agent '{s_uname}' deleted successfully!")
+                            st.rerun()
+        
+                    st.write("---")
 
     with set_tab4:
         st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
