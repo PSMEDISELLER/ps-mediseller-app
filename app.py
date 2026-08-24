@@ -28,7 +28,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-# ব্যানারের সিএসএস (হাইট কম এবং ফুল উইডথ)
 st.markdown("""
 <style>
 div[data-testid="stImage"] img {
@@ -39,11 +38,7 @@ div[data-testid="stImage"] img {
 </style>
 """, unsafe_allow_html=True)
 
-# আয়ুর্বেদিক ব্যানার পিকচার
-st.image(
-    "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?q=80&w=1200&auto=format&fit=crop",
-    use_container_width=True
-)
+st.image("banner.jpg", use_container_width=True)
 # ===
 # IST TIME & DATE FORMAT HELPERS
 # ===
