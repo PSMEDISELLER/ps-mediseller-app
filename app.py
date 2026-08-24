@@ -30,15 +30,25 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
+/* সব ধরনের কালো দাগ/ডিভাইডার গায়েব করার জন্য */
+hr {
+    display: none !important;
+}
+
+/* ব্যানার ইমেজের গ্যাপ কমানো */
 div[data-testid="stImage"] img {
-    height: 150px !important;
+    height: 140px !important;
     object-fit: cover !important;
     border-radius: 8px;
+    margin-bottom: -15px !important;
+}
+
+/* নিচের সমস্ত লেখা ও বাটন উপরে তোলার জন্য */
+div[data-testid="stVerticalBlock"] > div {
+    gap: 0.2rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
-
-st.image("banner.jpg", use_container_width=True)
 # ===
 # IST TIME & DATE FORMAT HELPERS
 # ===
