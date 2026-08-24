@@ -1925,17 +1925,78 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             st.error("⚠️ `xhtml2pdf` লাইব্রেরি পাওয়া যায়নি! দয়া করে requirements.txt ফাইলে `xhtml2pdf` যুক্ত করুন।")
             pisa = None
         
-        # পারমিশন ফিল্টার চেক করা
+        # ---------------------------------------------------------
+        # ১. পারমিশন টেবিল চেক ও তৈরি (SQLite Database)
+        # ---------------------------------------------------------
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS pdf_permissions (
+                username TEXT PRIMARY KEY,
+                can_download INTEGER DEFAULT 0
+            )
+        """)
+        conn.commit()
+        
+        # বর্তমান লগইনকৃত ইউজারের তথ্য
+        current_user = st.session_state.get("username", st.session_state.get("user", ""))
         current_user_role = st.session_state.get("user_role", "")
         is_admin = (current_user_role == "admin")
         
-        # এডমিন অনুমোদিত এজেন্টের জন্য ফ্ল্যাগ (যেমন: session_state এ can_download_report = True সেট করা থাকলে)
-        is_authorized_agent = st.session_state.get("can_download_report", False) or st.session_state.get("is_authorized", False)
+        # ---------------------------------------------------------
+        # ২. এডমিন পারমিশন কন্ট্রোল প্যানেল (শুধুমাত্র Admin দেখতে পাবেন)
+        # ---------------------------------------------------------
+        if is_admin:
+            with st.expander("🔐 Manage Agent PDF Download Permissions (এজেন্টদের ডাউনলোডের অনুমতি দিন)"):
+                # ডাটাবেসের সমস্ত এজেন্টের তালিকা আনা
+                try:
+                    users_df = pd.read_sql_query("SELECT username, COALESCE(fullname, username) as name FROM users WHERE role != 'admin'", conn)
+                    all_agents_db = users_df['username'].tolist()
+                    user_display_map = dict(zip(users_df['username'], users_df['name']))
+                except Exception:
+                    all_agents_db = []
+                    user_display_map = {}
         
-        # ডাউনলোড করার অনুমতি (Admin অথবা Authorized Agent)
-        can_download = is_admin or is_authorized_agent
+                # বর্তমানে অনুমতি পাওয়া এজেন্টদের লিস্ট নিয়ে আসা
+                permitted_agents_df = pd.read_sql_query("SELECT username FROM pdf_permissions WHERE can_download = 1", conn)
+                allowed_list = permitted_agents_df['username'].tolist()
         
-        # ডেটাবেস থেকে 'মাস্টার ডিউ' (l.current_due) সহ সমস্ত তথ্য নিয়ে আসা হচ্ছে
+                # এডমিন এখানে সিলেক্ট/আনসিলেক্ট করে পারমিশন চেঞ্জ করতে পারবেন
+                selected_allowed_agents = st.multiselect(
+                    "অনুমোদিত এজেন্ট বেছে নিন (যারা PDF ডাউনলোড করতে পারবে):",
+                    options=all_agents_db,
+                    default=[ag for ag in allowed_list if ag in all_agents_db],
+                    format_func=lambda x: user_display_map.get(x, x)
+                )
+        
+                # সেভ করার বাটন
+                if st.button("💾 Save Permissions (পারমিশন সেভ করুন)", type="primary"):
+                    c.execute("UPDATE pdf_permissions SET can_download = 0")
+                    for ag in selected_allowed_agents:
+                        c.execute("""
+                            INSERT INTO pdf_permissions (username, can_download) 
+                            VALUES (?, 1) 
+                            ON CONFLICT(username) DO UPDATE SET can_download=1
+                        """, (ag,))
+                    conn.commit()
+                    st.success("পারমিশন সফলভাবে আপডেট করা হয়েছে!")
+                    st.rerun()
+        
+        # ---------------------------------------------------------
+        # ৩. কারেন্ট ইউজারের ডাউনলোড পারমিশন চেক
+        # ---------------------------------------------------------
+        if is_admin:
+            can_download = True
+        else:
+            # এজেন্টের ইউজারনেম ডাটাবেসে অনুমোদিত কিনা চেক করা
+            perm_check = pd.read_sql_query("SELECT can_download FROM pdf_permissions WHERE LOWER(username) = LOWER(?)", conn, params=(current_user,))
+            if not perm_check.empty and perm_check.iloc[0]['can_download'] == 1:
+                can_download = True
+            else:
+                can_download = False
+        
+        # ---------------------------------------------------------
+        # ৪. ডাটাবেস থেকে সম্পন্ন হওয়া কাজের তথ্য আনা
+        # ---------------------------------------------------------
         completed_tasks_df = pd.read_sql_query("""
             SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, 
                    t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, 
@@ -1948,12 +2009,9 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         """, conn)
         
         if not completed_tasks_df.empty:
-            # তারিখ ফিল্টার করার জন্য Date ফরম্যাটে রূপান্তর
             completed_tasks_df['created_datetime'] = pd.to_datetime(completed_tasks_df['created_at'], errors='coerce')
             completed_tasks_df['created_date'] = completed_tasks_df['created_datetime'].dt.date
             completed_tasks_df['month_year'] = completed_tasks_df['created_datetime'].dt.strftime('%B %Y')
-            
-            # এজেন্টের নাম ফাঁকা থাকলে ইউজারনেম বসানো
             completed_tasks_df['display_agent'] = completed_tasks_df['agent_fullname'].fillna(completed_tasks_df['agent_name'])
         
             st.markdown("##### 🔍 Filter Records (তারিখ ও এজেন্ট অনুযায়ী খুঁজুন)")
@@ -1965,28 +2023,21 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 selected_date = st.date_input("Select Date (তারিখ সিলেক্ট করুন)", value=max_date, min_value=min_date, max_value=max_date)
         
             with col_f2:
-                # 🔥 পরিবর্তন ১: সকল সম্পন্ন হওয়া কাজ থেকে সব এজেন্টের নামের ইউনিক তালিকা নেওয়া হচ্ছে (তারিখের ওপর নির্ভর না করে)
-                all_agents_list = sorted(completed_tasks_df['display_agent'].dropna().unique().tolist())
-                
-                # যদি users টেবিল থেকেও সব এজেন্টের নাম অন্তর্ভুক্ত করতে চান:
+                all_agents_list = completed_tasks_df['display_agent'].dropna().unique().tolist()
                 try:
                     users_df = pd.read_sql_query("SELECT DISTINCT COALESCE(fullname, username) as name FROM users", conn)
                     db_agents = users_df['name'].dropna().tolist()
-                    # দুটি লিস্ট মিলিয়ে ইউনিক রাখা
-                    all_agents_list = sorted(list(set(all_agents_list + db_agents)))
+                    all_agents_list = list(set(all_agents_list + db_agents))
                 except Exception:
                     pass
         
+                all_agents_list = sorted([str(ag) for ag in all_agents_list if ag])
                 agent_list = ["All Agents (সব এজেন্ট)"] + all_agents_list
-                
-                # প্রতিটি এজেন্টের নাম আলাদাভাবে সিলেক্ট করার ড্রপডাউন
                 selected_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন)", agent_list)
         
-            # 🔥 পরিবর্তন ২: ফিল্টারিং লজিক
-            # ১. প্রথমে তারিখ অনুযায়ী ফিল্টার
+            # তারিখ ও এজেন্ট ফিল্টারিং
             filtered_df = completed_tasks_df[completed_tasks_df['created_date'] == selected_date]
         
-            # ২. এরপর এজেন্ট সিলেক্ট করা থাকলে এজেন্ট অনুযায়ী ফিল্টার
             if selected_agent != "All Agents (সব এজেন্ট)":
                 final_filtered_df = filtered_df[filtered_df['display_agent'] == selected_agent]
             else:
@@ -1995,9 +2046,11 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             st.write("---")
         
             if final_filtered_df.empty:
-                st.warning(f"⚠️ {selected_date} তারিখে '{selected_agent}' এর কোনো সম্পন্ন হওয়া কাজ (Completed Task) পাওয়া যায়নি।")
+                st.warning(f"⚠️ {selected_date} তারিখে '{selected_agent}' এর কোনো সম্পন্ন হওয়া কাজ পাওয়া যায়নি।")
             else:
-                # --- PDF রিপোর্ট তৈরি ও ডাউনলোড করার পারমিশন সেকশন (Admin + অনুমোদিত Agent) ---
+                # ---------------------------------------------------------
+                # ৫. PDF ডাউনলোড বাটন (পারমিশন চেক সাপেক্ষে)
+                # ---------------------------------------------------------
                 if can_download:
                     def clean_text_for_pdf(text):
                         if not isinstance(text, str):
@@ -2027,8 +2080,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         pdf_clean_df[col] = pdf_clean_df[col].apply(clean_text_for_pdf)
         
                     clean_agent_title = clean_text_for_pdf(selected_agent)
-                    
-                    # নির্দিষ্ট এজেন্টের জন্য আলাদা রিপোর্ট
                     report_title = f"Tasks Report - {selected_date} ({clean_agent_title})"
                     html_comp_tasks = generate_html_report(report_title, pdf_clean_df)
                     
@@ -2050,7 +2101,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 st.error("PDF তৈরিতে সমস্যা হয়েছে।")
         
                     with col_tc2:
-                        # শুধুমাত্র Admin ফিল্টার করা হিস্ট্রি মুছে ফেলতে পারবে
                         if is_admin:
                             if st.button("🗑️ Clear Filtered Tasks History", type="secondary"):
                                 task_ids = final_filtered_df['id'].tolist()
@@ -2062,8 +2112,12 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 st.success("Filtered tasks moved to Recycle Bin!")
                                 st.rerun()
                     st.write("---")
+                else:
+                    st.info("ℹ️ আপনার PDF ডাউনলোড করার অনুমতি নেই। প্রয়োজনে অ্যাডমিনের সাথে যোগাযোগ করুন।")
         
-                # --- এজেন্টের কাজগুলোর লিস্ট আকারে ডিসপ্লে ---
+                # ---------------------------------------------------------
+                # ৬. এজেন্টদের কাজগুলোর লিস্ট প্রদর্শন
+                # ---------------------------------------------------------
                 for idx, row in final_filtered_df.iterrows():
                     ag_c_name = row['display_agent']
                     st.markdown(f"**Agent:** `{ag_c_name}` | **Party:** `{row['party_name']}` | **Task:** `{row['task_type']}`")
@@ -2071,7 +2125,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     master_due_text = f" | Master Due: `₹{row['master_due']}`" if pd.notna(row['master_due']) else ""
                     st.markdown(f"Sale: `₹{row['sale_amount']}` | Collected: `₹{row['payment_collected_actual']}` | Task Due: `₹{row['remaining_due']}`{master_due_text}")
                 
-                    # একক টাস্ক মোছার বাটন (শুধুমাত্র Admin দেখতে পাবে)
                     if is_admin:
                         if st.button("🗑️ Delete Task Record", key=f"del_comp_task_{row['id']}"):
                             move_to_recycle_bin("Task", row['party_name'], dict(row))
@@ -2081,7 +2134,9 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                             st.rerun()
                     st.write("---")
             
-                # --- মাসিক বাল্ক ডিলিট অপশন (শুধুমাত্র Admin-এর জন্য) ---
+                # ---------------------------------------------------------
+                # ৭. মাসিক বাল্ক ডিলিট অপশন (শুধুমাত্র Admin)
+                # ---------------------------------------------------------
                 if is_admin:
                     with st.expander("⚠️ Monthly Bulk Delete (মাসিক ভিত্তিতে ডেটা মুছুন)"):
                         st.warning("এখান থেকে কোনো মাসের ডেটা ডিলিট করলে সেটি সরাসরি রিসাইকেল বিনে চলে যাবে।")
