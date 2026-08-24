@@ -570,7 +570,7 @@ if "selected_lon" not in st.session_state:
     st.session_state["selected_lon"] = 87.3320
 
 query_params = st.query_params
-saved_user_js = streamlit_js_eval(js_expressions="localStorage.getItem('ps_mediseller_user')", key="get_saved_user_storage")
+saved_user_js = streamlit_js_eval(js_expressions="localStorage.getItem('ps_mediseller_user')", key="get_saved_user_storage_unique")
 target_login = None
 if query_params.get("login"):
     target_login = query_params.get("login")
