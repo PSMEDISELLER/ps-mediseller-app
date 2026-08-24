@@ -781,12 +781,12 @@ st.write("---")
 if selected_menu == "Add Location (লোকেশন যোগ)":
         st.write("### Add Location & Party (লোকেশন ও পার্টি)")
         
-        # High Accuracy GPS Fetching via Streamlit Components / HTML Component
+        # High Accuracy & Multi-Try GPS Fetching Component
         import streamlit.components.v1 as components
         
         gps_component_code = """
         <div>
-            <button id="getLocBtn" style="background-color:#1a73e8; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:14px; font-weight:bold;">📍 Live GPS Fix (লাইভ জিপিএস ফিক্স)</button>
+            <button id="getLocBtn" style="background-color:#1a73e8; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:14px; font-weight:bold;">📍 Strong GPS Fix (স্ট্রং জিপিএস ফিক্স)</button>
             <p id="gpsStatus" style="font-size:12px; margin-top:5px; color:#666;"></p>
         </div>
         <script>
@@ -798,29 +798,49 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                 status.innerText = "Geolocation is not supported by your browser";
                 return;
             }
-            status.innerText = "Locating with High Accuracy... Please wait...";
+            status.innerText = "Getting strong GPS fix (Multi-try)... Please wait...";
             
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    const acc = position.coords.accuracy;
-                    status.innerText = `Success! Accuracy: ~${Math.round(acc)} meters`;
-                    
-                    // Send back to Streamlit via URL params or custom mechanism if needed, 
-                    // or trigger Streamlit update
-                    const data = {lat: lat, lon: lon};
-                    window.parent.postMessage({type: 'streamlit:setComponentValue', value: data}, '*');
-                },
-                (error) => {
-                    status.innerText = "Error: " + error.message + ". Try again in open sky.";
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
-                }
-            );
+            let bestPosition = null;
+            let attempts = 0;
+            const maxAttempts = 3;
+
+            function tryGetPosition() {
+                attempts++;
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const acc = position.coords.accuracy;
+                        if (!bestPosition || acc < bestPosition.coords.accuracy) {
+                            bestPosition = position;
+                        }
+                        
+                        if (attempts < maxAttempts && acc > 20) {
+                            status.innerText = `Attempt ${attempts}: Accuracy ~${Math.round(acc)}m. Retries for better accuracy...`;
+                            setTimeout(tryGetPosition, 1000);
+                        } else {
+                            const lat = bestPosition.coords.latitude;
+                            const lon = bestPosition.coords.longitude;
+                            const finalAcc = Math.round(bestPosition.coords.accuracy);
+                            status.innerText = `Success! Best Accuracy: ~${finalAcc} meters`;
+                            
+                            const data = {lat: lat, lon: lon};
+                            window.parent.postMessage({type: 'streamlit:setComponentValue', value: data}, '*');
+                        }
+                    },
+                    (error) => {
+                        if (attempts < maxAttempts) {
+                            setTimeout(tryGetPosition, 1500);
+                        } else {
+                            status.innerText = "Error: " + error.message + ". Try moving to open sky.";
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 12000,
+                        maximumAge: 0
+                    }
+                );
+            }
+            tryGetPosition();
         };
         </script>
         """
@@ -910,11 +930,11 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
         st.write("#### Select Location from Map (ম্যাপ থেকে সিলেক্ট করুন)")
         col_m1, col_m2 = st.columns([1, 4])
         with col_m1:
-            if st.button("📍 Current Loc (স্টং জিপিএস)"):
+            if st.button("📍 Current Loc (স্ট্রং জিপিএস)"):
                 if gps_lat and gps_lon:
                     st.session_state["selected_lat"] = gps_lat
                     st.session_state["selected_lon"] = gps_lon
-                    st.success("High-accuracy GPS location taken! (নেওয়া হয়েছে!)")
+                    st.success("High-accuracy multi-try GPS location taken! (নেওয়া হয়েছে!)")
                     st.rerun()
                 else:
                     st.warning("GPS not found! ম্যাপে ক্লিক করে বা বাইরে গিয়ে চেষ্টা করুন।")
