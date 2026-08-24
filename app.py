@@ -2271,20 +2271,43 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
 
     with set_tab_perm:
         st.write("#### Menu Permissions (মেনু পারমিশন)")
+
+        # স্টাফ ডাটা ফেচ করা
         c.execute("SELECT username, fullname FROM users WHERE role='staff'")
         staff_data = c.fetchall()
+        
         for s in staff_data:
             s_uname, s_fname = s
+            
+            # ডাটাবেজ থেকে বর্তমান পারমিশন আনা
             c.execute("SELECT allowed_menus FROM users WHERE username=?", (s_uname,))
             am_row = c.fetchone()
+            
+            # বর্তমান মেনু লিস্ট তৈরি
             curr_menus = am_row[0].split(",") if am_row and am_row[0] else all_basic_menus
             valid_defaults = [menu.strip() for menu in curr_menus if menu.strip() in all_basic_menus]
-            sel_menus = st.multiselect(f"Permissions for {s_fname} ({s_uname})", all_basic_menus, default=valid_defaults, key=f"perm_{s_uname}")
+            
+            # মাল্টিসিলেক্ট উইজেট
+            sel_menus = st.multiselect(
+                f"Permissions for {s_fname} ({s_uname})", 
+                all_basic_menus, 
+                default=valid_defaults, 
+                key=f"perm_{s_uname}"
+            )
+            
+            # পারমিশন সেভ করার বাটন
             if st.button(f"Save Permissions for {s_uname}", key=f"btn_perm_{s_uname}"):
-                c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (",".join(sel_menus), s_uname))
+                # সিলেক্ট করা মেনুগুলোকে কমা দিয়ে যুক্ত করে স্ট্রিং বানানো
+                updated_menus_str = ",".join(sel_menus)
+                
+                # ডাটাবেজ আপডেট
+                c.execute("UPDATE users SET allowed_menus=? WHERE username=?", (updated_menus_str, s_uname))
                 conn.commit()
-                st.success("Permissions updated successfully!")
-
+                
+                st.success(f"Permissions updated successfully for {s_fname}!")
+                
+                # পরিবর্তন সাথে সাথে অ্যাপে কার্যকর করতে রিরান করা
+                st.rerun()
     with set_tab3:
         st.write("#### Manage Agents (Block / Unblock / Delete)")
         c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
