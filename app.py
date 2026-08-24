@@ -2283,43 +2283,101 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
 
     with set_tab1:
         st.write("#### Add New Staff / Agent & Generate Auto-Login Link")
-        st.info("ℹ️ এই সেকশন থেকে অ্যাডমিন নতুন এজেন্টের নাম, ইউজারনেম ও পাসওয়ার্ড দিয়ে একাউন্ট তৈরি করতে পারবেন। সাথে সাথে প্রতিটি এজেন্টের জন্য একটি **Auto-Login Link** তৈরি হয়ে যাবে, যা কপি করে এজেন্টকে দিলে সে বিনা বাধায় সরাসরি অ্যাপে প্রবেশ করতে পারবে।")
+        st.info("ℹ️ এই সেকশন থেকে অ্যাডমিন নতুন এজেন্টের নাম, ইউজারনেম ও পাসওয়ার্ড দিয়ে একাউন্ট তৈরি করতে পারবেন। সাথে সাথে প্রতিটি এজেন্টের জন্য একটি **Auto-Login Link** তৈরি হয়ে যাবে।")
 
+        # বেস ইউআরএল বের করা
         eval_parent_url = streamlit_js_eval(js_expressions="window.parent.location.origin + window.parent.location.pathname", key="get_parent_window_url_clean")
         if eval_parent_url and "component" not in eval_parent_url:
             clean_base_url = eval_parent_url.rstrip("/")
         else:
             clean_base_url = "https://ps-mediseller-app-gcanjbehuut7h9rzk4xzfg.streamlit.app"
 
+        # নতুন এজেন্ট যোগ করার ফর্ম
         with st.form("add_agent_form", clear_on_submit=True):
             new_uname = st.text_input("Username (ইউজারনেম, যেমন: rahul1)")
-            new_pass = st.text_input("Password (পাসওয়ার্ড)")
+            new_pass = st.text_input("Password (পাসওয়ার্ড)")
             new_fname = st.text_input("Full Name (পুরো নাম)")
             new_phone = st.text_input("Phone Number (ফোন নম্বর)")
+            
             submit_new_agent = st.form_submit_button("➕ Add Agent (এজেন্ট যুক্ত করুন)", type="primary")
+            
             if submit_new_agent:
                 if new_uname.strip() and new_pass.strip() and new_fname.strip():
                     try:
                         c.execute("INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, 'staff', ?, ?, ?, 1, 0)",
                                   (new_uname.strip(), new_pass.strip(), new_fname.strip(), new_phone.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S")))
                         conn.commit()
-                        st.success("New agent added successfully! (নতুন এজেন্ট যুক্ত হয়েছে!)")
+                        st.success(f"New agent '{new_fname.strip()}' added successfully! (নতুন এজেন্ট যুক্ত হয়েছে!)")
                         st.rerun()
                     except sqlite3.IntegrityError:
                         st.error("Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
                 else:
                     st.error("Username, Password and Full Name are required! (সব তথ্য আবশ্যক!)")
 
-        st.write("#### Existing Agents & Login Links")
+        st.write("---")
+        
+        # এজেন্টদের লিস্ট, লিংক এবং এডিট করার অপশন
+        st.write("#### 🔗 Existing Agents, Auto-Login Links & Edit")
+        st.write("এজেন্টদের তথ্য পরিবর্তন করতে '✏️ Edit Agent' এ ক্লিক করুন।")
+        
         c.execute("SELECT username, fullname, password, phone, is_active FROM users WHERE role='staff'")
         staff_data = c.fetchall()
-        for s in staff_data:
-            s_uname, s_fname, s_pass, s_ph, s_act = s
-            st.markdown(f"**Name:** {s_fname} | **User:** `{s_uname}` | **Pass:** `{s_pass}` | **Phone:** {s_ph}")
-            link = f"{clean_base_url}/?login={s_uname}"
-            st.code(link, language="text")
-            st.write("---")
-
+        
+        if staff_data:
+            for s in staff_data:
+                s_uname, s_fname, s_pass, s_ph, s_act = s
+                status = "🟢 Active" if s_act == 1 else "🔴 Blocked"
+                
+                st.markdown(f"**👤 Name:** {s_fname} | **User:** `{s_uname}` | **Pass:** `{s_pass}` | **Phone:** {s_ph} | **Status:** {status}")
+                
+                # লিংক জেনারেট
+                link = f"{clean_base_url}/?login={s_uname}"
+                st.code(link, language="text")
+                
+                # এজেন্ট এডিট করার ফর্ম
+                with st.expander(f"✏️ Edit Agent: {s_fname}"):
+                    with st.form(f"edit_form_{s_uname}"):
+                        edit_fname = st.text_input("Full Name (নতুন নাম)", value=s_fname)
+                        edit_uname = st.text_input("Username / ID (নতুন আইডি)", value=s_uname)
+                        edit_pass = st.text_input("Password (নতুন পাসওয়ার্ড)", value=s_pass)
+                        edit_phone = st.text_input("Phone Number (নতুন ফোন নম্বর)", value=s_ph)
+                        
+                        submit_edit = st.form_submit_button("💾 Update Details (আপডেট করুন)", type="primary")
+                        
+                        if submit_edit:
+                            if edit_uname.strip() and edit_fname.strip():
+                                try:
+                                    # যদি ইউজারনেম পরিবর্তন করা হয়, তবে চেক করা যে নতুন নামটি ফাঁকা বা অন্য কারো আছে কিনা
+                                    if edit_uname.strip() != s_uname:
+                                        c.execute("SELECT username FROM users WHERE username=?", (edit_uname.strip(),))
+                                        if c.fetchone():
+                                            st.error("এই নতুন আইডিটি (Username) ইতিমধ্যে অন্য আরেকজনের আছে! অন্য নাম দিন।")
+                                            st.stop()
+                                    
+                                    # Users টেবিল আপডেট
+                                    c.execute("""
+                                        UPDATE users 
+                                        SET username=?, fullname=?, password=?, phone=? 
+                                        WHERE username=?
+                                    """, (edit_uname.strip(), edit_fname.strip(), edit_pass.strip(), edit_phone.strip(), s_uname))
+                                    
+                                    # ইউজারনেম পরিবর্তন হলে অন্যান্য টেবিলেও আপডেট করা (যাতে আগের ডেটা হারিয়ে না যায়)
+                                    if edit_uname.strip() != s_uname:
+                                        c.execute("UPDATE attendance SET username=? WHERE username=?", (edit_uname.strip(), s_uname))
+                                        c.execute("UPDATE agent_live_locations SET username=? WHERE username=?", (edit_uname.strip(), s_uname))
+                                        c.execute("UPDATE task_assignments SET agent_name=? WHERE agent_name=?", (edit_uname.strip(), s_uname))
+                                    
+                                    conn.commit()
+                                    st.success("এজেন্টের তথ্য সফলভাবে আপডেট হয়েছে! (Updated Successfully)")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error updating agent: {e}")
+                            else:
+                                st.error("নাম এবং আইডি (Username) ফাঁকা রাখা যাবে না!")
+                
+                st.write("---")
+        else:
+            st.warning("এখনো কোনো স্টাফ/এজেন্ট যুক্ত করা হয়নি।")
     with set_tab_perm:
         st.write("#### Menu Permissions (মেনু পারমিশন)")
 
