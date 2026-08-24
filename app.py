@@ -30,15 +30,26 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
+/* পুরো অ্যাপের যেকোনো ধরনের কালো দাগ বা ডিভাইডার সম্পূর্ণ মুছে ফেলা */
+hr, 
+div[data-testid="stDivider"], 
+div[data-testid="stMarkdownContainer"] hr,
+div[data-testid="stElementContainer"]:has(hr) {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0px !important;
+    margin: 0px !important;
+    padding: 0px !important;
+}
+
+/* ব্যানার ইমেজের সাইজ ঠিক করা */
 div[data-testid="stImage"] img {
-    height: 150px !important;
+    height: 140px !important;
     object-fit: cover !important;
     border-radius: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
-
-st.image("banner.jpg", use_container_width=True)
 # === 
 # IST TIME & DATE FORMAT HELPERS
 # ===
