@@ -1932,7 +1932,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         # এডমিন অনুমোদিত এজেন্টের জন্য ফ্ল্যাগ (যেমন: session_state এ can_download_report = True সেট করা থাকলে)
         is_authorized_agent = st.session_state.get("can_download_report", False) or st.session_state.get("is_authorized", False)
         
-        # ডাউনলোড করার অনুমতি
+        # ডাউনলোড করার অনুমতি (Admin অথবা Authorized Agent)
         can_download = is_admin or is_authorized_agent
         
         # ডেটাবেস থেকে 'মাস্টার ডিউ' (l.current_due) সহ সমস্ত তথ্য নিয়ে আসা হচ্ছে
@@ -1941,7 +1941,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                    t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, 
                    t.remaining_due, t.created_at, l.address, l.current_due as master_due
             FROM task_assignments t 
-            LEFT JOIN users u ON t.agent_name = u.username 
+            LEFT JOIN users u ON LOWER(t.agent_name) = LOWER(u.username) 
             LEFT JOIN locations l ON t.party_name = l.party_name 
             WHERE t.status='Completed' 
             ORDER BY t.created_at DESC
@@ -1952,6 +1952,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             completed_tasks_df['created_datetime'] = pd.to_datetime(completed_tasks_df['created_at'], errors='coerce')
             completed_tasks_df['created_date'] = completed_tasks_df['created_datetime'].dt.date
             completed_tasks_df['month_year'] = completed_tasks_df['created_datetime'].dt.strftime('%B %Y')
+            
+            # এজেন্টের নাম ফাঁকা থাকলে ইউজারনেম বসানো
             completed_tasks_df['display_agent'] = completed_tasks_df['agent_fullname'].fillna(completed_tasks_df['agent_name'])
         
             st.markdown("##### 🔍 Filter Records (তারিখ ও এজেন্ট অনুযায়ী খুঁজুন)")
@@ -1962,29 +1964,38 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 max_date = completed_tasks_df['created_date'].max()
                 selected_date = st.date_input("Select Date (তারিখ সিলেক্ট করুন)", value=max_date, min_value=min_date, max_value=max_date)
         
-            # ১. প্রথমে নির্দিষ্ট তারিখ অনুযায়ী ডেটা ফিল্টার
-            date_filtered_df = completed_tasks_df[completed_tasks_df['created_date'] == selected_date]
-        
             with col_f2:
-                # ওই নির্দিষ্ট তারিখে যে যে এজেন্টদের কাজ আছে তাদের তালিকা তৈরি
-                if not date_filtered_df.empty:
-                    agent_list = ["All Agents (সব এজেন্ট)"] + sorted(date_filtered_df['display_agent'].dropna().unique().tolist())
-                else:
-                    agent_list = ["All Agents (সব এজেন্ট)"]
-            
-                # আলাদা আলাদা এজেন্ট সিলেক্ট করার ড্রপডাউন
-                selected_agent = st.selectbox("Select Agent (নির্দিষ্ট এজেন্ট সিলেক্ট করুন)", agent_list)
+                # 🔥 পরিবর্তন ১: সকল সম্পন্ন হওয়া কাজ থেকে সব এজেন্টের নামের ইউনিক তালিকা নেওয়া হচ্ছে (তারিখের ওপর নির্ভর না করে)
+                all_agents_list = sorted(completed_tasks_df['display_agent'].dropna().unique().tolist())
+                
+                # যদি users টেবিল থেকেও সব এজেন্টের নাম অন্তর্ভুক্ত করতে চান:
+                try:
+                    users_df = pd.read_sql_query("SELECT DISTINCT COALESCE(fullname, username) as name FROM users", conn)
+                    db_agents = users_df['name'].dropna().tolist()
+                    # দুটি লিস্ট মিলিয়ে ইউনিক রাখা
+                    all_agents_list = sorted(list(set(all_agents_list + db_agents)))
+                except Exception:
+                    pass
         
-            # ২. এজেন্ট অনুযায়ী নির্দিষ্ট ফিল্টার করা
+                agent_list = ["All Agents (সব এজেন্ট)"] + all_agents_list
+                
+                # প্রতিটি এজেন্টের নাম আলাদাভাবে সিলেক্ট করার ড্রপডাউন
+                selected_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন)", agent_list)
+        
+            # 🔥 পরিবর্তন ২: ফিল্টারিং লজিক
+            # ১. প্রথমে তারিখ অনুযায়ী ফিল্টার
+            filtered_df = completed_tasks_df[completed_tasks_df['created_date'] == selected_date]
+        
+            # ২. এরপর এজেন্ট সিলেক্ট করা থাকলে এজেন্ট অনুযায়ী ফিল্টার
             if selected_agent != "All Agents (সব এজেন্ট)":
-                final_filtered_df = date_filtered_df[date_filtered_df['display_agent'] == selected_agent]
+                final_filtered_df = filtered_df[filtered_df['display_agent'] == selected_agent]
             else:
-                final_filtered_df = date_filtered_df
+                final_filtered_df = filtered_df
         
             st.write("---")
         
             if final_filtered_df.empty:
-                st.warning("⚠️ No completed tasks found for the selected date and agent. (এই তারিখে/এজেন্টের কোনো কাজ নেই)")
+                st.warning(f"⚠️ {selected_date} তারিখে '{selected_agent}' এর কোনো সম্পন্ন হওয়া কাজ (Completed Task) পাওয়া যায়নি।")
             else:
                 # --- PDF রিপোর্ট তৈরি ও ডাউনলোড করার পারমিশন সেকশন (Admin + অনুমোদিত Agent) ---
                 if can_download:
@@ -2017,7 +2028,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         
                     clean_agent_title = clean_text_for_pdf(selected_agent)
                     
-                    # নির্দিষ্ট তারিখ এবং নির্দিষ্ট এজেন্টের রিপোর্ট হেডার
+                    # নির্দিষ্ট এজেন্টের জন্য আলাদা রিপোর্ট
                     report_title = f"Tasks Report - {selected_date} ({clean_agent_title})"
                     html_comp_tasks = generate_html_report(report_title, pdf_clean_df)
                     
@@ -2029,7 +2040,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                             
                             if not pisa_status.err:
                                 st.download_button(
-                                    label=f"📥 Download Report ({selected_agent})",
+                                    label=f"📥 Download PDF ({selected_agent})",
                                     data=pdf_buffer.getvalue(),
                                     file_name=f"report_{selected_date}_{clean_agent_title.replace(' ', '_')}.pdf",
                                     mime="application/pdf",
@@ -2039,7 +2050,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                 st.error("PDF তৈরিতে সমস্যা হয়েছে।")
         
                     with col_tc2:
-                        # শুধুমাত্র এডমিন ফিল্টার করা কাজ একবারে মুছে ফেলতে পারবে
+                        # শুধুমাত্র Admin ফিল্টার করা হিস্ট্রি মুছে ফেলতে পারবে
                         if is_admin:
                             if st.button("🗑️ Clear Filtered Tasks History", type="secondary"):
                                 task_ids = final_filtered_df['id'].tolist()
@@ -2060,7 +2071,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     master_due_text = f" | Master Due: `₹{row['master_due']}`" if pd.notna(row['master_due']) else ""
                     st.markdown(f"Sale: `₹{row['sale_amount']}` | Collected: `₹{row['payment_collected_actual']}` | Task Due: `₹{row['remaining_due']}`{master_due_text}")
                 
-                    # একক টাস্ক মোছার বাটন (শুধুমাত্র এডমিনের জন্য)
+                    # একক টাস্ক মোছার বাটন (শুধুমাত্র Admin দেখতে পাবে)
                     if is_admin:
                         if st.button("🗑️ Delete Task Record", key=f"del_comp_task_{row['id']}"):
                             move_to_recycle_bin("Task", row['party_name'], dict(row))
