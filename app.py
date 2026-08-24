@@ -2649,43 +2649,94 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
         
         except Exception as e:
             st.error(f"স্টাফদের তথ্য আনতে সমস্যা হয়েছে: {e}")
-            with set_tab3:
-                st.write("#### Manage Agents (Block / Unblock / Delete)")
-                c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
-                staff_data = c.fetchall()
+    with set_tab3:
+        import streamlit as st
+        import sqlite3
         
-                for s in staff_data:
-                    s_uname, s_fname, s_act = s
-                    status = "Active" if s_act else "Blocked"
-                    st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
+        # --- ১. ডাটাবেস কানেকশন সেটআপ ---
+        # check_same_thread=False দেওয়া জরুরি, না হলে Streamlit-এ এরর আসতে পারে
+        conn = sqlite3.connect('users.db', check_same_thread=False)
+        c = conn.cursor()
         
-                    col1, col2 = st.columns(2)
+        # টেবিল না থাকলে তৈরি করে নেবে (টেস্টিংয়ের সুবিধার জন্য)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                fullname TEXT,
+                is_active INTEGER,
+                role TEXT
+            )
+        ''')
+        conn.commit()
+        
+        # --- ২. Manage Agents ফাংশন ---
+        def manage_agents():
+            st.write("#### 👥 Manage Agents (Block / Unblock / Delete)")
+        
+            # সাকসেস মেসেজ দেখানোর জন্য (যাতে পেজ রিলোড হলেও মেসেজ থাকে)
+            if "delete_msg" in st.session_state:
+                st.success(st.session_state["delete_msg"])
+                del st.session_state["delete_msg"]
+        
+            c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
+            staff_data = c.fetchall()
+        
+            if not staff_data:
+                st.info("কোনো এজেন্ট পাওয়া যায়নি। ডাটাবেসে স্টাফ অ্যাড করুন।")
+            else:
+                for s_uname, s_fname, s_act in staff_data:
+                    status = "🟢 Active" if s_act else "🔴 Blocked"
+                    st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: {status}")
+        
+                    col1, col2, _ = st.columns([1, 1, 3]) # কলামগুলো সুন্দরভাবে সাজানো হলো
         
                     with col1:
                         if s_act:
-                            if st.button(f"🚫 Block {s_uname}", key=f"blk_{s_uname}"):
-                                c.execute(
-                                    "UPDATE users SET is_active=0 WHERE username=?", (s_uname,)
-                                )
+                            if st.button("🚫 Block", key=f"blk_{s_uname}"):
+                                c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_uname,))
                                 conn.commit()
                                 st.rerun()
                         else:
-                            if st.button(f"✅ Unblock {s_uname}", key=f"unblk_{s_uname}"):
-                                c.execute(
-                                    "UPDATE users SET is_active=1 WHERE username=?", (s_uname,)
-                                )
+                            if st.button("✅ Unblock", key=f"unblk_{s_uname}"):
+                                c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_uname,))
                                 conn.commit()
                                 st.rerun()
         
                     with col2:
-                        if st.button(f"🗑️ Delete {s_uname}", key=f"del_{s_uname}"):
+                        if st.button("🗑️ Delete", key=f"del_{s_uname}"):
                             c.execute("DELETE FROM users WHERE username=?", (s_uname,))
                             conn.commit()
-                            st.success(f"Agent '{s_uname}' deleted successfully!")
+                            st.session_state["delete_msg"] = f"Agent '{s_uname}' সফলভাবে ডিলিট করা হয়েছে!"
                             st.rerun()
         
                     st.write("---")
-
+        
+        # --- ৩. মেইন মেনু এবং অ্যাপ স্ট্রাকচার ---
+        def main():
+            st.set_page_config(page_title="Admin Panel", layout="wide")
+        
+            # সাইডবার মেনু তৈরি
+            st.sidebar.title("📌 Main Menu")
+            
+            # মেনু অপশনগুলো এখানে যুক্ত করুন
+            menu_options = ["🏠 Dashboard", "👥 Manage Agents", "⚙️ Settings"]
+            choice = st.sidebar.radio("একটি অপশন বেছে নিন:", menu_options)
+        
+            # মেনু অনুযায়ী পেজ লোড হবে
+            if choice == "🏠 Dashboard":
+                st.title("Welcome to Admin Dashboard")
+                st.write("এখান থেকে আপনি অ্যাপ্লিকেশনের সব ডেটা দেখতে পাবেন।")
+                
+            elif choice == "👥 Manage Agents":
+                manage_agents() # উপরের ফাংশনটি কল করা হলো
+                
+            elif choice == "⚙️ Settings":
+                st.title("Settings")
+                st.write("এখানে সিস্টেম সেটিংস থাকবে।")
+        
+        # অ্যাপ রান করানো
+        if __name__ == '__main__':
+            main()
     with set_tab4:
         st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
         with open(DB_FILE, "rb") as f:
