@@ -22,12 +22,7 @@ from streamlit_js_eval import get_geolocation, streamlit_js_eval
 # ===
 # PAGE CONFIGURATION
 # ===
-st.set_page_config(
-    page_title="P. S MEDISELLER - Allopathy & Ayurvedic Wholesaler",
-    page_icon="",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+
 st.markdown("""
 <style>
 div[data-testid="stImage"] img {
