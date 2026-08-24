@@ -28,7 +28,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-# ইমেজের হাইট কমিয়ে ফুল-উইডথ করার সিএসএস
 st.markdown("""
 <style>
 div[data-testid="stImage"] img {
@@ -39,9 +38,9 @@ div[data-testid="stImage"] img {
 </style>
 """, unsafe_allow_html=True)
 
-# ব্যানার ইমেজ
+# অনলাইন আয়ুর্বেদিক ব্যানার
 st.image(
-    "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=1200&auto=format&fit=crop",
     use_container_width=True
 )
 # ===
