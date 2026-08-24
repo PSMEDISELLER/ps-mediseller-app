@@ -473,7 +473,7 @@ if target_login:
             st.stop()
         else:
             st.session_state["username"] = target_login
-            st.session_state["user_role"], r_role
+            st.session_state["user_role"] = r_role
             if query_params.get("login"):
                 st.query_params.clear()
                 st.rerun()
