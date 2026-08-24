@@ -28,18 +28,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+# ইমেজের হাইট কমিয়ে ফুল-উইডথ করার সিএসএস
 st.markdown("""
 <style>
-.banner-img {
-    width: 100% !important;
-    height: 150px !important; /* হাইট কম-বেশি করতে এই ১৫০px মানটি বদলাতে পারেন */
+div[data-testid="stImage"] img {
+    height: 140px !important;
     object-fit: cover !important;
     border-radius: 10px;
-    margin-bottom: 10px;
 }
 </style>
-<img src="https://images.unsplash.com/photo-1611070342082-9599a091497a?q=80&w=1200&auto=format&fit=crop" class="banner-img">
 """, unsafe_allow_html=True)
+
+# ব্যানার ইমেজ
+st.image(
+    "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=1200&auto=format&fit=crop",
+    use_container_width=True
+)
 # ===
 # IST TIME & DATE FORMAT HELPERS
 # ===
