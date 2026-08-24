@@ -30,22 +30,14 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
-/* স্ট্রিমলিটের সমস্ত কালো দাগ বা ডিভাইডার পাকাপাকিভাবে মুছে ফেলা */
-hr, div[data-testid="stDivider"] {
-    display: none !important;
-}
-
-/* ব্যানার ইমেজের সাইজ ঠিক রাখা */
 div[data-testid="stImage"] img {
-    height: 140px !important;
+    height: 150px !important;
     object-fit: cover !important;
     border-radius: 8px;
-    margin-bottom: -10px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# আপনার আপলোড করা ছবি দেখানোর জন্য এই লাইনটি জরুরি
 st.image("banner.jpg", use_container_width=True)
 # ===
 # IST TIME & DATE FORMAT HELPERS
