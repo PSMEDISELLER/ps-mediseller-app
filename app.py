@@ -28,9 +28,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.warning("আপনার সেশন এক্সপায়ার হয়েছে। দয়া করে আবার লগইন করুন।")
-    st.stop()
 st.markdown("""
 <style>
 div[data-testid="stImage"] img {
