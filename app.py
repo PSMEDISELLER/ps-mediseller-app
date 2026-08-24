@@ -28,7 +28,32 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+st.markdown("""
+<style>
+/* ১. পেজের একদম উপরের ফাঁকা জায়গা কমানো */
+.block-container {
+    padding-top: 0.5rem !important;
+    padding-bottom: 1rem !important;
+    margin-top: -35px !important;
+}
 
+/* ২. স্ট্রিমলিটের ডিফল্ট হেডার পুরোপুরি হাইড করা */
+header[data-testid="stHeader"] {
+    display: none !important;
+}
+
+/* ৩. প্রতিটি এলিমেন্ট ও বাটনের মাঝের ফালতু গ্যাপ কমিয়ে আনা */
+div[data-testid="stVerticalBlock"] > div {
+    gap: 0.4rem !important;
+}
+
+/* ৪. লেখার নিচের বাড়তি মার্জিন দূর করে উপরে তোলা */
+h1, h2, h3, h4, h5, p {
+    margin-top: 0px !important;
+    margin-bottom: 2px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 # ===
 # IST TIME & DATE FORMAT HELPERS
 # ===
