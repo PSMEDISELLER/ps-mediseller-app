@@ -2653,27 +2653,35 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
         import streamlit as st
         import sqlite3
         
-        # --- ১. ডাটাবেস কানেকশন সেটআপ ---
-        # check_same_thread=False দেওয়া জরুরি, না হলে Streamlit-এ এরর আসতে পারে
-        conn = sqlite3.connect('users.db', check_same_thread=False)
-        c = conn.cursor()
+        # ডেটাবেস কানেকশন (আপনার কোড অনুযায়ী ঠিক করে নেবেন)
+        # conn = sqlite3.connect('your_database.db')
+        # c = conn.cursor()
         
-        # টেবিল না থাকলে তৈরি করে নেবে (টেস্টিংয়ের সুবিধার জন্য)
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                fullname TEXT,
-                is_active INTEGER,
-                role TEXT
-            )
-        ''')
-        conn.commit()
+        # --- ১. Menu State Management ---
+        # যদি session_state এ মেনু না থাকে, তবে ডিফল্ট একটি সেট করুন
+        if "current_menu" not in st.session_state:
+            st.session_state["current_menu"] = "Manage Agents" # বা আপনার ডিফল্ট পেজ
         
-        # --- ২. Manage Agents ফাংশন ---
-        def manage_agents():
-            st.write("#### 👥 Manage Agents (Block / Unblock / Delete)")
+        # Sidebar Menu (উদাহরণস্বরূপ)
+        st.sidebar.title("Navigation")
+        menu_options = ["Home", "Manage Agents", "Settings"]
         
-            # সাকসেস মেসেজ দেখানোর জন্য (যাতে পেজ রিলোড হলেও মেসেজ থাকে)
+        # selectbox এর value session_state থেকে আসবে
+        selected_menu = st.sidebar.selectbox(
+            "Select a page", 
+            options=menu_options, 
+            index=menu_options.index(st.session_state["current_menu"])
+        )
+        
+        # ইউজার যদি মেনু পরিবর্তন করে, তবে তা session_state এ সেভ করুন
+        st.session_state["current_menu"] = selected_menu
+        
+        
+        # --- ২. আপনার মূল কোড (Manage Agents) ---
+        if st.session_state["current_menu"] == "Manage Agents":
+            st.write("#### Manage Agents (Block / Unblock / Delete)") # St কে st করা হয়েছে
+        
+            # Success message দেখানোর কোডটি উপরে আনলে ভালো, যাতে রিরান হওয়ার সাথে সাথেই দেখা যায়
             if "delete_msg" in st.session_state:
                 st.success(st.session_state["delete_msg"])
                 del st.session_state["delete_msg"]
@@ -2682,20 +2690,20 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
             staff_data = c.fetchall()
         
             if not staff_data:
-                st.info("কোনো এজেন্ট পাওয়া যায়নি। ডাটাবেসে স্টাফ অ্যাড করুন।")
+                st.info("No agents found.")
             else:
                 for s_uname, s_fname, s_act in staff_data:
-                    status = "🟢 Active" if s_act else "🔴 Blocked"
-                    st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: {status}")
+                    status = "Active" if s_act else "Blocked"
+                    st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
         
-                    col1, col2, _ = st.columns([1, 1, 3]) # কলামগুলো সুন্দরভাবে সাজানো হলো
+                    col1, col2, _ = st.columns([1, 1, 3])
         
                     with col1:
                         if s_act:
                             if st.button("🚫 Block", key=f"blk_{s_uname}"):
                                 c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_uname,))
                                 conn.commit()
-                                st.rerun()
+                                st.rerun() # এখন রিরান হলেও current_menu সেভ থাকবে
                         else:
                             if st.button("✅ Unblock", key=f"unblk_{s_uname}"):
                                 c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_uname,))
@@ -2706,37 +2714,13 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                         if st.button("🗑️ Delete", key=f"del_{s_uname}"):
                             c.execute("DELETE FROM users WHERE username=?", (s_uname,))
                             conn.commit()
-                            st.session_state["delete_msg"] = f"Agent '{s_uname}' সফলভাবে ডিলিট করা হয়েছে!"
+                            st.session_state["delete_msg"] = f"Agent '{s_uname}' deleted successfully!"
                             st.rerun()
         
                     st.write("---")
         
-        # --- ৩. মেইন মেনু এবং অ্যাপ স্ট্রাকচার ---
-        def main():
-            st.set_page_config(page_title="Admin Panel", layout="wide")
-        
-            # সাইডবার মেনু তৈরি
-            st.sidebar.title("📌 Main Menu")
-            
-            # মেনু অপশনগুলো এখানে যুক্ত করুন
-            menu_options = ["🏠 Dashboard", "👥 Manage Agents", "⚙️ Settings"]
-            choice = st.sidebar.radio("একটি অপশন বেছে নিন:", menu_options)
-        
-            # মেনু অনুযায়ী পেজ লোড হবে
-            if choice == "🏠 Dashboard":
-                st.title("Welcome to Admin Dashboard")
-                st.write("এখান থেকে আপনি অ্যাপ্লিকেশনের সব ডেটা দেখতে পাবেন।")
-                
-            elif choice == "👥 Manage Agents":
-                manage_agents() # উপরের ফাংশনটি কল করা হলো
-                
-            elif choice == "⚙️ Settings":
-                st.title("Settings")
-                st.write("এখানে সিস্টেম সেটিংস থাকবে।")
-        
-        # অ্যাপ রান করানো
-        if __name__ == '__main__':
-            main()
+        elif st.session_state["current_menu"] == "Home":
+            st.write("Welcome to Home Page")
     with set_tab4:
         st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
         with open(DB_FILE, "rb") as f:
