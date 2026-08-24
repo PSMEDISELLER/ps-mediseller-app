@@ -28,19 +28,20 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+# ব্যানারের সিএসএস (হাইট কম এবং ফুল উইডথ)
 st.markdown("""
 <style>
 div[data-testid="stImage"] img {
-    height: 140px !important;
+    height: 150px !important;
     object-fit: cover !important;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# অনলাইন আয়ুর্বেদিক ব্যানার
+# আয়ুর্বেদিক ব্যানার পিকচার
 st.image(
-    "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?q=80&w=1200&auto=format&fit=crop",
     use_container_width=True
 )
 # ===
