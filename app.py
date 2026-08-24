@@ -2497,56 +2497,53 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                 st.rerun()
                 
     with set_tab5:
-        import pandas as pd
-        import json
-        import ast
-
         st.subheader("♻️ Recycle Bin (রিসাইকেল বিন)")
 
-        # ১. ডেটাবেস থেকে রিসাইকেল বিনের তথ্য আনা
-        recycle_rows = c.execute("SELECT id, item_type, item_title, item_data, deleted_at FROM recycle_bin").fetchall()
+        try:
+            # ১. ডেটাবেস থেকে রিসাইকেল বিনের তথ্য আনা
+            recycle_rows = c.execute("SELECT id, item_type, item_title, item_data, deleted_at FROM recycle_bin").fetchall()
 
-        if recycle_rows:
-            # ২. টেবিলে দেখানোর জন্য Clean Data তৈরি
-            display_data = []
-            options = {}
-        
-            for row in recycle_rows:
-                r_id, item_type, item_title, item_data, deleted_at = row
-                display_data.append({
-                    "ID": r_id,
-                    "Item Type": item_type,
-                    "Name / Title": item_title,
-                    "Deleted At": deleted_at
-                })
-                label = f"ID: {r_id} | [{item_type}] {item_title}"
-                options[label] = row
+            if recycle_rows:
+                # ২. টেবিলে দেখানোর জন্য Clean Data তৈরি
+                display_data = []
+                options = {}
 
-            df_recycle = pd.DataFrame(display_data)
-            st.dataframe(df_recycle, use_container_width=True, hide_index=True)
+                for row in recycle_rows:
+                    r_id, item_type, item_title, item_data, deleted_at = row
+                    display_data.append({
+                        "ID": r_id,
+                        "Item Type": item_type,
+                        "Name / Title": item_title,
+                        "Deleted At": deleted_at
+                    })
+                    label = f"ID: {r_id} | [{item_type}] {item_title}"
+                    options[label] = row
 
-            st.markdown("---")
-            st.subheader("🔄 Restore Item")
+                df_recycle = pd.DataFrame(display_data)
+                st.dataframe(df_recycle, use_container_width=True, hide_index=True)
 
-            selected_label = st.selectbox("Select Item to Restore:", list(options.keys()))
+                st.markdown("---")
+                st.subheader("🔄 Restore Item")
 
-            if st.button("Restore Selected Item", type="primary"):
-                selected_row = options[selected_label]
-                selected_id = selected_row[0]
-                item_type = selected_row[1]
-                raw_data = selected_row[3]
+                selected_label = st.selectbox("Select Item to Restore:", list(options.keys()))
 
-                data = {}
-                if isinstance(raw_data, dict):
-                    data = raw_data
-                elif isinstance(raw_data, str) and raw_data.strip():
-                    try:
-                        data = ast.literal_eval(raw_data)
-                    except Exception:
+                if st.button("Restore Selected Item", type="primary"):
+                    selected_row = options[selected_label]
+                    selected_id = selected_row[0]
+                    item_type = selected_row[1]
+                    raw_data = selected_row[3]
+
+                    data = {}
+                    if isinstance(raw_data, dict):
+                        data = raw_data
+                    elif isinstance(raw_data, str) and raw_data.strip():
                         try:
-                            data = json.loads(raw_data)
+                            data = ast.literal_eval(raw_data)
                         except Exception:
-                            data = {}
+                            try:
+                                data = json.loads(raw_data)
+                            except Exception:
+                                data = {}
 
                     if not data:
                         st.error("Error: Failed to parse item data for restoration!")
@@ -2587,7 +2584,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                             data.get('due_amount', '0'), data.get('sale_amount', '0'),
                             data.get('payment_collected_actual', '0'), data.get('remaining_due', '0'),
                             data.get('status', 'Pending'), data.get('created_at')
-                       ))
+                        ))
 
                     c.execute("DELETE FROM recycle_bin WHERE id = ?", (selected_id,))
                     conn.commit()
@@ -2601,7 +2598,10 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                     st.rerun()
 
             else:
-                st.info("Recycle Bin is empty.")
+                st.info("Recycle Bin is empty. (রিসাইকেল বিন ফাঁকা)")
+                
+        except Exception as e:
+            st.error(f"⚠️ Error loading Recycle Bin: {e}. ডেটাবেসে recycle_bin টেবিলটি আছে কিনা চেক করুন।")
 
     with set_tab6:
         st.write("#### Admin Password Update (পাসওয়ার্ড পরিবর্তন)")
