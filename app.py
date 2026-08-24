@@ -30,25 +30,23 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
-/* সব ধরনের কালো দাগ/ডিভাইডার গায়েব করার জন্য */
-hr {
+/* স্ট্রিমলিটের সমস্ত কালো দাগ বা ডিভাইডার পাকাপাকিভাবে মুছে ফেলা */
+hr, div[data-testid="stDivider"] {
     display: none !important;
 }
 
-/* ব্যানার ইমেজের গ্যাপ কমানো */
+/* ব্যানার ইমেজের সাইজ ঠিক রাখা */
 div[data-testid="stImage"] img {
     height: 140px !important;
     object-fit: cover !important;
     border-radius: 8px;
-    margin-bottom: -15px !important;
-}
-
-/* নিচের সমস্ত লেখা ও বাটন উপরে তোলার জন্য */
-div[data-testid="stVerticalBlock"] > div {
-    gap: 0.2rem !important;
+    margin-bottom: -10px !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# আপনার আপলোড করা ছবি দেখানোর জন্য এই লাইনটি জরুরি
+st.image("banner.jpg", use_container_width=True)
 # ===
 # IST TIME & DATE FORMAT HELPERS
 # ===
