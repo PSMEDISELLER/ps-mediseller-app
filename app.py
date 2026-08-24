@@ -90,21 +90,7 @@ try {{
     // যার যার ইউজারনেম অনুযায়ী স্টার্ট ইউআরএল সেট করা
     const start_url_path = current_user ? base_url + "?login=" + current_user : base_url;
 
-    const manifest = {{
-        "name": "P.S MEDISELLER",
-        "short_name": "Mediseller",
-        "start_url": start_url_path,
-        "display": "standalone",
-        "background_color": "#0f172a",
-        "theme_color": "#0f172a",
-        "icons": [
-            {{
-                "src": "data:image/jpeg;base64,{logo_b64}",
-                "sizes": "192x192",
-                "type": "image/jpeg"
-            }}
-        ]
-    }};
+    
     const stringManifest = JSON.stringify(manifest);
     const blob = new Blob([stringManifest], {{type: 'application/json'}});
     const manifestURL = URL.createObjectURL(blob);
