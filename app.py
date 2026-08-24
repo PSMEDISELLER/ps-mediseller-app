@@ -31,7 +31,7 @@ st.set_page_config(
 st.markdown("""
 <style>
 div[data-testid="stImage"] img {
-    height: 80px !important;
+    height: 180px !important;
     object-fit: cover !important;
     border-radius: 8px;
 }
