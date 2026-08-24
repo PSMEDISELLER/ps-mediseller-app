@@ -1512,7 +1512,6 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         "✅ Completed Tasks History (সম্পন্ন কাজ)",
         "💰 Master Due List (ডিউ লিস্ট)"
     ])
-    
     with task_tab1:
         if st.session_state.get("user_role") == "admin":
             full_tasks_df = pd.read_sql_query("""
@@ -1543,6 +1542,19 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     type="primary"
                 )
                 st.write("---")
+    
+        # --- ১. অটো-স্ক্রল হ্যান্ডলার (টাস্ক কমপ্লিট হলে উপরে নিয়ে যাবে) ---
+        if st.session_state.get("scroll_to_top", False):
+            st.session_state["scroll_to_top"] = False
+            import streamlit.components.v1 as components
+            components.html("""
+                <script>
+                    var mainContainer = window.parent.document.querySelector('section.main');
+                    if (mainContainer) {
+                        mainContainer.scrollTo({top: 0, behavior: 'smooth'});
+                    }
+                </script>
+            """, height=0)
     
         st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         
@@ -1619,10 +1631,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             )
             
             col_amt1, col_amt2 = st.columns([1, 1])
-            
             with col_amt1:
                 is_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)", value=True)
-                
             with col_amt2:
                 d_amount = st.text_input("Old Due Amount (পুরনো ডিউ)", value=auto_due_val)
     
@@ -1709,14 +1719,13 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                     
                                 submit_complete = st.form_submit_button("✓ Complete Task (সম্পন্ন)", type="primary")
                                 if submit_complete:
-                                    # Validation: সেল অ্যামাউন্ট ফাঁকা বা ০ রাখা যাবে না
                                     if not sale_input.strip():
                                         st.error("⚠️ সেল অ্যামাউন্ট বসানো বাধ্যতামূলক! (Sale Amount cannot be empty)")
                                     else:
                                         try:
                                             final_sale = float(sale_input.strip())
                                             if final_sale <= 0:
-                                                st.error("⚠️ সেল অ্যামাউন্ট ০ এর চেয়ে বেশি হতে হবে!")
+                                                st.error("⚠️ সেল অ্যামাউন্ট ০ এর চেয়ে বেশি হতে হবে!")
                                             else:
                                                 p_amt = float(payment_input) if payment_input.strip() else 0.0
                                                 r_due = o_due + final_sale - p_amt
@@ -1729,10 +1738,14 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                                 c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
                                                 conn.commit()
                                                 
+                                                # --- ২. ফিল্ড রিকোয়েস্ট রিসেট ও স্ক্রল ফ্ল্যাগ সেট ---
+                                                st.session_state["task_search_reset_counter"] += 1
+                                                st.session_state["scroll_to_top"] = True
+                                                
                                                 st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
                                                 st.rerun()
                                         except ValueError:
-                                            st.error("⚠️ সেল অ্যামাউন্ট সঠিক সংখ্যায় টাইপ করুন!")
+                                            st.error("⚠️ সেল অ্যামাউন্ট সঠিক সংখ্যায় টাইপ করুন!")
     
                             if st.session_state.get("user_role") == "admin":
                                 if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_task_del_btn_{task_id}"):
@@ -1786,6 +1799,10 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                         c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
                                         conn.commit()
                                         
+                                        # --- ৩. ফিল্ড রিকোয়েস্ট রিসেট ও স্ক্রল ফ্ল্যাগ সেট ---
+                                        st.session_state["task_search_reset_counter"] += 1
+                                        st.session_state["scroll_to_top"] = True
+                                        
                                         st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
                                         st.rerun()
                                     except Exception as e:
@@ -1799,7 +1816,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                     conn.commit()
                                     st.success("Task moved to Recycle Bin!")
                                     st.rerun()
-                            st.write("---")
+                            st.write("---") 
+   
     with task_tab2:
         st.markdown("#### 📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
         agent_sum_df = pd.read_sql_query("""
