@@ -2268,6 +2268,54 @@ elif selected_menu == "Route Map (রুট ম্যাপ)":
         st.info("No mapped locations available to show on route map. (ম্যাপযুক্ত কোনো লোকেশন নেই।)")
 
 elif selected_menu == "Attendance (উপস্থিতি)":
+    st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
+    c.execute("SELECT username, fullname, role FROM users")
+    att_users_data = c.fetchall()
+    agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in att_users_data}
+    
+    # ট্যাব ডিক্লেয়ারেশন (এটি থাকতেই হবে)
+    att_tab1, att_tab2 = st.tabs([
+        "✅ Daily Attendance (আজকের উপস্থিতি ও চেক-ইন)",
+        "📊 Monthly & Agent Attendance Report (মাসিক ও কর্মী উপস্থিতি রিপোর্ট)"
+    ])
+    
+    with att_tab1:
+        st.write("#### Today's Check-in")
+        today_date_str = get_ist_time().strftime("%Y-%m-%d")
+        today_display_str = get_ist_time().strftime("%d.%m.%y")
+        with st.form("attendance_form", clear_on_submit=True):
+            st.write(f"Today Date: **{today_display_str}**")
+            agent_for_att = st.session_state["username"]
+            st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
+            submit_att = st.form_submit_button("✅ Give Attendance / Check-in (উপস্থিতি দিন)", type="primary")
+            if submit_att:
+                try:
+                    check_time_str = get_ist_time().strftime("%H:%M:%S")
+                    c.execute(
+                        "INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
+                        (agent_for_att, today_date_str, check_time_str, "Present")
+                    )
+                    conn.commit()
+                    st.success("Attendance recorded successfully! (উপস্থিতি নথিভুক্ত হয়েছে!)")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.warning("Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)")
+    
+        st.write("---")
+        st.write("#### Today's Attendance List (আজকের উপস্থিতি তালিকা - সবাই দেখবে)")
+        today_att_df = pd.read_sql_query("""
+            SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status' 
+            FROM attendance a 
+            LEFT JOIN users u ON a.username = u.username 
+            WHERE a.date = ? 
+            ORDER BY a.check_time DESC
+        """, conn, params=(today_date_str,))
+        if not today_att_df.empty:
+            today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
+            st.dataframe(today_att_df, use_container_width=True)
+        else:
+            st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
+    
     with att_tab2:
         current_role = st.session_state["user_role"]
         current_user = st.session_state["username"]
@@ -2275,57 +2323,49 @@ elif selected_menu == "Attendance (উপস্থিতি)":
         if current_role == "admin":
             st.write("#### 📊 Agent-wise Monthly Attendance & Report Download")
             st.write("নিচে থেকে যেকোনো এজেন্টকে সিলেক্ট করে তার এই মাসের মোট কাজের দিন দেখতে পাবেন এবং তার ব্যক্তিগত রিপোর্ট ডাউনলোড করতে পারবেন:")
-
-            # ডেটাবেজ থেকে স্টাফ লিস্ট আনা
+    
             c.execute("SELECT username, fullname FROM users WHERE role='staff'")
             staff_list = c.fetchall()
-
+    
             if staff_list:
-                # ড্রপডাউন তৈরি করা এজেন্ট ওয়াইজ দেখার জন্য
                 selected_rep_agent = st.selectbox(
                     "🔍 Select Agent for Report & Summary:",
                     options=[s[0] for s in staff_list],
                     format_func=lambda x: agent_name_map.get(x, x),
                     key="agent_report_dropdown"
                 )
-
+    
                 if selected_rep_agent:
-                    # চলতি মাসের হিসাব
                     now_dt = datetime.datetime.now()
                     current_year = now_dt.year
                     current_month = now_dt.month
                     
-                    # এই মাসে মোট কত দিন আছে
                     import calendar
                     total_days_in_month = calendar.monthrange(current_year, current_month)[1]
                     
-                    # সিলেক্ট করা এজেন্ট এই মাসে কয় দিন চেক-ইন বা কাজ করেছে তার হিসাব
                     c.execute("""
                         SELECT COUNT(DISTINCT date) FROM attendance 
                         WHERE username = ? AND SUBSTR(date, 1, 7) = ?
                     """, (selected_rep_agent, f"{current_year}-{current_month:02d}"))
                     days_worked_count = c.fetchone()[0]
-
-                    # মেট্রিক কার্ড দিয়ে সুন্দরভাবে দেখানো
+    
                     col_r1, col_r2 = st.columns(2)
                     with col_r1:
                         st.metric(label="📅 Total Days in This Month", value=f"{total_days_in_month} Days")
                     with col_r2:
                         st.metric(label="⚡ Days Worked by Agent", value=f"{days_worked_count} Days")
-
-                    # ওই এজেন্টের নির্দিষ্ট অ্যাটেন্ডেন্স ডাটা ফ্রেম
+    
                     agent_rep_df = pd.read_sql_query("""
                         SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status' 
                         FROM attendance 
                         WHERE username = ? 
                         ORDER BY date DESC, check_time DESC
                     """, conn, params=(selected_rep_agent,))
-
+    
                     if not agent_rep_df.empty:
                         agent_rep_df['Date'] = agent_rep_df['Date'].apply(lambda x: format_date_display(x))
                         st.dataframe(agent_rep_df, use_container_width=True)
-
-                        # HTML বা CSV ফরম্যাটে ডাউনলোড বাটন
+    
                         agent_fullname_str = agent_name_map.get(selected_rep_agent, selected_rep_agent)
                         html_agent_att = generate_html_report(f"Attendance Report - {agent_fullname_str}", agent_rep_df)
                         
@@ -2339,60 +2379,46 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                         )
                     else:
                         st.info(f"এই মাসের জন্য {agent_name_map.get(selected_rep_agent, selected_rep_agent)}-এর কোনো উপস্থিতির রেকর্ড পাওয়া যায়নি।")
-
+    
             st.write("---")
-            # আগের মতো বাকি সব এজেন্টের এক্সপ্যান্ডার লিস্ট বা ডিলিট অপشنগুলো এখানে রাখতে পারেন...
-
-elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state["user_role"] == "admin":
-    st.write("### Live Agent Tracking & Last Saved Locations (লাইভ ও লাস্ট লোকেশন ট্র্যাকিং)")
-    st.markdown("<p style='color: #38bdf8; font-size: 13px;'><i>Note: This page automatically refreshes every 10 seconds. Click on any agent marker on the map to see their last saved location or live location!</i></p>", unsafe_allow_html=True)
-    live_df = pd.read_sql_query("""
-        SELECT a.username, u.fullname, u.phone, a.lat, a.lon, a.last_updated, a.completed_deliveries 
-        FROM agent_live_locations a 
-        LEFT JOIN users u ON a.username = u.username
-    """, conn)
-    if not live_df.empty:
-        for idx, r in live_df.iterrows():
-            name = r['fullname'] if pd.notna(r['fullname']) and r['fullname'] else r['username']
-            username = r['username']
-            phone = r['phone'] if pd.notna(r['phone']) else "N/A"
-            lat = r['lat']
-            lon = r['lon']
-            last_up = r['last_updated']
-            completed = r['completed_deliveries']
-            time_ago_str = "Never"
-            if pd.notna(last_up):
-                try:
-                    up_dt = datetime.strptime(str(last_up), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-                    diff_sec = (get_ist_time() - up_dt).total_seconds()
-                    if diff_sec < 60:
-                        time_ago_str = f"{int(diff_sec)} seconds ago"
-                    elif diff_sec < 3600:
-                        time_ago_str = f"{int(diff_sec // 60)} minutes ago"
+            st.write("#### 🗑️ Delete Agent Attendance Record (Admin Only)")
+            col_del1, col_del2 = st.columns(2)
+            with col_del1:
+                del_agent = st.selectbox(
+                    "Select Agent:", 
+                    options=[s[0] for s in staff_list] if staff_list else [], 
+                    format_func=lambda x: agent_name_map.get(x, x),
+                    key="del_agent_select"
+                )
+            with col_del2:
+                del_date = st.date_input("Select Date to Delete:", value=get_ist_time().date(), key="del_date_select")
+    
+            if st.button("🗑️ Delete Selected Attendance Record", type="primary", key="btn_del_att"):
+                if staff_list:
+                    del_date_str = del_date.strftime("%Y-%m-%d")
+                    c.execute("SELECT COUNT(*) FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
+                    record_exists = c.fetchone()[0]
+                    if record_exists > 0:
+                        c.execute("DELETE FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
+                        conn.commit()
+                        st.success(f"Successfully deleted attendance record for {agent_name_map.get(del_agent, del_agent)} on {format_date_display(del_date_str)}!")
+                        st.rerun()
                     else:
-                        time_ago_str = f"{int(diff_sec // 3600)} hours ago"
-                except:
-                    time_ago_str = str(last_up)
-
-            with st.expander(f"👤 Agent: {name} (`{username}`) - Last Active: {time_ago_str} - Click to Open", expanded=False):
-                st.markdown(f"""
-                - **Full Name:** {name}
-                - **Username:** `{username}`
-                - **Phone:** {phone}
-                - **Completed Tasks:** <b style="color: #34d399;">{completed}</b>
-                - **Last Updated Time:** `{last_up if pd.notna(last_up) else 'No update yet'}` ({time_ago_str})
-                - **Last Known Coordinates:** `{lat}, {lon}`
-                """, unsafe_allow_html=True)
-
-                if pd.notna(lat) and pd.notna(lon):
-                    google_maps_track_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-                    st.markdown(f'<a href="{google_maps_track_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:600; font-size:15px; margin-top:10px; box-shadow: 0 4px 12px rgba(16,185,129,0.4);">📍 Track Agent on Google Maps (গুগল ম্যাপে ট্র্যাক করুন)</button></a>', unsafe_allow_html=True)
-                else:
-                    st.warning("GPS coordinates not yet available for this agent.")
-            st.write("---")
-    else:
-        st.info("No live agent location data available yet.")
-
+                        st.warning(f"No attendance record found for {agent_name_map.get(del_agent, del_agent)} on {format_date_display(del_date_str)}.")
+        else:
+            st.write("#### Your Monthly Attendance Report")
+            staff_att_df = pd.read_sql_query("""
+                SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status' 
+                FROM attendance 
+                WHERE username = ? 
+                ORDER BY date DESC, check_time DESC
+            """, conn, params=(current_user,))
+            if not staff_att_df.empty:
+                staff_att_df['Date'] = staff_att_df['Date'].apply(lambda x: format_date_display(x))
+                st.dataframe(staff_att_df, use_container_width=True)
+            else:
+                st.info("You have no attendance records yet.")
+            st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)
 elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
     st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
     c.execute("SELECT COUNT(*) FROM users WHERE role='staff'")
