@@ -1169,13 +1169,13 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                 if gps_lat and gps_lon:
                     st.session_state["temp_map_lat"] = gps_lat
                     st.session_state["temp_map_lon"] = gps_lon
-                    st.success("GPS taken! (নেওয়া হয়েছে!)")
+                    st.success("GPS taken! (নেওয়া হয়েছে!)")
                     st.rerun()
                 else:
                     st.warning("GPS not found! (নেই!)")
         with col_tm2:
             st.write(f"Coordinates: `{st.session_state['temp_map_lat']:.5f}, {st.session_state['temp_map_lon']:.5f}`")
-
+    
         pick_map = folium.Map(
             location=[st.session_state["temp_map_lat"], st.session_state["temp_map_lon"]],
             zoom_start=17,
@@ -1198,7 +1198,7 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
             popup="<b>Set Here (এখানে সেট)</b>",
             icon=folium.Icon(color="red", icon="map-marker", prefix="fa")
         ).add_to(pick_map)
-
+    
         if gps_lat and gps_lon:
             folium.CircleMarker(
                 location=[gps_lat, gps_lon],
@@ -1209,10 +1209,10 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                 fill_opacity=0.9,
                 popup="Your Location (আপনার লোকেশন)"
             ).add_to(pick_map)
-
+    
         folium.LayerControl().add_to(pick_map)
         p_map_data = st_folium(pick_map, width="100%", height=400, key="party_location_picker_map")
-
+    
         if p_map_data and p_map_data.get("last_clicked"):
             clat = p_map_data["last_clicked"]["lat"]
             clon = p_map_data["last_clicked"]["lng"]
@@ -1220,7 +1220,7 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                 st.session_state["temp_map_lat"] = clat
                 st.session_state["temp_map_lon"] = clon
                 st.rerun()
-
+    
         col_b1, col_b2 = st.columns(2)
         with col_b1:
             if st.button("💾 Save Location (সেভ করুন)", type="primary", key="save_party_map_ok"):
@@ -1231,20 +1231,20 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                 conn.commit()
                 st.session_state.pop("mapping_party_id", None)
                 st.session_state.pop("mapping_party_name", None)
-                st.success(f"Map saved successfully! (সেভ হয়েছে!)")
+                st.success(f"Map saved successfully! (সেভ হয়েছে!)")
                 st.rerun()
         with col_b2:
             if st.button("❌ Cancel (বাতিল)", key="cancel_party_map"):
                 st.session_state.pop("mapping_party_id", None)
                 st.session_state.pop("mapping_party_name", None)
                 st.rerun()
-
+    
         st.markdown("---")
         st.stop()
-
+    
     st.write("🔍 **Search Party/Doctor (পার্টি খুঁজুন):**")
     master_search_query = st.text_input("Search", placeholder="Type name, address or keyword and press enter...", key="master_search_input_box", label_visibility="collapsed")
-
+    
     if master_search_query.strip():
         q_term = f"%{master_search_query.strip()}%"
         df = pd.read_sql_query(
@@ -1254,7 +1254,7 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
         )
     else:
         df = pd.read_sql_query("SELECT * FROM locations ORDER BY party_name ASC", conn)
-
+    
     if st.session_state["user_role"] == "admin" and not df.empty:
         html_locs_df = generate_html_report("Locations & Parties Directory", df[["party_name", "address", "party_phone"]].rename(columns={"party_name": "Party Name", "address": "Address", "party_phone": "Phone"}))
         st.download_button(
@@ -1265,11 +1265,11 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
             type="primary"
         )
         st.write("---")
-
+    
     doc_df = df[df["lat"].isna() | df["lon"].isna()]
     mapped_df = df[df["lat"].notna() & df["lon"].notna()]
     is_searching = bool(master_search_query.strip())
-
+    
     with st.expander(f"📌 Non-Map List ({len(doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=is_searching):
         if not doc_df.empty:
             for index, row in doc_df.iterrows():
@@ -1288,12 +1288,12 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                         move_to_recycle_bin("Location", row['party_name'], dict(row))
                         c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
                         conn.commit()
-                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                         st.rerun()
                 st.write("---")
         else:
             st.info("No non-map parties found. (ম্যাপবিহীন পার্টি নেই।)")
-
+    
     st.write("—")
     with st.expander(f"📍 Mapped List ({len(mapped_df)} Records) (ম্যাপযুক্ত তালিকা)", expanded=is_searching):
         if not mapped_df.empty:
@@ -1312,12 +1312,86 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                         move_to_recycle_bin("Location", row['party_name'], dict(row))
                         c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
                         conn.commit()
-                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                         st.rerun()
                 st.write("---")
         else:
             st.info("No mapped parties found. (ম্যাপযুক্ত পার্টি নেই।)")
-
+    
+    # ==========================================
+    # Route-wise Party Management (রুট ওয়াইস পার্টি)
+    # ==========================================
+    st.write("---")
+    st.markdown("### 🛣️ Route-wise Party (রুট অনুযায়ী পার্টি)")
+    
+    try:
+        route_list_df = pd.read_sql_query("SELECT DISTINCT route FROM locations WHERE route IS NOT NULL AND route != '' ORDER BY route ASC", conn)
+        routes = route_list_df['route'].tolist()
+    except Exception:
+        routes = []
+    
+    routes.insert(0, "-- Select Route (রুট নির্বাচন করুন) --")
+    selected_route = st.selectbox("Select Route (রুট নির্বাচন করুন):", routes, key="route_selector_advanced")
+    
+    if selected_route and selected_route != "-- Select Route (রুট নির্বাচন করুন) --":
+        route_df = pd.read_sql_query("SELECT * FROM locations WHERE route = ? ORDER BY party_name ASC", conn, params=(selected_route,))
+        
+        route_doc_df = route_df[route_df["lat"].isna() | route_df["lon"].isna()]
+        route_mapped_df = route_df[route_df["lat"].notna() & route_df["lon"].notna()]
+    
+        # রুট অনুযায়ী ম্যাপবিহীন তালিকা
+        with st.expander(f"📌 {selected_route} - Non-Map List ({len(route_doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=True):
+            if not route_doc_df.empty:
+                for index, row in route_doc_df.iterrows():
+                    cols = st.columns([3, 2, 2, 2, 1.5])
+                    cols[0].write(f"**{row['party_name']}**")
+                    cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
+                    cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
+                    
+                    if cols[3].button("🗺️ Add Map (ম্যাপ যুক্ত)", key=f"map_add_route_{row['id']}"):
+                        st.session_state["mapping_party_id"] = row['id']
+                        st.session_state["mapping_party_name"] = row['party_name']
+                        st.session_state["temp_map_lat"] = st.session_state.get("selected_lat", 22.8620)
+                        st.session_state["temp_map_lon"] = st.session_state.get("selected_lon", 87.3320)
+                        st.rerun()
+                    
+                    if st.session_state["user_role"] == "admin":
+                        if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_doc_route_{row['id']}"):
+                            move_to_recycle_bin("Location", row['party_name'], dict(row))
+                            c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+                            conn.commit()
+                            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                            st.rerun()
+                    st.write("---")
+            else:
+                st.info("এই রুটে ম্যাপবিহীন কোনো পার্টি নেই।")
+    
+        # রুট অনুযায়ী ম্যাপযুক্ত তালিকা
+        with st.expander(f"📍 {selected_route} - Mapped List ({len(route_mapped_df)} Records) (ম্যাপযুক্ত তালিকা)", expanded=True):
+            if not route_mapped_df.empty:
+                for index, row in route_mapped_df.iterrows():
+                    if st.session_state["user_role"] == "admin":
+                        cols = st.columns([3, 2, 2, 2, 1.5])
+                    else:
+                        cols = st.columns([3, 2, 2, 2])
+                    
+                    cols[0].write(f"**{row['party_name']}**")
+                    cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
+                    cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
+                    
+                    maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
+                    cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:none; padding:6px 12px; border-radius: 6px; cursor:pointer; font-weight:600;">🚗 Direction</button></a>', unsafe_allow_html=True)
+                    
+                    if st.session_state["user_role"] == "admin":
+                        if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_loc_route_{row['id']}"):
+                            move_to_recycle_bin("Location", row['party_name'], dict(row))
+                            c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+                            conn.commit()
+                            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                            st.rerun()
+                    st.write("---")
+            else:
+                st.info("এই রুটে ম্যাপযুক্ত কোনো পার্টি নেই।")    
 elif selected_menu == "Pending Orders (বাকি অর্ডার)":
     st.write("### Orders Management (অর্ডার ম্যানেজমেন্ট)")
     if st.session_state["user_role"] == "admin":
