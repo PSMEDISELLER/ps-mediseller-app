@@ -2268,6 +2268,8 @@ elif selected_menu == "Route Map (রুট ম্যাপ)":
         st.info("No mapped locations available to show on route map. (ম্যাপযুক্ত কোনো লোকেশন নেই।)")
 
 elif selected_menu == "Attendance (উপস্থিতি)":
+    import datetime
+    import calendar
     st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
     c.execute("SELECT username, fullname, role FROM users")
     att_users_data = c.fetchall()
