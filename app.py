@@ -770,7 +770,7 @@ else:
     else:
         menu_options = all_basic_menus
 
-current_page_param = quer y_params.get("page", menu_options[0] if menu_options else all_basic_menus[0])
+current_page_param = query_params.get("page", menu_options[0] if menu_options else all_basic_menus[0])
 if current_page_param not in menu_options:
     current_page_param = menu_options[0] if menu_options else all_basic_menus[0]
 
