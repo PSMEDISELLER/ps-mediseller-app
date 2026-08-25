@@ -781,62 +781,110 @@ if selected_menu != current_page_param:
     st.rerun()
 
 st.write("---")
-if "With Map Party" in selected_entry_tab:
-            with st.form("location_details_form", clear_on_submit=True):
-                st.write("#### 1. Enter Party Details (পার্টির বিবরণ)")
-                
-                # রুট ডেটা ফেচ করার কোড (ডাটাবেস থেকে)
-                c.execute("SELECT DISTINCT route_name FROM routes ORDER BY route_name ASC")
-                existing_routes = [r[0] for r in c.fetchall()]
-                
-                col_f1, col_f2, col_f3, col_f4 = st.columns([2, 2, 2, 2])
-                with col_f1:
-                    p_name = st.text_input("Party Name (পার্টির নাম)", key="input_p_name")
-                with col_f2:
-                    p_addr = st.text_input("Address (ঠিকানা)", key="input_p_addr")
-                with col_f3:
-                    p_phone = st.text_input("Phone Number (ফোন নম্বর)", key="input_p_phone")
-                with col_f4:
-                    # রুট ড্রপডাউন বা নতুন লেখার বক্স (st.selectbox ব্যবহার করা হয়েছে যাতে সিলেক্ট বা টাইপ দুটোই করা যায়)
-                    p_route = st.selectbox(
-                        "Route (রুট)",
-                        options=["--Select/Type Route--"] + existing_routes,
-                        key="input_p_route"
-                    )
-                    # যদি ড্রপডাউনে না থাকে, তবে নতুন লেখার জন্য ছোট টেক্সট ইনপুট
-                    custom_route = st.text_input("Or Type New Route (নতুন রুট লিখুন)", key="input_custom_route", placeholder="যদি লিস্টে না থাকে")
+# ১. প্রথমে নিশ্চিত করুন আপনি সঠিক মেনুতে আছেন কিনা
+if selected_menu == "Add Location (লোকেশন যোগ)":
+    st.write("### Add Location & Party (লোকেশন ও পার্টি)")
+    
+    # ২. এখানে এবার মোড সিলেক্ট করার রেডিও বাটনটি দিন (যা দিয়ে selected_entry_tab তৈরি হবে)
+    selected_entry_tab = st.radio(
+        "Select Entry Mode (মোড সিলেক্ট):",
+        [
+            "With Map Party (ম্যাপ সহ পার্টি)",
+            "Without Map Party (ম্যাপ ছাড়া পার্টি)"
+        ],
+        label_visibility="collapsed"
+    )
+    st.write("")
 
-                submitted_loc = st.form_submit_button("💾 Save Location (সেভ করুন)", type="primary")
-                if submitted_loc:
-                    final_route = custom_route.strip() if custom_route.strip() else (p_route if p_route != "--Select/Type Route--" else "")
-                    
-                    if p_name.strip() and p_phone.strip():
-                        c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (p_name.strip(), p_phone.strip()))
-                        existing_check = c.fetchone()
-                        if existing_check:
-                            st.error("Party name or phone already exists! (ইতিমধ্যে সেভ করা আছে!)")
-                        else:
-                            try:
-                                # নতুন রুট হলে তা routes টেবিলে সেভ করে নেওয়া যাতে ডুপ্লিকেট না হয়
-                                if final_route:
-                                    c.execute("INSERT OR IGNORE INTO routes (route_name) VALUES (?)", (final_route,))
-                                    
-                                current_date_str = get_ist_time().strftime("%Y-%m-%d")
-                                c.execute(
-                                    "INSERT INTO locations (party_name, address, party_phone, route_name, lat, lon) VALUES (?, ?, ?, ?, ?, ?)",
-                                    (p_name.strip(), p_addr, p_phone.strip(), final_route, st.session_state["selected_lat"], st.session_state["selected_lon"]),
-                                )
-                                c.execute(
-                                    "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                                    (p_name.strip(), "Visit (ভিজিট)", current_date_str)
-                                )
-                                conn.commit()
-                                st.success("Location saved and visit recorded successfully! (সেভ হয়েছে!)")
-                                st.rerun()
-                            except sqlite3.IntegrityError:
-                                st.error("Party already exists! (ইতিমধ্যে আছে!)")
+    # ৩. এবার এটি কাজ করবে কারণ selected_entry_tab ডিফাইন করা আছে
+    if "With Map Party" in selected_entry_tab:
+        with st.form("location_details_form", clear_on_submit=True):
+            st.write("#### 1. Enter Party Details (পার্টির বিবরণ)")
+            
+            # ডাটাবেস থেকে রুট ফেচ করা
+            c.execute("SELECT DISTINCT route_name FROM routes ORDER BY route_name ASC")
+            existing_routes = [r[0] for r in c.fetchall()]
+            
+            col_f1, col_f2, col_f3, col_f4 = st.columns([2, 2, 2, 2])
+            with col_f1:
+                p_name = st.text_input("Party Name (পার্টির নাম)", key="input_p_name")
+            with col_f2:
+                p_addr = st.text_input("Address (ঠিকানা)", key="input_p_addr")
+            with col_f3:
+                p_phone = st.text_input("Phone Number (ফোন নম্বর)", key="input_p_phone")
+            with col_f4:
+                p_route = st.selectbox(
+                    "Route (রুট)",
+                    options=["--Select/Type Route--"] + existing_routes,
+                    key="input_p_route"
+                )
+                custom_route = st.text_input("Or Type New Route (নতুন রুট লিখুন)", key="input_custom_route", placeholder="যদি লিস্টে না থাকে")
+
+            submitted_loc = st.form_submit_button("💾 Save Location (সেভ করুন)", type="primary")
+            if submitted_loc:
+                final_route = custom_route.strip() if custom_route.strip() else (p_route if p_route != "--Select/Type Route--" else "")
+                
+                if p_name.strip() and p_phone.strip():
+                    c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (p_name.strip(), p_phone.strip()))
+                    existing_check = c.fetchone()
+                    if existing_check:
+                        st.error("Party name or phone already exists! (ইতিমধ্যে সেভ করা আছে!)")
                     else:
-                        st.error("Party name and phone required. (নাম ও ফোন আবশ্যক।)")
+                        try:
+                            if final_route:
+                                c.execute("INSERT OR IGNORE INTO routes (route_name) VALUES (?)", (final_route,))
+                                
+                            current_date_str = get_ist_time().strftime("%Y-%m-%d")
+                            c.execute(
+                                "INSERT INTO locations (party_name, address, party_phone, route_name, lat, lon) VALUES (?, ?, ?, ?, ?, ?)",
+                                (p_name.strip(), p_addr, p_phone.strip(), final_route, st.session_state["selected_lat"], st.session_state["selected_lon"]),
+                            )
+                            c.execute(
+                                "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                                (p_name.strip(), "Visit (ভিজিট)", current_date_str)
+                            )
+                            conn.commit()
+                            st.success("Location saved and visit recorded successfully! (সেভ হয়েছে!)")
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Party already exists! (ইতিমধ্যে আছে!)")
+                else:
+                    st.error("Party name and phone required. (নাম ও ফোন আবশ্যক।)")
+    else:
+        with st.form("doctor_details_form", clear_on_submit=True):
+            st.write("#### 2. Without Map Party Details (ম্যাপ ছাড়া পার্টির বিবরণ)")
+            col_d1, col_d2, col_d3 = st.columns(3)
+            with col_d1:
+                doc_name = st.text_input("Name (নাম)", key="input_doc_name")
+            with col_d2:
+                doc_addr = st.text_input("Address (ঠিকানা/চেম্বার)", key="input_doc_addr")
+            with col_d3:
+                doc_phone = st.text_input("Phone (ফোন নম্বর)", key="input_doc_phone")
+            
+            submitted_doc = st.form_submit_button("💾 Save Without Map Party (সেভ করুন)", type="primary")
+            if submitted_doc:
+                if doc_name.strip() and doc_phone.strip():
+                    c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (doc_name.strip(), doc_phone.strip()))
+                    existing_check_doc = c.fetchone()
+                    if existing_check_doc:
+                        st.error("Party name or phone already exists! (ইতিমধ্যে সেভ করা আছে!)")
+                    else:
+                        try:
+                            c.execute(
+                                "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, NULL, NULL)",
+                                (doc_name.strip(), doc_addr, doc_phone.strip()),
+                            )
+                            c.execute(
+                                "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
+                                (doc_name.strip(), "Visit (ভিজিট)", get_ist_time().strftime("%Y-%m-%d"))
+                            )
+                            conn.commit()
+                            st.success("Saved successfully! (সফলভাবে সেভ হয়েছে!)")
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Party already exists! (ইতিমধ্যে আছে!)")
+                else:
+                    st.error("Name and phone required. (নাম ও ফোন আবশ্যক।)")
 elif selected_menu == "Search & Details (অনুসন্ধান ও বিবরণ)":
     st.write("### Search & Party Management (সার্চ ও ম্যানেজমেন্ট)")
     if st.session_state.get("mapping_party_id"):
