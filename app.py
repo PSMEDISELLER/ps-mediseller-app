@@ -2461,7 +2461,7 @@ elif selected_menu == " Live Tracking (লাইভ ট্র্যাকিং)
         )
     except Exception as e:
         live_df = pd.DataFrame()
-        st.error(f"Error loading tracking data: {e}")
+        st.warning(f"⚠️ Table 'agent_live_locations' might not exist yet or connection error: {e}")
     
     if not live_df.empty: 
         # এজেন্ট ড্রপডাউন বক্স সিস্টেম তৈরি করা
@@ -2473,10 +2473,9 @@ elif selected_menu == " Live Tracking (লাইভ ট্র্যাকিং)
         selected_agent_box = st.selectbox("🔍 Select Agent to View (এজেন্ট সিলেক্ট করুন):", agent_options)
         st.write("---")
         
-        # ফিল্টারিং লজিক (সিলেক্ট করা এজেন্ট অনুযায়ী ডাটা ফিল্টার হবে)
+        # ফিল্টারিং লজিক
         filtered_df = live_df
         if selected_agent_box != "All Agents (সব এজেন্ট একসাথে)":
-            # সিলেক্ট করা নাম বা ইউজারনেম থেকে ইউজারনেম বের করা
             selected_username = selected_agent_box.split("(")[-1].strip(")")
             filtered_df = live_df[live_df['username'] == selected_username]
         
@@ -2489,7 +2488,6 @@ elif selected_menu == " Live Tracking (লাইভ ট্র্যাকিং)
             last_up = r['last_updated'] 
             completed = r['completed_deliveries']
             
-            # টাইম ডিফারেন্স ক্যালকুলেশন
             time_ago_str = "Unknown"
             if pd.notna(last_up):
                 try:
@@ -2506,7 +2504,6 @@ elif selected_menu == " Live Tracking (লাইভ ট্র্যাকিং)
                 except:
                     time_ago_str = str(last_up)
             
-            # বক্স স্টাইলে এক্সপ্যান্ডার প্রদর্শন
             with st.expander(f"📦 Agent Box: {name} (`{username}`) | Last Active: {time_ago_str}", expanded=True if selected_agent_box != "All Agents (সব এজেন্ট একসাথে)" else False):
                 st.markdown(f"""
                 * **Full Name:** {name}  
@@ -2530,7 +2527,8 @@ elif selected_menu == " Live Tracking (লাইভ ট্র্যাকিং)
                     st.warning("⚠️ GPS coordinates not yet available for this agent.")
             st.write("---")
     else: 
-        st.info("ℹ️ No live agent location data available yet. Waiting for agent connection...")
+        st.warning("ℹ️ কোনো এজেন্টের লাইভ লোকেশন ডাটা পাওয়া যায়নি। অথবা ডাটাবেসে 'agent_live_locations' টেবিলটি তৈরি করা নেই।")
+        st.info("💡 এজেন্ট অ্যাপ থেকে লোকেশন পারমিশন এলাউ করে একবার লগইন বা পেজ রিফ্রেশ করলে এখানে ডাটা শো করা শুরু করবে।")
 elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
     st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
     c.execute("SELECT COUNT(*) FROM users WHERE role='staff'")
