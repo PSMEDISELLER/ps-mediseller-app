@@ -2269,9 +2269,19 @@ elif selected_menu == "Attendance (উপস্থিতি)":
     import calendar
     import pandas as pd
     
-    # 🕒 নিরাপদ টাইম ফাংশন (IST) - আগের get_ist_time() এর এরর এড়াতে
+    # 🕒 নিরাপদ টাইম ফাংশন (IST)
     def safe_ist_now():
         return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+    
+    # 👉 ডেটকে দিন-মাস-বছর (DD-MM-YYYY) আকারে দেখানোর ফাংশন
+    def format_date_display(date_str):
+        try:
+            parts = str(date_str).split('-')
+            if len(parts) == 3:
+                return f"{parts[2]}-{parts[1]}-{parts[0]}"
+        except Exception:
+            pass
+        return date_str
         
     now_dt = safe_ist_now()
     current_year = now_dt.year
@@ -2323,10 +2333,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
         """, conn, params=(today_date_str,))
         
         if not today_att_df.empty:
-            try:
-                today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
-            except NameError:
-                pass # যদি format_date_display ফাংশনটি না থাকে তবে এটি নরমাল ডেট দেখাবে
+            today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
             st.dataframe(today_att_df, use_container_width=True)
         else:
             st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
@@ -2373,10 +2380,8 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     """, conn, params=(selected_rep_agent,))
     
                     if not agent_rep_df.empty:
-                        try:
-                            agent_rep_df['Date'] = agent_rep_df['Date'].apply(lambda x: format_date_display(x))
-                        except NameError:
-                            pass
+                        # এখানে ডেট ফরম্যাট দিন-মাস-বছর আকারে কনভার্ট করা হলো
+                        agent_rep_df['Date'] = agent_rep_df['Date'].apply(lambda x: format_date_display(x))
                         st.dataframe(agent_rep_df, use_container_width=True)
     
                         try:
@@ -2391,7 +2396,6 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                                 key=f"dl_btn_{selected_rep_agent}"
                             )
                         except NameError:
-                            # যদি HTML জেনারেট ফাংশন না থাকে, তবে অটোমেটিক CSV ডাউনলোড অপশন আসবে
                             csv_data = agent_rep_df.to_csv(index=False).encode('utf-8')
                             st.download_button(
                                 label=f"📥 Download CSV Report for {agent_name_map.get(selected_rep_agent, selected_rep_agent)}",
@@ -2424,10 +2428,10 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     if record_exists > 0:
                         c.execute("DELETE FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
                         conn.commit()
-                        st.success(f"Successfully deleted attendance record on {del_date_str}!")
+                        st.success(f"Successfully deleted attendance record on {del_date.strftime('%d-%m-%Y')}!")
                         st.rerun()
                     else:
-                        st.warning(f"No attendance record found on {del_date_str}.")
+                        st.warning(f"No attendance record found on {del_date.strftime('%d-%m-%Y')}.")
         else:
             st.write("#### Your Monthly Attendance Report")
             staff_att_df = pd.read_sql_query("""
@@ -2438,14 +2442,12 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             """, conn, params=(current_user,))
             
             if not staff_att_df.empty:
-                try:
-                    staff_att_df['Date'] = staff_att_df['Date'].apply(lambda x: format_date_display(x))
-                except NameError:
-                    pass
+                staff_att_df['Date'] = staff_att_df['Date'].apply(lambda x: format_date_display(x))
                 st.dataframe(staff_att_df, use_container_width=True)
             else:
                 st.info("You have no attendance records yet.")
             st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)        
+        
 elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
     st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
     c.execute("SELECT COUNT(*) FROM users WHERE role='staff'")
