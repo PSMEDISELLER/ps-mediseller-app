@@ -548,44 +548,38 @@ for row_task in c.fetchall():
         pass
 conn.commit()
 
-def generate_html_report(title, df):
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="bn">
+def generate_html_report(title, dataframe):
+    import datetime
+    safe_now = datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+    time_str = safe_now.strftime('%d.%m.%y %H:%M:%S')
+    
+    html_content = f"""
+    <html>
     <head>
-    <meta charset="UTF-8">
-    <title>{title} - P. S MEDISELLER</title>
-    <style>
-    body {{ font-family: 'Poppins', Arial, sans-serif; margin: 20px; color: #1e293b; background: #f8fafc; }}
-    .header {{ text-align: center; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
-    h2 {{ color: #1e40af; margin: 0; }}
-    p {{ color: #64748b; font-size: 14px; margin: 5px 0; }}
-    table {{ width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-    th, td {{ border: 1px solid #e2e8f0; padding: 12px 15px; text-align: left; font-size: 13px; }}
-    th {{ background-color: #3b82f6; color: white; font-weight: 600; }}
-    tr:nth-child(even) {{ background-color: #f1f5f9; }}
-    .print-btn {{ display: block; width: 220px; margin: 20px auto; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 4px 10px rgba(37,99,235,0.3); }}
-    .print-btn:hover {{ background: #1d4ed8; }}
-    @media print {{
-        .print-btn {{ display: none; }}
-        body {{ background: white; margin: 0; }}
-        table {{ box-shadow: none; }}
-    }}
-    </style>
+        <title>{title}</title>
+        <meta charset="UTF-8">
+        <style>
+            body {{ font-family: 'Poppins', Arial, sans-serif; margin: 20px; color: #1e293b; background: #f8fafc; }}
+            .header {{ text-align: center; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
+            h2 {{ color: #1e40af; margin: 0; }}
+            p {{ color: #64748b; font-size: 14px; margin: 5px 0; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 8px; overflow: hidden; }}
+            th, td {{ border: 1px solid #cbd5e1; padding: 10px; text-align: left; }}
+            th {{ background-color: #3b82f6; color: white; }}
+            .footer {{ margin-top: 20px; font-size: 12px; color: #64748b; text-align: center; }}
+        </style>
     </head>
     <body>
-    <div class="header">
-    <h2>P. S MEDISELLER</h2>
-    <p><b>Allopathy & Ayurvedic Wholesaler</b> | Address: Ledagama 1, Amlagora, Garhbeta, Paschim Medinipur</p>
-    <p><b>{title}</b></p>
-    <p>Generated on: {get_ist_time().strftime('%d.%m.%y %H:%M:%S')} IST</p>
-    </div>
-    <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF (প্রিন্ট / পিডিএফ)</button>
-    {df.to_html(index=False, classes='table', border=0)}
+        <div class="header">
+            <h2>{title}</h2>
+            <p>P. S MEDISELLER - Attendance & Analytics Report</p>
+        </div>
+        <p class="footer">Generated on: {time_str} IST</p>
+        {dataframe.to_html(index=False, border=0, class_name='table')}
     </body>
     </html>
     """
-    return html.encode('utf-8')
+    return html_content
 
 if "selected_lat" not in st.session_state:
     st.session_state["selected_lat"] = 22.8620
