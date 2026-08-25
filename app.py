@@ -1,13 +1,4 @@
 import os
-# ===
-# 1GB FILE UPLOAD LIMIT CONFIGURATION
-# ===
-os.makedirs(".streamlit", exist_ok=True)
-with open(".streamlit/config.toml", "w") as f:
-    f.write("[server]\nmaxUploadSize = 1024\n")
-
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 import json
 import urllib.parse
 import base64
@@ -18,16 +9,21 @@ import sqlite3
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
+from datetime import datetime, timedelta, timezone
 
-# ===
-# PAGE CONFIGURATION
-# ===
+# === 1GB FILE UPLOAD LIMIT CONFIGURATION ===
+os.makedirs(".streamlit", exist_ok=True)
+with open(".streamlit/config.toml", "w") as f:
+    f.write("[server]\nmaxUploadSize = 1024\n")
+
+# === PAGE CONFIGURATION ===
 st.set_page_config(
-    page_title="P. S MEDISELLER - Allopathy & Ayurvedic Wholesaler",
-    page_icon="",
+    page_title="P. S MEDISELLER Allopathy & Ayurvedic Wholesaler",
+    page_icon="💊",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
 st.markdown("""
 <style>
 div[data-testid="stImage"] img {
@@ -37,11 +33,9 @@ div[data-testid="stImage"] img {
 }
 </style>
 """, unsafe_allow_html=True)
-
 st.image("banner.jpg", use_container_width=True)
-# === 
-# IST TIME & DATE FORMAT HELPERS
-# ===
+
+# === IST TIME & DATE FORMAT HELPERS ===
 def get_ist_time():
     ist_offset = timezone(timedelta(hours=5, minutes=30))
     return datetime.now(ist_offset)
@@ -59,9 +53,7 @@ def format_date_display(date_str):
     except:
         return date_str
 
-# ===
-# ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION
-# ===
+# === ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION ===
 logo_b64 = ""
 for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
     if os.path.exists(logo_name):
@@ -73,11 +65,8 @@ pwa_manifest_html = f"""
 <script>
 try {{
     const base_url = window.location.href.split('?')[0];
-    
-    // ব্রাউজার বা ক্রোম থেকে বর্তমান ইউজারনেম ধরে রাখা
     const urlParams = new URLSearchParams(window.location.search);
     let current_user = urlParams.get('login');
-    
     if (current_user) {{
         localStorage.setItem('ps_mediseller_user', current_user);
     }} else {{
@@ -86,10 +75,8 @@ try {{
             current_user = saved_user;
         }}
     }}
-    
-    // যার যার ইউজারনেম অনুযায়ী স্টার্ট ইউআরএল সেট করা
     const start_url_path = current_user ? base_url + "?login=" + current_user : base_url;
-
+    
     const manifest = {{
         "name": "P.S MEDISELLER",
         "short_name": "Mediseller",
@@ -105,22 +92,27 @@ try {{
             }}
         ]
     }};
+    
     const stringManifest = JSON.stringify(manifest);
     const blob = new Blob([stringManifest], {{type: 'application/json'}});
     const manifestURL = URL.createObjectURL(blob);
     const targetHead = window.parent.document.head || document.head;
+    
     let link = document.createElement('link');
     link.rel = 'manifest';
     link.href = manifestURL;
     targetHead.appendChild(link);
+    
     let meta1 = document.createElement('meta');
     meta1.name = 'apple-mobile-web-app-capable';
     meta1.content = 'yes';
     targetHead.appendChild(meta1);
+    
     let meta2 = document.createElement('meta');
     meta2.name = 'mobile-web-app-capable';
     meta2.content = 'yes';
     targetHead.appendChild(meta2);
+    
     if ('serviceWorker' in navigator) {{
         navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
     }}
@@ -130,7 +122,6 @@ try {{
 </script>
 """
 st.components.v1.html(pwa_manifest_html, height=0)
-
 # ===
 # MANDATORY LOCATION PERMISSION ENFORCEMENT COMPONENT
 # ===
