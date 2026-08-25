@@ -472,40 +472,36 @@ if "payment_collected_actual" not in existing_cols_task:
 if "remaining_due" not in existing_cols_task:
     c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
 conn.commit()
-url_login = st.query_params.get("login")
+# ===
+# SIMPLE & SAFE USER SESSION
+# ===
+if "username" not in st.session_state:
+    st.session_state["username"] = "delivery"
 
-# ইউআরএল থেকে ইউজারনেম নেওয়া
-if isinstance(url_login, list) and url_login:
-    url_login = url_login[0]
+if "user_role" not in st.session_state:
+    st.session_state["user_role"] = "staff"
 
-if url_login:
-    target_login = url_login
-elif "username" in st.session_state and st.session_state["username"]:
-    target_login = st.session_state["username"]
-else:
-    target_login = "delivery"
+# ইউআরএল বা সেশন থেকে ইউজার চেক
+url_user = st.query_params.get("login")
+if isinstance(url_user, list) and url_user:
+    url_user = url_user[0]
 
-st.session_state["username"] = target_login
+if url_user:
+    st.session_state["username"] = url_user
 
-# ডাটাবেজ থেকে ইউজারের তথ্য যাচাই
-c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
-user_row = c.fetchone()
+# ডাটাবেজ থেকে ইউজারের রোল ও স্ট্যাটাস যাচাই
+c.execute("SELECT role, is_active FROM users WHERE username=?", (st.session_state["username"],))
+row = c.fetchone()
 
-if user_row:
-    f_name, r_role, is_active = user_row
-    if is_active == 0:
+if row:
+    role_val, active_val = row
+    if active_val == 0:
         st.warning("⚠️ আপনার একাউন্টটি ব্লক করা হয়েছে।")
         st.stop()
-    else:
-        st.session_state["user_role"] = r_role
-        # শুধুমাত্র যদি ইউআরএল না মেলে তবেই আপডেট হবে (কোনো লুপ হবে না)
-        if st.query_params.get("login") != target_login:
-            st.query_params["login"] = target_login
+    st.session_state["user_role"] = role_val
 else:
     st.session_state["username"] = "delivery"
     st.session_state["user_role"] = "staff"
-    if st.query_params.get("login") != "delivery":
-        st.query_params["login"] = "delivery"
 
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
