@@ -2270,29 +2270,41 @@ elif selected_menu == "Route Map (রুট ম্যাপ)":
 elif selected_menu == "Attendance (উপস্থিতি)":
     import datetime
     import calendar
+    import pandas as pd
+    
+    # 🕒 নিরাপদ টাইম ফাংশন (IST) - আগের get_ist_time() এর এরর এড়াতে
+    def safe_ist_now():
+        return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+        
+    now_dt = safe_ist_now()
+    current_year = now_dt.year
+    current_month = now_dt.month
+
     st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
     c.execute("SELECT username, fullname, role FROM users")
     att_users_data = c.fetchall()
     agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in att_users_data}
-    
-    # ট্যাব ডিক্লেয়ারেশন (এটি থাকতেই হবে)
+
+    # ট্যাব ডিক্লেয়ারেশন
     att_tab1, att_tab2 = st.tabs([
         "✅ Daily Attendance (আজকের উপস্থিতি ও চেক-ইন)",
         "📊 Monthly & Agent Attendance Report (মাসিক ও কর্মী উপস্থিতি রিপোর্ট)"
     ])
-    
+
     with att_tab1:
         st.write("#### Today's Check-in")
-        today_date_str = get_ist_time().strftime("%Y-%m-%d")
-        today_display_str = get_ist_time().strftime("%d.%m.%y")
+        today_date_str = safe_ist_now().strftime("%Y-%m-%d")
+        today_display_str = safe_ist_now().strftime("%d.%m.%y")
+        
         with st.form("attendance_form", clear_on_submit=True):
             st.write(f"Today Date: **{today_display_str}**")
-            agent_for_att = st.session_state["username"]
+            agent_for_att = st.session_state.get("username", "delivery")
             st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
+            
             submit_att = st.form_submit_button("✅ Give Attendance / Check-in (উপস্থিতি দিন)", type="primary")
             if submit_att:
                 try:
-                    check_time_str = get_ist_time().strftime("%H:%M:%S")
+                    check_time_str = safe_ist_now().strftime("%H:%M:%S")
                     c.execute(
                         "INSERT INTO attendance (username, date, check_time, status) VALUES (?, ?, ?, ?)",
                         (agent_for_att, today_date_str, check_time_str, "Present")
@@ -2302,9 +2314,9 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     st.rerun()
                 except sqlite3.IntegrityError:
                     st.warning("Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)")
-    
+
         st.write("---")
-        st.write("#### Today's Attendance List (আজকের উপস্থিতি তালিকা - সবাই দেখবে)")
+        st.write("#### Today's Attendance List (আজকের উপস্থিতি তালিকা)")
         today_att_df = pd.read_sql_query("""
             SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status' 
             FROM attendance a 
@@ -2312,23 +2324,27 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             WHERE a.date = ? 
             ORDER BY a.check_time DESC
         """, conn, params=(today_date_str,))
+        
         if not today_att_df.empty:
-            today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
+            try:
+                today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
+            except NameError:
+                pass # যদি format_date_display ফাংশনটি না থাকে তবে এটি নরমাল ডেট দেখাবে
             st.dataframe(today_att_df, use_container_width=True)
         else:
             st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
-    
+
     with att_tab2:
-        current_role = st.session_state["user_role"]
-        current_user = st.session_state["username"]
+        current_role = st.session_state.get("user_role", "staff")
+        current_user = st.session_state.get("username", "delivery")
         
         if current_role == "admin":
             st.write("#### 📊 Agent-wise Monthly Attendance & Report Download")
             st.write("নিচে থেকে যেকোনো এজেন্টকে সিলেক্ট করে তার এই মাসের মোট কাজের দিন দেখতে পাবেন এবং তার ব্যক্তিগত রিপোর্ট ডাউনলোড করতে পারবেন:")
-    
+
             c.execute("SELECT username, fullname FROM users WHERE role='staff'")
             staff_list = c.fetchall()
-    
+
             if staff_list:
                 selected_rep_agent = st.selectbox(
                     "🔍 Select Agent for Report & Summary:",
@@ -2336,13 +2352,8 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     format_func=lambda x: agent_name_map.get(x, x),
                     key="agent_report_dropdown"
                 )
-    
+
                 if selected_rep_agent:
-                    now_dt = datetime.datetime.now()
-                    current_year = now_dt.year
-                    current_month = now_dt.month
-                    
-                    import calendar
                     total_days_in_month = calendar.monthrange(current_year, current_month)[1]
                     
                     c.execute("""
@@ -2350,38 +2361,51 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                         WHERE username = ? AND SUBSTR(date, 1, 7) = ?
                     """, (selected_rep_agent, f"{current_year}-{current_month:02d}"))
                     days_worked_count = c.fetchone()[0]
-    
+
                     col_r1, col_r2 = st.columns(2)
                     with col_r1:
                         st.metric(label="📅 Total Days in This Month", value=f"{total_days_in_month} Days")
                     with col_r2:
                         st.metric(label="⚡ Days Worked by Agent", value=f"{days_worked_count} Days")
-    
+
                     agent_rep_df = pd.read_sql_query("""
                         SELECT date AS 'Date', check_time AS 'Check-in Time', status AS 'Status' 
                         FROM attendance 
                         WHERE username = ? 
                         ORDER BY date DESC, check_time DESC
                     """, conn, params=(selected_rep_agent,))
-    
+
                     if not agent_rep_df.empty:
-                        agent_rep_df['Date'] = agent_rep_df['Date'].apply(lambda x: format_date_display(x))
+                        try:
+                            agent_rep_df['Date'] = agent_rep_df['Date'].apply(lambda x: format_date_display(x))
+                        except NameError:
+                            pass
                         st.dataframe(agent_rep_df, use_container_width=True)
-    
-                        agent_fullname_str = agent_name_map.get(selected_rep_agent, selected_rep_agent)
-                        html_agent_att = generate_html_report(f"Attendance Report - {agent_fullname_str}", agent_rep_df)
-                        
-                        st.download_button(
-                            label=f"📥 Download Report for {agent_fullname_str} ({selected_rep_agent})",
-                            data=html_agent_att,
-                            file_name=f"attendance_report_{selected_rep_agent}_{current_year}_{current_month:02d}.html",
-                            mime="text/html",
-                            type="primary",
-                            key=f"dl_btn_{selected_rep_agent}"
-                        )
+
+                        try:
+                            agent_fullname_str = agent_name_map.get(selected_rep_agent, selected_rep_agent)
+                            html_agent_att = generate_html_report(f"Attendance Report - {agent_fullname_str}", agent_rep_df)
+                            st.download_button(
+                                label=f"📥 Download Report for {agent_fullname_str} ({selected_rep_agent})",
+                                data=html_agent_att,
+                                file_name=f"attendance_report_{selected_rep_agent}_{current_year}_{current_month:02d}.html",
+                                mime="text/html",
+                                type="primary",
+                                key=f"dl_btn_{selected_rep_agent}"
+                            )
+                        except NameError:
+                            # যদি HTML জেনারেট ফাংশন না থাকে, তবে অটোমেটিক CSV ডাউনলোড অপশন আসবে
+                            csv_data = agent_rep_df.to_csv(index=False).encode('utf-8')
+                            st.download_button(
+                                label=f"📥 Download CSV Report for {agent_name_map.get(selected_rep_agent, selected_rep_agent)}",
+                                data=csv_data,
+                                file_name=f"attendance_{selected_rep_agent}_{current_year}_{current_month:02d}.csv",
+                                mime="text/csv",
+                                type="primary"
+                            )
                     else:
                         st.info(f"এই মাসের জন্য {agent_name_map.get(selected_rep_agent, selected_rep_agent)}-এর কোনো উপস্থিতির রেকর্ড পাওয়া যায়নি।")
-    
+
             st.write("---")
             st.write("#### 🗑️ Delete Agent Attendance Record (Admin Only)")
             col_del1, col_del2 = st.columns(2)
@@ -2393,8 +2417,8 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     key="del_agent_select"
                 )
             with col_del2:
-                del_date = st.date_input("Select Date to Delete:", value=get_ist_time().date(), key="del_date_select")
-    
+                del_date = st.date_input("Select Date to Delete:", value=safe_ist_now().date(), key="del_date_select")
+
             if st.button("🗑️ Delete Selected Attendance Record", type="primary", key="btn_del_att"):
                 if staff_list:
                     del_date_str = del_date.strftime("%Y-%m-%d")
@@ -2403,10 +2427,10 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     if record_exists > 0:
                         c.execute("DELETE FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
                         conn.commit()
-                        st.success(f"Successfully deleted attendance record for {agent_name_map.get(del_agent, del_agent)} on {format_date_display(del_date_str)}!")
+                        st.success(f"Successfully deleted attendance record on {del_date_str}!")
                         st.rerun()
                     else:
-                        st.warning(f"No attendance record found for {agent_name_map.get(del_agent, del_agent)} on {format_date_display(del_date_str)}.")
+                        st.warning(f"No attendance record found on {del_date_str}.")
         else:
             st.write("#### Your Monthly Attendance Report")
             staff_att_df = pd.read_sql_query("""
@@ -2415,8 +2439,12 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                 WHERE username = ? 
                 ORDER BY date DESC, check_time DESC
             """, conn, params=(current_user,))
+            
             if not staff_att_df.empty:
-                staff_att_df['Date'] = staff_att_df['Date'].apply(lambda x: format_date_display(x))
+                try:
+                    staff_att_df['Date'] = staff_att_df['Date'].apply(lambda x: format_date_display(x))
+                except NameError:
+                    pass
                 st.dataframe(staff_att_df, use_container_width=True)
             else:
                 st.info("You have no attendance records yet.")
