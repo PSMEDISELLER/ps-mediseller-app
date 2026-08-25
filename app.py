@@ -2643,77 +2643,95 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
         except Exception as e:
             st.error(f"স্টাফদের তথ্য আনতে সমস্যা হয়েছে: {e}")
     with set_tab3:
-        import streamlit as st
-        import sqlite3
-        
-        # ডেটাবেস কানেকশন (আপনার কোড অনুযায়ী ঠিক করে নেবেন)
-        # conn = sqlite3.connect('your_database.db')
-        # c = conn.cursor()
-        
-        # --- ১. Menu State Management ---
-        # যদি session_state এ মেনু না থাকে, তবে ডিফল্ট একটি সেট করুন
+        # --- ১. Menu State Management & Agents Dropdown ---
         if "current_menu" not in st.session_state:
-            st.session_state["current_menu"] = "Manage Agents" # বা আপনার ডিফল্ট পেজ
+            st.session_state["current_menu"] = "Manage Agents"
         
-        # Sidebar Menu (উদাহরণস্বরূপ)
+        # ডেটাবেজ থেকে সব এজেন্টের তালিকা ডাইনামিক্যালি নিয়ে আসা (আরও স্ট্রং ও অ্যাডভান্সড)
+        c.execute("SELECT username, fullname FROM users WHERE role='staff'")
+        all_agents = c.fetchall()
+        
+        # যদি কোনো এজেন্ট না থাকে
+        if not all_agents:
+            agent_options = ["delivery"]
+            agent_dict = {"delivery": "Delivery Agent"}
+        else:
+            agent_options = [row[0] for row in all_agents]
+            agent_dict = {row[0]: row[1] for row in all_agents}
+        
         st.sidebar.title("Navigation")
         menu_options = ["Home", "Manage Agents", "Settings"]
         
-        # selectbox এর value session_state থেকে আসবে
         selected_menu = st.sidebar.selectbox(
             "Select a page", 
             options=menu_options, 
-            index=menu_options.index(st.session_state["current_menu"])
+            index=menu_options.index(st.session_state["current_menu"]) if st.session_state["current_menu"] in menu_options else 0
         )
-        
-        # ইউজার যদি মেনু পরিবর্তন করে, তবে তা session_state এ সেভ করুন
         st.session_state["current_menu"] = selected_menu
         
         
-        # --- ২. আপনার মূল কোড (Manage Agents) ---
+        # --- ২. Manage Agents (Advanced Dropdown & Control) ---
         if st.session_state["current_menu"] == "Manage Agents":
-            st.write("#### Manage Agents (Block / Unblock / Delete)") # St কে st করা হয়েছে
+            st.write("#### Manage Agents (Block / Unblock / Delete)")
         
-            # Success message দেখানোর কোডটি উপরে আনলে ভালো, যাতে রিরান হওয়ার সাথে সাথেই দেখা যায়
             if "delete_msg" in st.session_state:
                 st.success(st.session_state["delete_msg"])
                 del st.session_state["delete_msg"]
         
-            c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
-            staff_data = c.fetchall()
+            # অ্যাডভান্সড ফিল্টার বা ড্রপডাউন দিয়ে এজেন্ট সিলেক্ট করার ব্যবস্থা
+            st.markdown("##### 🔍 Select Agent to Manage")
+            selected_agent_uname = st.selectbox(
+                "Choose Agent Username", 
+                options=agent_options,
+                format_func=lambda x: f"{agent_dict.get(x, x)} ({x})"
+            )
         
-            if not staff_data:
-                st.info("No agents found.")
-            else:
-                for s_uname, s_fname, s_act in staff_data:
+            if selected_agent_uname:
+                # নির্দিষ্ট সিলেক্ট করা এজেন্টের তথ্য আনা
+                c.execute("SELECT username, fullname, is_active FROM users WHERE username=?", (selected_agent_uname,))
+                agent_row = c.fetchone()
+        
+                if agent_row:
+                    s_uname, s_fname, s_act = agent_row
                     status = "Active" if s_act else "Blocked"
-                    st.write(f"**Agent:** {s_fname} (`{s_uname}`) - Status: `{status}`")
+                    
+                    st.info(f"**Selected Agent:** {s_fname} (`{s_uname}`) — Status: **{status}**")
         
                     col1, col2, _ = st.columns([1, 1, 3])
         
                     with col1:
                         if s_act:
-                            if st.button("🚫 Block", key=f"blk_{s_uname}"):
+                            if st.button("🚫 Block Agent", key=f"blk_{s_uname}"):
                                 c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_uname,))
                                 conn.commit()
-                                st.rerun() # এখন রিরান হলেও current_menu সেভ থাকবে
+                                st.success(f"Agent '{s_uname}' has been blocked.")
+                                st.rerun()
                         else:
-                            if st.button("✅ Unblock", key=f"unblk_{s_uname}"):
+                            if st.button("✅ Unblock Agent", key=f"unblk_{s_uname}"):
                                 c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_uname,))
                                 conn.commit()
+                                st.success(f"Agent '{s_uname}' has been unblocked.")
                                 st.rerun()
         
                     with col2:
-                        if st.button("🗑️ Delete", key=f"del_{s_uname}"):
+                        if st.button("🗑️ Delete Agent", key=f"del_{s_uname}"):
                             c.execute("DELETE FROM users WHERE username=?", (s_uname,))
                             conn.commit()
                             st.session_state["delete_msg"] = f"Agent '{s_uname}' deleted successfully!"
                             st.rerun()
         
-                    st.write("---")
+            st.write("---")
+            
+            # নিচের দিকে চাইলে সব এজেন্টের একটি সামারি লিস্টও দেখতে পারেন
+            st.markdown("##### 📋 All Staff Summary")
+            c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
+            staff_data = c.fetchall()
+            for s_uname, s_fname, s_act in staff_data:
+                status_text = "🟢 Active" if s_act else "🔴 Blocked"
+                st.text(f"• {s_fname} ({s_uname}) -> {status_text}")
         
         elif st.session_state["current_menu"] == "Home":
-            st.write("Welcome to Home Page")
+            st.write("Welcome to Home Page")      
     with set_tab4:
         st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
         with open(DB_FILE, "rb") as f:
