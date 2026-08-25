@@ -781,95 +781,35 @@ if selected_menu != current_page_param:
     st.rerun()
 
 st.write("---")
-if selected_menu == "Add Location (লোকেশন যোগ)":
-        st.write("### Add Location & Party (লোকেশন ও পার্টি)")
-        
-        # High Accuracy & Multi-Try GPS Fetching Component
-        import streamlit.components.v1 as components
-        
-        gps_component_code = """
-        <div>
-            <button id="getLocBtn" style="background-color:#1a73e8; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:14px; font-weight:bold;">📍 Strong GPS Fix (স্ট্রং জিপিএস ফিক্স)</button>
-            <p id="gpsStatus" style="font-size:12px; margin-top:5px; color:#666;"></p>
-        </div>
-        <script>
-        const btn = document.getElementById('getLocBtn');
-        const status = document.getElementById('gpsStatus');
-
-        btn.onclick = function() {
-            if (!navigator.geolocation) {
-                status.innerText = "Geolocation is not supported by your browser";
-                return;
-            }
-            status.innerText = "Getting strong GPS fix (Multi-try)... Please wait...";
-            
-            let bestPosition = null;
-            let attempts = 0;
-            const maxAttempts = 3;
-
-            function tryGetPosition() {
-                attempts++;
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const acc = position.coords.accuracy;
-                        if (!bestPosition || acc < bestPosition.coords.accuracy) {
-                            bestPosition = position;
-                        }
-                        
-                        if (attempts < maxAttempts && acc > 20) {
-                            status.innerText = `Attempt ${attempts}: Accuracy ~${Math.round(acc)}m. Retries for better accuracy...`;
-                            setTimeout(tryGetPosition, 1000);
-                        } else {
-                            const lat = bestPosition.coords.latitude;
-                            const lon = bestPosition.coords.longitude;
-                            const finalAcc = Math.round(bestPosition.coords.accuracy);
-                            status.innerText = `Success! Best Accuracy: ~${finalAcc} meters`;
-                            
-                            const data = {lat: lat, lon: lon};
-                            window.parent.postMessage({type: 'streamlit:setComponentValue', value: data}, '*');
-                        }
-                    },
-                    (error) => {
-                        if (attempts < maxAttempts) {
-                            setTimeout(tryGetPosition, 1500);
-                        } else {
-                            status.innerText = "Error: " + error.message + ". Try moving to open sky.";
-                        }
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 12000,
-                        maximumAge: 0
-                    }
-                );
-            }
-            tryGetPosition();
-        };
-        </script>
-        """
-        
-        selected_entry_tab = st.radio(
-            "Select Entry Mode (মোড সিলেক্ট):",
-            [
-                "With Map Party (ম্যাপ সহ পার্টি)",
-                "Without Map Party (ম্যাপ ছাড়া পার্টি)"
-            ],
-            label_visibility="collapsed"
-        )
-        st.write("")
-        if "With Map Party" in selected_entry_tab:
+if "With Map Party" in selected_entry_tab:
             with st.form("location_details_form", clear_on_submit=True):
                 st.write("#### 1. Enter Party Details (পার্টির বিবরণ)")
-                col_f1, col_f2, col_f3 = st.columns(3)
+                
+                # রুট ডেটা ফেচ করার কোড (ডাটাবেস থেকে)
+                c.execute("SELECT DISTINCT route_name FROM routes ORDER BY route_name ASC")
+                existing_routes = [r[0] for r in c.fetchall()]
+                
+                col_f1, col_f2, col_f3, col_f4 = st.columns([2, 2, 2, 2])
                 with col_f1:
                     p_name = st.text_input("Party Name (পার্টির নাম)", key="input_p_name")
                 with col_f2:
                     p_addr = st.text_input("Address (ঠিকানা)", key="input_p_addr")
                 with col_f3:
                     p_phone = st.text_input("Phone Number (ফোন নম্বর)", key="input_p_phone")
-                
+                with col_f4:
+                    # রুট ড্রপডাউন বা নতুন লেখার বক্স (st.selectbox ব্যবহার করা হয়েছে যাতে সিলেক্ট বা টাইপ দুটোই করা যায়)
+                    p_route = st.selectbox(
+                        "Route (রুট)",
+                        options=["--Select/Type Route--"] + existing_routes,
+                        key="input_p_route"
+                    )
+                    # যদি ড্রপডাউনে না থাকে, তবে নতুন লেখার জন্য ছোট টেক্সট ইনপুট
+                    custom_route = st.text_input("Or Type New Route (নতুন রুট লিখুন)", key="input_custom_route", placeholder="যদি লিস্টে না থাকে")
+
                 submitted_loc = st.form_submit_button("💾 Save Location (সেভ করুন)", type="primary")
                 if submitted_loc:
+                    final_route = custom_route.strip() if custom_route.strip() else (p_route if p_route != "--Select/Type Route--" else "")
+                    
                     if p_name.strip() and p_phone.strip():
                         c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (p_name.strip(), p_phone.strip()))
                         existing_check = c.fetchone()
@@ -877,10 +817,14 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                             st.error("Party name or phone already exists! (ইতিমধ্যে সেভ করা আছে!)")
                         else:
                             try:
+                                # নতুন রুট হলে তা routes টেবিলে সেভ করে নেওয়া যাতে ডুপ্লিকেট না হয়
+                                if final_route:
+                                    c.execute("INSERT OR IGNORE INTO routes (route_name) VALUES (?)", (final_route,))
+                                    
                                 current_date_str = get_ist_time().strftime("%Y-%m-%d")
                                 c.execute(
-                                    "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, ?, ?)",
-                                    (p_name.strip(), p_addr, p_phone.strip(), st.session_state["selected_lat"], st.session_state["selected_lon"]),
+                                    "INSERT INTO locations (party_name, address, party_phone, route_name, lat, lon) VALUES (?, ?, ?, ?, ?, ?)",
+                                    (p_name.strip(), p_addr, p_phone.strip(), final_route, st.session_state["selected_lat"], st.session_state["selected_lon"]),
                                 )
                                 c.execute(
                                     "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
@@ -893,214 +837,6 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                                 st.error("Party already exists! (ইতিমধ্যে আছে!)")
                     else:
                         st.error("Party name and phone required. (নাম ও ফোন আবশ্যক।)")
-        else:
-            with st.form("doctor_details_form", clear_on_submit=True):
-                st.write("#### 2. Without Map Party Details (ম্যাপ ছাড়া পার্টির বিবরণ)")
-                col_d1, col_d2, col_d3 = st.columns(3)
-                with col_d1:
-                    doc_name = st.text_input("Name (নাম)", key="input_doc_name")
-                with col_d2:
-                    doc_addr = st.text_input("Address (ঠিকানা/চেম্বার)", key="input_doc_addr")
-                with col_d3:
-                    doc_phone = st.text_input("Phone (ফোন নম্বর)", key="input_doc_phone")
-                
-                submitted_doc = st.form_submit_button("💾 Save Without Map Party (সেভ করুন)", type="primary")
-                if submitted_doc:
-                    if doc_name.strip() and doc_phone.strip():
-                        c.execute("SELECT id FROM locations WHERE LOWER(party_name) = LOWER(?) OR party_phone = ?", (doc_name.strip(), doc_phone.strip()))
-                        existing_check_doc = c.fetchone()
-                        if existing_check_doc:
-                            st.error("Party name or phone already exists! (ইতিমধ্যে সেভ করা আছে!)")
-                        else:
-                            try:
-                                c.execute(
-                                    "INSERT INTO locations (party_name, address, party_phone, lat, lon) VALUES (?, ?, ?, NULL, NULL)",
-                                    (doc_name.strip(), doc_addr, doc_phone.strip()),
-                                )
-                                c.execute(
-                                    "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                                    (doc_name.strip(), "Visit (ভিজিট)", get_ist_time().strftime("%Y-%m-%d"))
-                                )
-                                conn.commit()
-                                st.success("Saved successfully! (সফলভাবে সেভ হয়েছে!)")
-                                st.rerun()
-                            except sqlite3.IntegrityError:
-                                st.error("Party already exists! (ইতিমধ্যে আছে!)")
-                    else:
-                        st.error("Name and phone required. (নাম ও ফোন আবশ্যক।)")
-
-        st.write("---")
-        st.write("#### Select Location from Map (ম্যাপ থেকে সিলেক্ট করুন)")
-        col_m1, col_m2 = st.columns([1, 4])
-        with col_m1:
-            if st.button("📍 Current Loc (স্ট্রং জিপিএস)"):
-                if gps_lat and gps_lon:
-                    st.session_state["selected_lat"] = gps_lat
-                    st.session_state["selected_lon"] = gps_lon
-                    st.success("High-accuracy multi-try GPS location taken! (নেওয়া হয়েছে!)")
-                    st.rerun()
-                else:
-                    st.warning("GPS not found! ম্যাপে ক্লিক করে বা বাইরে গিয়ে চেষ্টা করুন।")
-        with col_m2:
-            st.write(f"Coordinates (স্থানাঙ্ক): `{st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}`")
-
-        advanced_map = folium.Map(
-            location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
-            zoom_start=18,
-            tiles=None
-        )
-        street_layer = folium.TileLayer(
-            tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-            attr="Google Maps Street",
-            name="Street View (স্ট্রিট ভিউ)",
-            overlay=False,
-            control=True,
-            show=True
-        )
-        street_layer.add_to(advanced_map)
-        satellite_layer = folium.TileLayer(
-            tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-            attr="Google Maps Satellite",
-            name="Satellite View (স্যাটেলাইট ভিউ)",
-            overlay=False,
-            control=True,
-            show=False
-        )
-        satellite_layer.add_to(advanced_map)
-
-        folium.Marker(
-            [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-            popup="<b>Selected Point (নির্বাচিত পয়েন্ট)</b>",
-            tooltip="Will save here (এখানে সেভ হবে)",
-            icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
-        ).add_to(advanced_map)
-
-        if gps_lat and gps_lon:
-            folium.CircleMarker(
-                location=[gps_lat, gps_lon],
-                radius=9,
-                color="#0056b3",
-                fill=True,
-                fill_color="#1a73e8",
-                fill_opacity=0.9,
-                popup="Your GPS Location (জিপিএস লোকেশন)"
-            ).add_to(advanced_map)
-
-        formatter = "function(num) {return L.Util.formatNum(num, 5) + '°';};"
-        MousePosition(
-            position="bottomright",
-            separator=" ",
-            prefix="Lat/Lng: ",
-            lat_formatter=formatter,
-            lng_formatter=formatter
-        ).add_to(advanced_map)
-
-        folium.LayerControl().add_to(advanced_map)
-        map_data = st_folium(advanced_map, width="100%", height=420, key="google_style_interactive_map")
-
-        if map_data and map_data.get("last_clicked"):
-            clicked_lat = map_data["last_clicked"]["lat"]
-            clicked_lon = map_data["last_clicked"]["lng"]
-            if clicked_lat != st.session_state["selected_lat"] or clicked_lon != st.session_state["selected_lon"]:
-                st.session_state["selected_lat"] = clicked_lat
-                st.session_state["selected_lon"] = clicked_lon
-                st.rerun()
-
-        st.write("---")
-        st.write("### Orders & Visits (অর্ডার ও ভিজিট)")
-        st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-
-        if "order_party_search_text_input" not in st.session_state:
-            st.session_state["order_party_search_text_input"] = ""
-
-        order_search_text = st.text_input("Search Party", value=st.session_state["order_party_search_text_input"], placeholder="Type name, address or keyword...", key="order_party_search_text_input_key", label_visibility="collapsed")
-
-        if order_search_text.strip():
-            q_term = f"%{order_search_text.strip()}%"
-            c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
-            filtered_parties_list = [r[0] for r in c.fetchall()]
-        else:
-            c.execute("SELECT party_name FROM locations ORDER BY party_name ASC")
-            filtered_parties_list = [r[0] for r in c.fetchall()]
-
-        if order_search_text.strip() and filtered_parties_list:
-            st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>Suggestions ({len(filtered_parties_list)} found): Select below</p>", unsafe_allow_html=True)
-            selected_order_party_native = st.radio(
-                "Matching Parties",
-                filtered_parties_list[:10],
-                key="order_floating_suggestions_radio",
-                label_visibility="collapsed"
-            )
-        else:
-            if filtered_parties_list:
-                selected_order_party_native = st.selectbox("Select Party", filtered_parties_list, label_visibility="collapsed", key="order_select_party_box")
-            else:
-                st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
-                selected_order_party_native = ""
-
-        with st.form("order_visit_entry_form", clear_on_submit=True):
-            ord_details = st.text_area("Order Details (অর্ডার বিবরণ)")
-            col_ob1, col_ob2 = st.columns(2)
-            with col_ob1:
-                submitted_order = st.form_submit_button("🛒 Submit Order (অর্ডার জমা)", type="primary")
-            with col_ob2:
-                submitted_visit = st.form_submit_button("📌 Save Visit (ভিজিট সেভ)")
-
-            if submitted_order:
-                if not selected_order_party_native.strip():
-                    st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
-                else:
-                    current_date_str = get_ist_time().strftime("%Y-%m-%d")
-                    c.execute(
-                        "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
-                        (selected_order_party_native.strip(), ord_details.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Pending", "0")
-                    )
-                    c.execute(
-                        "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                        (selected_order_party_native.strip(), "Order (অর্ডার)", current_date_str)
-                    )
-                    conn.commit()
-                    st.session_state["order_party_search_text_input"] = ""
-                    st.success("Order submitted successfully! (জমা দেওয়া হয়েছে!)")
-                    st.rerun()
-
-            if submitted_visit:
-                if not selected_order_party_native.strip():
-                    st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
-                else:
-                    current_date_str = get_ist_time().strftime("%Y-%m-%d")
-                    c.execute(
-                        "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                        (selected_order_party_native.strip(), "Visit (ভিজিট)", current_date_str)
-                    )
-                    conn.commit()
-                    st.session_state["order_party_search_text_input"] = ""
-                    st.success("Visit saved successfully! (সেভ হয়েছে!)")
-                    st.rerun()
-
-        st.write("---")
-        with st.expander("📊 Recent Orders & Visits (সামপ্রতিক রিপোর্ট) Click to Open", expanded=False):
-            report_df = pd.read_sql_query("SELECT party_name AS 'Party Name', activity_type AS 'Activity Type', work_date AS 'Work Date' FROM daily_work ORDER BY work_date DESC, id DESC LIMIT 20", conn)
-            if not report_df.empty:
-                if st.session_state["user_role"] == "admin":
-                    full_report_df = pd.read_sql_query("SELECT party_name AS 'Party Name', activity_type AS 'Activity Type', work_date AS 'Work Date' FROM daily_work ORDER BY work_date DESC, id DESC", conn)
-                    html_all_report = generate_html_report("Daily Work & Visit Report", full_report_df)
-                    st.download_button(
-                        label="📥 Download Daily Work Report (PDF/HTML)",
-                        data=html_all_report,
-                        file_name=f"mediseller_daily_work_report.html",
-                        mime="text/html",
-                        type="primary"
-                    )
-                    st.write("---")
-                for idx, r_row in report_df.iterrows():
-                    cols = st.columns([3, 2, 2])
-                    cols[0].write(f"Party: **{r_row['Party Name']}**")
-                    cols[1].write(f"Activity: `{r_row['Activity Type']}`")
-                    cols[2].write(f"Date: `{format_date_display(r_row['Work Date'])}`")
-                    st.write("---")
-            else:
-                st.info("No reports found. (কোনো রিপোর্ট নেই।)")
 elif selected_menu == "Search & Details (অনুসন্ধান ও বিবরণ)":
     st.write("### Search & Party Management (সার্চ ও ম্যানেজমেন্ট)")
     if st.session_state.get("mapping_party_id"):
