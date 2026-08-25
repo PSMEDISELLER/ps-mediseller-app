@@ -2447,7 +2447,90 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             else:
                 st.info("You have no attendance records yet.")
             st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)        
+
+elif selected_menu == " Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state["user_role"] == "admin": 
+    st.write("### Live Agent Tracking & Last Saved Locations (লাইভ ও লাস্ট লোকেশন ট্র্যাকিং)") 
+    st.markdown("Note: This page auto-refreshes. Select a specific agent from the dropdown below or view all agents simultaneously, optimized for low-internet usage.", unsafe_allow_html=True)
+    
+    # লো ইন্টারনেটে দ্রুত ফেচ করার জন্য কোয়েরি
+    try:
+        live_df = pd.read_sql_query(
+            "SELECT a.username, u.fullname, u.phone, a.lat, a.lon, a.last_updated, a.completed_deliveries "
+            "FROM agent_live_locations a LEFT JOIN users u ON a.username = u.username "
+            "ORDER BY a.last_updated DESC", conn
+        )
+    except Exception as e:
+        live_df = pd.DataFrame()
+        st.error(f"Error loading tracking data: {e}")
+    
+    if not live_df.empty: 
+        # এজেন্ট ড্রপডাউন বক্স সিস্টেম তৈরি করা
+        agent_options = ["All Agents (সব এজেন্ট একসাথে)"]
+        for _, r in live_df.iterrows():
+            display_name = f"{r['fullname']} ({r['username']})" if pd.notna(r['fullname']) and r['fullname'] else r['username']
+            agent_options.append(display_name)
+            
+        selected_agent_box = st.selectbox("🔍 Select Agent to View (এজেন্ট সিলেক্ট করুন):", agent_options)
+        st.write("---")
         
+        # ফিল্টারিং লজিক (সিলেক্ট করা এজেন্ট অনুযায়ী ডাটা ফিল্টার হবে)
+        filtered_df = live_df
+        if selected_agent_box != "All Agents (সব এজেন্ট একসাথে)":
+            # সিলেক্ট করা নাম বা ইউজারনেম থেকে ইউজারনেম বের করা
+            selected_username = selected_agent_box.split("(")[-1].strip(")")
+            filtered_df = live_df[live_df['username'] == selected_username]
+        
+        for idx, r in filtered_df.iterrows(): 
+            name = r['fullname'] if pd.notna(r['fullname']) and r['fullname'] else r['username'] 
+            username = r['username'] 
+            phone = r['phone'] if pd.notna(r['phone']) else "N/A" 
+            lat = r['lat'] 
+            lon = r['lon'] 
+            last_up = r['last_updated'] 
+            completed = r['completed_deliveries']
+            
+            # টাইম ডিফারেন্স ক্যালকুলেশন
+            time_ago_str = "Unknown"
+            if pd.notna(last_up):
+                try:
+                    up_dt = datetime.strptime(str(last_up), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+                    diff_sec = (get_ist_time() - up_dt).total_seconds()
+                    if diff_sec < 60:
+                        time_ago_str = f"{int(diff_sec)} seconds ago"
+                    elif diff_sec < 3600:
+                        time_ago_str = f"{int(diff_sec // 60)} minutes ago"
+                    elif diff_sec < 86400:
+                        time_ago_str = f"{int(diff_sec // 3600)} hours ago"
+                    else:
+                        time_ago_str = f"{int(diff_sec // 86400)} days ago"
+                except:
+                    time_ago_str = str(last_up)
+            
+            # বক্স স্টাইলে এক্সপ্যান্ডার প্রদর্শন
+            with st.expander(f"📦 Agent Box: {name} (`{username}`) | Last Active: {time_ago_str}", expanded=True if selected_agent_box != "All Agents (সব এজেন্ট একসাথে)" else False):
+                st.markdown(f"""
+                * **Full Name:** {name}  
+                * **Username:** `{username}`  
+                * **Phone:** {phone}  
+                * **Completed Tasks:** <b style="color: #34d399;">{completed}</b>  
+                * **Last Updated Time:** {last_up if pd.notna(last_up) else 'No update yet'} *({time_ago_str})*  
+                * **Last Known Coordinates:** `{lat}, {lon}`
+                """, unsafe_allow_html=True)
+                
+                if pd.notna(lat) and pd.notna(lon):
+                    google_maps_track_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+                    st.markdown(f'''
+                        <a href="{google_maps_track_url}" target="_blank" style="text-decoration:none;">
+                            <button style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border:none; padding: 10px 20px; border-radius:8px; cursor:pointer; font-weight: 600; font-size: 15px; margin-top:10px; box-shadow: 0 4px 12px rgba(16,185,129,0.4);">
+                                📍 Track Exact Location on Google Maps (সঠিক লোকেশন ম্যাপে দেখুন)
+                            </button>
+                        </a>
+                    ''', unsafe_allow_html=True)
+                else:
+                    st.warning("⚠️ GPS coordinates not yet available for this agent.")
+            st.write("---")
+    else: 
+        st.info("ℹ️ No live agent location data available yet. Waiting for agent connection...")
 elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state["user_role"] == "admin":
     st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
     c.execute("SELECT COUNT(*) FROM users WHERE role='staff'")
