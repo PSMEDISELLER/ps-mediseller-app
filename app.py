@@ -2462,7 +2462,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
 
         if current_role == "admin":
             st.write("#### Agent-wise Monthly Attendance & Report Download")
-            st.write("নিচে থেকে যেকোনো এজেন্টকে সিলেক্ট করে তার এই মাসের মোট কাজের দিন দেখতে পাবেন এবং তার ব্যক্তিগত রিপোর্ট ডাউনলোড করতে পারবেন:")[cite: 6]
+            st.write("নিচে থেকে যেকোনো এজেন্টকে সিলেক্ট করে তার এই মাসের মোট কাজের দিন দেখতে পাবেন এবং তার ব্যক্তিগত রিপোর্ট ডাউনলোড করতে পারবেন:")
             
             c.execute("SELECT username, fullname FROM users WHERE role='staff'")
             staff_list = c.fetchall()
