@@ -1195,49 +1195,55 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
         
 elif selected_menu == "Search & Details (অনুসন্ধান ও বিবরণ)":
     st.write("### Search & Party Management (সার্চ ও ম্যানেজমেন্ট)")
+    
     if st.session_state.get("mapping_party_id"):
         st.markdown(f"### Set Map for **{st.session_state['mapping_party_name']}**")
         st.write("Click correct location on map and click **'Save Location'** below.")
+        
         if "temp_map_lat" not in st.session_state:
             st.session_state["temp_map_lat"] = 22.8620
         if "temp_map_lon" not in st.session_state:
             st.session_state["temp_map_lon"] = 87.3320
+            
         col_tm1, col_tm2 = st.columns([1, 4])
         with col_tm1:
-            if st.button("📍 Current GPS (কারেন্ট জিপিএস)", key="btn_curr_gps_temp"):
+            if st.button(" Current GPS (কারেন্ট জিপিএস)", key="btn_curr_gps_temp"):
                 if gps_lat and gps_lon:
                     st.session_state["temp_map_lat"] = gps_lat
                     st.session_state["temp_map_lon"] = gps_lon
-                    st.success("GPS taken! (নেওয়া হয়েছে!)")
+                    st.success("GPS taken! (নেওয়া হয়েছে!)")
                     st.rerun()
                 else:
                     st.warning("GPS not found! (নেই!)")
         with col_tm2:
             st.write(f"Coordinates: `{st.session_state['temp_map_lat']:.5f}, {st.session_state['temp_map_lon']:.5f}`")
-    
+            
         pick_map = folium.Map(
             location=[st.session_state["temp_map_lat"], st.session_state["temp_map_lon"]],
             zoom_start=17,
             tiles=None
         )
+        
         folium.TileLayer(
             tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
             attr="Google Maps Street",
             name="Street View (স্ট্রিট ভিউ)",
             show=True
         ).add_to(pick_map)
+        
         folium.TileLayer(
             tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
             attr="Google Maps Satellite",
             name="Satellite View (স্যাটেলাইট ভিউ)",
             show=False
         ).add_to(pick_map)
+        
         folium.Marker(
             [st.session_state["temp_map_lat"], st.session_state["temp_map_lon"]],
             popup="<b>Set Here (এখানে সেট)</b>",
             icon=folium.Icon(color="red", icon="map-marker", prefix="fa")
         ).add_to(pick_map)
-    
+        
         if gps_lat and gps_lon:
             folium.CircleMarker(
                 location=[gps_lat, gps_lon],
@@ -1248,10 +1254,11 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                 fill_opacity=0.9,
                 popup="Your Location (আপনার লোকেশন)"
             ).add_to(pick_map)
-    
+            
         folium.LayerControl().add_to(pick_map)
+        
         p_map_data = st_folium(pick_map, width="100%", height=400, key="party_location_picker_map")
-    
+        
         if p_map_data and p_map_data.get("last_clicked"):
             clat = p_map_data["last_clicked"]["lat"]
             clon = p_map_data["last_clicked"]["lng"]
@@ -1259,30 +1266,35 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                 st.session_state["temp_map_lat"] = clat
                 st.session_state["temp_map_lon"] = clon
                 st.rerun()
-    
+                
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            if st.button("💾 Save Location (সেভ করুন)", type="primary", key="save_party_map_ok"):
+            if st.button("Save Location (সেভ করুন)", type="primary", key="save_party_map_ok"):
                 target_id = st.session_state["mapping_party_id"]
                 t_lat = st.session_state["temp_map_lat"]
                 t_lon = st.session_state["temp_map_lon"]
-                c.execute("UPDATE locations SET lat=?, lon=? WHERE id=?", (t_lat, t_lon, target_id))
+                c.execute("UPDATE locations SET lat = ?, lon = ? WHERE id = ?", (t_lat, t_lon, target_id))
                 conn.commit()
                 st.session_state.pop("mapping_party_id", None)
                 st.session_state.pop("mapping_party_name", None)
-                st.success(f"Map saved successfully! (সেভ হয়েছে!)")
+                st.success("Map saved successfully! (সেভ হয়েছে!)")
                 st.rerun()
         with col_b2:
-            if st.button("❌ Cancel (বাতিল)", key="cancel_party_map"):
+            if st.button("X Cancel (বাতিল)", key="cancel_party_map"):
                 st.session_state.pop("mapping_party_id", None)
                 st.session_state.pop("mapping_party_name", None)
                 st.rerun()
-    
+                
         st.markdown("---")
         st.stop()
-    
+        
     st.write("🔍 **Search Party/Doctor (পার্টি খুঁজুন):**")
-    master_search_query = st.text_input("Search", placeholder="Type name, address or keyword and press enter...", key="master_search_input_box", label_visibility="collapsed")
+    master_search_query = st.text_input(
+        "Search",
+        placeholder="Type name, address or keyword and press enter...",
+        key="master_search_input_box",
+        label_visibility="collapsed"
+    )
     
     if master_search_query.strip():
         q_term = f"%{master_search_query.strip()}%"
@@ -1293,93 +1305,96 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
         )
     else:
         df = pd.read_sql_query("SELECT * FROM locations ORDER BY party_name ASC", conn)
-    
-    if st.session_state["user_role"] == "admin" and not df.empty:
-        html_locs_df = generate_html_report("Locations & Parties Directory", df[["party_name", "address", "party_phone"]].rename(columns={"party_name": "Party Name", "address": "Address", "party_phone": "Phone"}))
+        
+    if st.session_state.get("user_role") == "admin" and not df.empty:
+        html_locs_df = generate_html_report(
+            "Locations & Parties Directory",
+            df[["party_name", "address", "party_phone"]].rename(columns={"party_name": "Party Name", "address": "Address", "party_phone": "Phone"})
+        )
         st.download_button(
-            label="📥 Download Locations Report (PDF/HTML)",
+            label=" Download Locations Report (PDF/HTML)",
             data=html_locs_df,
             file_name="mediseller_locations_report.html",
             mime="text/html",
             type="primary"
         )
         st.write("---")
-    
+        
     doc_df = df[df["lat"].isna() | df["lon"].isna()]
     mapped_df = df[df["lat"].notna() & df["lon"].notna()]
     is_searching = bool(master_search_query.strip())
     
-    with st.expander(f"📌 Non-Map List ({len(doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=is_searching):
+    with st.expander(f" Non-Map List ({len(doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=is_searching):
         if not doc_df.empty:
             for index, row in doc_df.iterrows():
                 cols = st.columns([3, 2, 2, 2, 1.5])
                 cols[0].write(f"**{row['party_name']}**")
                 cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
                 cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
-                if cols[3].button("🗺️ Add Map (ম্যাপ যুক্ত)", key=f"map_add_search_{row['id']}"):
+                
+                if cols[3].button(" Add Map (ম্যাপ যুক্ত)", key=f"map_add_search_{row['id']}"):
                     st.session_state["mapping_party_id"] = row['id']
                     st.session_state["mapping_party_name"] = row['party_name']
                     st.session_state["temp_map_lat"] = st.session_state.get("selected_lat", 22.8620)
                     st.session_state["temp_map_lon"] = st.session_state.get("selected_lon", 87.3320)
                     st.rerun()
-                if st.session_state["user_role"] == "admin":
-                    if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_doc_search_{row['id']}"):
+                    
+                if st.session_state.get("user_role") == "admin":
+                    if cols[4].button(" Delete (ডিলিট)", key=f"del_doc_search_{row['id']}"):
                         move_to_recycle_bin("Location", row['party_name'], dict(row))
-                        c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+                        c.execute("DELETE FROM locations WHERE id = ?", (row['id'],))
                         conn.commit()
-                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                         st.rerun()
-                st.write("---")
         else:
             st.info("No non-map parties found. (ম্যাপবিহীন পার্টি নেই।)")
-    
-    st.write("—")
-    with st.expander(f"📍 Mapped List ({len(mapped_df)} Records) (ম্যাপযুক্ত তালিকা)", expanded=is_searching):
+            
+    with st.expander(f" Mapped List ({len(mapped_df)} Records) (ম্যাপযুক্ত তালিকা)", expanded=is_searching):
         if not mapped_df.empty:
             for index, row in mapped_df.iterrows():
-                if st.session_state["user_role"] == "admin":
+                if st.session_state.get("user_role") == "admin":
                     cols = st.columns([3, 2, 2, 2, 1.5])
                 else:
                     cols = st.columns([3, 2, 2, 2])
+                    
                 cols[0].write(f"**{row['party_name']}**")
                 cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
                 cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
+                
                 maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
-                cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:none; padding:6px 12px; border-radius: 6px; cursor:pointer; font-weight:600;">🚗 Direction (ডিরেকশন)</button></a>', unsafe_allow_html=True)
-                if st.session_state["user_role"] == "admin":
-                    if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_loc_search_{row['id']}"):
+                cols[3].markdown(
+                    f'<a href="{maps_url}" target="_blank" style="text-decoration: none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:none; padding:6px 12px; border-radius: 6px; cursor:pointer; font-weight:600;"> Direction (ডিরেকশন)</button></a>',
+                    unsafe_allow_html=True
+                )
+                
+                if st.session_state.get("user_role") == "admin":
+                    if cols[4].button(" Delete (ডিলিট)", key=f"del_loc_search_{row['id']}"):
                         move_to_recycle_bin("Location", row['party_name'], dict(row))
-                        c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+                        c.execute("DELETE FROM locations WHERE id = ?", (row['id'],))
                         conn.commit()
-                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                        st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                         st.rerun()
-                st.write("---")
         else:
             st.info("No mapped parties found. (ম্যাপযুক্ত পার্টি নেই।)")
-    
-    # ==========================================
-    # Route-wise Party Management (রুট ওয়াইস পার্টি)
-    # ==========================================
+            
+    # Route-wise Party Management (রুট ওয়াইস পার্টি)
     st.write("---")
-    st.markdown("### 🛣️ Route-wise Party (রুট অনুযায়ী পার্টি)")
-    
+    st.markdown("### Route-wise Party (রুট অনুযায়ী পার্টি)")
     try:
         route_list_df = pd.read_sql_query("SELECT DISTINCT route FROM locations WHERE route IS NOT NULL AND route != '' ORDER BY route ASC", conn)
         routes = route_list_df['route'].tolist()
     except Exception:
         routes = []
-    
+        
     routes.insert(0, "-- Select Route (রুট নির্বাচন করুন) --")
     selected_route = st.selectbox("Select Route (রুট নির্বাচন করুন):", routes, key="route_selector_advanced")
     
     if selected_route and selected_route != "-- Select Route (রুট নির্বাচন করুন) --":
         route_df = pd.read_sql_query("SELECT * FROM locations WHERE route = ? ORDER BY party_name ASC", conn, params=(selected_route,))
-        
         route_doc_df = route_df[route_df["lat"].isna() | route_df["lon"].isna()]
         route_mapped_df = route_df[route_df["lat"].notna() & route_df["lon"].notna()]
-    
-        # রুট অনুযায়ী ম্যাপবিহীন তালিকা
-        with st.expander(f"📌 {selected_route} - Non-Map List ({len(route_doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=True):
+        
+        with st.expander(f" {selected_route} Non-Map List ({len(route_doc_df)} Entries) (ম্যাপবিহীন তালিকা)", expanded=True):
             if not route_doc_df.empty:
                 for index, row in route_doc_df.iterrows():
                     cols = st.columns([3, 2, 2, 2, 1.5])
@@ -1387,73 +1402,75 @@ elif selected_menu == "Search & Details (অনুসন্ধান ও বি�
                     cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
                     cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
                     
-                    if cols[3].button("🗺️ Add Map (ম্যাপ যুক্ত)", key=f"map_add_route_{row['id']}"):
+                    if cols[3].button(" Add Map (ম্যাপ যুক্ত)", key=f"map_add_route_{row['id']}"):
                         st.session_state["mapping_party_id"] = row['id']
                         st.session_state["mapping_party_name"] = row['party_name']
                         st.session_state["temp_map_lat"] = st.session_state.get("selected_lat", 22.8620)
                         st.session_state["temp_map_lon"] = st.session_state.get("selected_lon", 87.3320)
                         st.rerun()
-                    
-                    if st.session_state["user_role"] == "admin":
-                        if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_doc_route_{row['id']}"):
+                        
+                    if st.session_state.get("user_role") == "admin":
+                        if cols[4].button(" Delete (ডিলিট)", key=f"del_doc_route_{row['id']}"):
                             move_to_recycle_bin("Location", row['party_name'], dict(row))
-                            c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+                            c.execute("DELETE FROM locations WHERE id = ?", (row['id'],))
                             conn.commit()
-                            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                             st.rerun()
-                    st.write("---")
             else:
                 st.info("এই রুটে ম্যাপবিহীন কোনো পার্টি নেই।")
-    
-        # রুট অনুযায়ী ম্যাপযুক্ত তালিকা
-        with st.expander(f"📍 {selected_route} - Mapped List ({len(route_mapped_df)} Records) (ম্যাপযুক্ত তালিকা)", expanded=True):
+                
+        with st.expander(f" {selected_route} Mapped List ({len(route_mapped_df)} Records) (ম্যাপযুক্ত তালিকা)", expanded=True):
             if not route_mapped_df.empty:
                 for index, row in route_mapped_df.iterrows():
-                    if st.session_state["user_role"] == "admin":
+                    if st.session_state.get("user_role") == "admin":
                         cols = st.columns([3, 2, 2, 2, 1.5])
                     else:
                         cols = st.columns([3, 2, 2, 2])
-                    
+                        
                     cols[0].write(f"**{row['party_name']}**")
                     cols[1].write(row['party_phone'] if row['party_phone'] else "No number (নম্বর নেই)")
                     cols[2].write(row['address'] if row['address'] else "No address (ঠিকানা নেই)")
                     
                     maps_url = f"https://www.google.com/maps/dir/?api=1&destination={row['lat']},{row['lon']}"
-                    cols[3].markdown(f'<a href="{maps_url}" target="_blank" style="text-decoration:none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border:none; padding:6px 12px; border-radius: 6px; cursor:pointer; font-weight:600;">🚗 Direction</button></a>', unsafe_allow_html=True)
+                    cols[3].markdown(
+                        f'<a href="{maps_url}" target="_blank" style="text-decoration: none;"><button style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor:pointer; font-weight:600;"> Direction</button></a>',
+                        unsafe_allow_html=True
+                    )
                     
-                    if st.session_state["user_role"] == "admin":
-                        if cols[4].button("🗑️ Delete (ডিলিট)", key=f"del_loc_route_{row['id']}"):
+                    if st.session_state.get("user_role") == "admin":
+                        if cols[4].button(" Delete (ডিলিট)", key=f"del_loc_route_{row['id']}"):
                             move_to_recycle_bin("Location", row['party_name'], dict(row))
-                            c.execute("DELETE FROM locations WHERE id=?", (row['id'],))
+                            c.execute("DELETE FROM locations WHERE id = ?", (row['id'],))
                             conn.commit()
-                            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
+                            st.success("Moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                             st.rerun()
-                    st.write("---")
             else:
-                st.info("এই রুটে ম্যাপযুক্ত কোনো পার্টি নেই।")    
+                st.info("এই রুটে ম্যাপযুক্ত কোনো পার্টি নেই।")
+
 elif selected_menu == "Pending Orders (বাকি অর্ডার)":
     st.write("### Orders Management (অর্ডার ম্যানেজমেন্ট)")
-    if st.session_state["user_role"] == "admin":
-        ord_tab1, ord_tab2 = st.tabs(["⏳ Pending Orders (পেন্ডিং)", "✅ Completed History (সম্পন্ন অর্ডার)"])
+    
+    if st.session_state.get("user_role") == "admin":
+        ord_tab1, ord_tab2 = st.tabs([" Pending Orders (পেন্ডিং)", " Completed History (সম্পন্ন অর্ডার)"])
     else:
         ord_tab1 = st.container()
         ord_tab2 = None
-
+        
     with ord_tab1:
         st.write("#### Active Pending Orders")
-        if st.session_state["user_role"] == "admin":
+        if st.session_state.get("user_role") == "admin":
             all_ord_df = pd.read_sql_query("SELECT party_name AS 'Party Name', order_details AS 'Order Details', order_date AS 'Order Date' FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
             if not all_ord_df.empty:
                 html_ord_report = generate_html_report("Pending Orders Report", all_ord_df)
                 st.download_button(
-                    label="📥 Download Pending Orders Report (PDF/HTML)",
+                    label=" Download Pending Orders Report (PDF/HTML)",
                     data=html_ord_report,
                     file_name="mediseller_pending_orders_report.html",
                     mime="text/html",
                     type="primary"
                 )
-                st.write("-")
-
+                st.write("---")
+                
         orders_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Pending' ORDER BY order_date DESC", conn)
         if not orders_df.empty:
             for index, row in orders_df.iterrows():
@@ -1461,85 +1478,86 @@ elif selected_menu == "Pending Orders (বাকি অর্ডার)":
                 cols[0].write(f"**{row['party_name']}**")
                 cols[1].write(row['order_details'])
                 cols[2].write("⏳ Pending (পেন্ডিং)")
-                if cols[3].button("✓ Complete (কমপ্লিট)", key=f"ord_btn_{row['id']}"):
-                    c.execute("UPDATE orders SET status='Completed' WHERE id=?", (row['id'],))
+                if cols[3].button(" Complete (কমপ্লিট)", key=f"ord_btn_{row['id']}"):
+                    c.execute("UPDATE orders SET status='Completed' WHERE id = ?", (row['id'],))
                     conn.commit()
-                    c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (st.session_state["username"],))
+                    c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username = ?", (st.session_state.get("username"),))
                     conn.commit()
                     st.success("Order completed! (কমপ্লিট করা হয়েছে!)")
                     st.rerun()
-                st.write("---")
         else:
             st.info("No pending orders. (পেন্ডিং অর্ডার নেই।)")
-
+            
     if ord_tab2 is not None:
         with ord_tab2:
             st.write("#### Completed Orders History")
             completed_ord_df = pd.read_sql_query("SELECT * FROM orders WHERE status='Completed' ORDER BY order_date DESC", conn)
             if not completed_ord_df.empty:
-                if st.session_state["user_role"] == "admin":
+                if st.session_state.get("user_role") == "admin":
                     html_comp_ord = generate_html_report("Completed Orders History", completed_ord_df[["party_name", "order_details", "order_date"]])
                     col_dc1, col_dc2 = st.columns(2)
                     with col_dc1:
                         st.download_button(
-                            label="📥 Download Completed Orders Report",
+                            label=" Download Completed Orders Report",
                             data=html_comp_ord,
                             file_name="mediseller_completed_orders_history.html",
                             mime="text/html",
                             type="primary"
                         )
                     with col_dc2:
-                        if st.button("🗑️ Clear All Completed Orders History (সব ডিলিট)", type="secondary"):
-                            for _, r in completed_ord_df.iterrows():
+                        if st.button(" Clear All Completed Orders History (সব ডিলিট)", type="secondary"):
+                            for idx, r in completed_ord_df.iterrows():
                                 move_to_recycle_bin("Order", r['party_name'], dict(r))
                             c.execute("DELETE FROM orders WHERE status='Completed'")
                             conn.commit()
                             st.success("All completed orders history moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                             st.rerun()
                     st.write("---")
-
+                    
                 for idx, row in completed_ord_df.iterrows():
-                    if st.session_state["user_role"] == "admin":
+                    if st.session_state.get("user_role") == "admin":
                         cols = st.columns([2, 4, 2, 1.5])
                     else:
                         cols = st.columns([2, 4, 2])
+                        
                     cols[0].write(f"**{row['party_name']}**")
                     cols[1].write(row['order_details'])
                     cols[2].write("✓ Completed (সম্পন্ন)")
-                    if st.session_state["user_role"] == "admin":
+                    
+                    if st.session_state.get("user_role") == "admin":
                         if cols[3].button("Delete", key=f"del_comp_ord_{row['id']}"):
                             move_to_recycle_bin("Order", row['party_name'], dict(row))
-                            c.execute("DELETE FROM orders WHERE id=?", (row['id'],))
+                            c.execute("DELETE FROM orders WHERE id = ?", (row['id'],))
                             conn.commit()
                             st.success("Moved to Recycle Bin!")
                             st.rerun()
-                    st.write("---")
             else:
                 st.info("No completed orders history.")
 
 elif selected_menu == "Daily & Monthly Work (দৈনিক ও মাসিক কাজ)":
     st.write("### Daily & Monthly Work Report (দৈনিক ও মাসিক কাজের রিপোর্ট)")
     work_tab1, work_tab2 = st.tabs([
-        "📅 Daily Work (দৈনিক কাজ)",
-        "📊 Monthly Summary & Zero Activity (মাসিক সামারি ও জিরো অ্যাক্টিভিটি)"
+        " Daily Work (দৈনিক কাজ)",
+        " Monthly Summary & Zero Activity (মাসিক সামারি ও জিরো অ্যাক্টিভিটি)"
     ])
+    
     with work_tab1:
-        st.write("#### 📋 Visit & Order List (তারিখ অনুযায়ী)")
-        if st.session_state["user_role"] == "admin":
+        st.write("#### Visit & Order List (তারিখ অনুযায়ী)")
+        if st.session_state.get("user_role") == "admin":
             full_dw_df = pd.read_sql_query("SELECT party_name AS 'Party Name', activity_type AS 'Activity Type', work_date AS 'Work Date' FROM daily_work ORDER BY work_date DESC, id DESC", conn)
             if not full_dw_df.empty:
                 html_dw_report = generate_html_report("Daily Work Report", full_dw_df)
                 col_dw1, col_dw2 = st.columns(2)
                 with col_dw1:
                     st.download_button(
-                        label="📥 Download Daily Work Report (PDF/HTML)",
+                        label=" Download Daily Work Report (PDF/HTML)",
                         data=html_dw_report,
                         file_name="mediseller_daily_work_report.html",
                         mime="text/html",
                         type="primary"
                     )
                 with col_dw2:
-                    if st.button("🗑️ Clear All Daily Work Records (সব কাজ মুছুন)", type="secondary"):
+                    if st.button(" Clear All Daily Work Records (সব কাজ মুছুন)", type="secondary"):
                         c.execute("SELECT * FROM daily_work")
                         all_dw = c.fetchall()
                         for dw in all_dw:
@@ -1549,7 +1567,7 @@ elif selected_menu == "Daily & Monthly Work (দৈনিক ও মাসিক
                         st.success("All daily work records moved to Recycle Bin! (রিসাইকেল বিনে পাঠানো হয়েছে!)")
                         st.rerun()
                 st.write("---")
-
+                
         work_df = pd.read_sql_query("SELECT * FROM daily_work ORDER BY work_date DESC, id DESC", conn)
         if not work_df.empty:
             unique_dates = work_df['work_date'].unique()
@@ -1557,40 +1575,42 @@ elif selected_menu == "Daily & Monthly Work (দৈনিক ও মাসিক
                 date_records = work_df[work_df['work_date'] == d_str]
                 count_parties = len(date_records)
                 formatted_d = format_date_display(d_str)
-                with st.expander(f"📅 Date: {formatted_d} (Total: {count_parties}) - Click to Open", expanded=False):
-                    if st.session_state["user_role"] == "admin":
-                        if st.button(f"🗑️ Delete Date Data ({formatted_d}) (সব ডিলিট)", key=f"del_date_{d_str}", type="secondary"):
-                            for _, w_row in date_records.iterrows():
+                
+                with st.expander(f" Date: {formatted_d} (Total: {count_parties}) Click to Open", expanded=False):
+                    if st.session_state.get("user_role") == "admin":
+                        if st.button(f" Delete Date Data ({formatted_d}) (সব ডিলিট)", key=f"del_date_{d_str}", type="secondary"):
+                            for idx, w_row in date_records.iterrows():
                                 move_to_recycle_bin("Daily Work", w_row['party_name'], dict(w_row))
-                            c.execute("DELETE FROM daily_work WHERE work_date=?", (d_str,))
+                            c.execute("DELETE FROM daily_work WHERE work_date = ?", (d_str,))
                             conn.commit()
                             st.success("Moved to Recycle Bin!")
                             st.rerun()
-                        st.write("-")
-
+                        st.write("---")
+                        
                     for idx, w_row in date_records.iterrows():
-                        if st.session_state["user_role"] == "admin":
+                        if st.session_state.get("user_role") == "admin":
                             cols = st.columns([3, 2, 1.5])
                         else:
                             cols = st.columns([3, 2])
+                            
                         cols[0].write(f"Party: **{w_row['party_name']}**")
                         cols[1].write(f"Status: `{w_row['activity_type']}`")
-                        if st.session_state["user_role"] == "admin":
+                        
+                        if st.session_state.get("user_role") == "admin":
                             if cols[2].button("Delete (ডিলিট)", key=f"del_dw_{w_row['id']}"):
                                 move_to_recycle_bin("Daily Work", w_row['party_name'], dict(w_row))
-                                c.execute("DELETE FROM daily_work WHERE id=?", (w_row['id'],))
+                                c.execute("DELETE FROM daily_work WHERE id = ?", (w_row['id'],))
                                 conn.commit()
                                 st.success("Moved to Recycle Bin!")
                                 st.rerun()
                         else:
-                            cols[1].write("🔒 Locked")
-                        st.write("-")
+                            cols[1].write(" Locked")
         else:
             st.info("No records found. (কোনো রেকর্ড নেই।)")
-
+            
     with work_tab2:
-        st.write("#### 📊 Monthly Doctor/Party Activity Report (মাসিক ডাক্তার ও পার্টি রিপোর্ট)")
-        st.write("🗓️ **Select Year & Month (বছর ও মাস সিলেক্ট করুন):**")
+        st.write("####  Monthly Doctor/Party Activity Report (মাসিক ডাক্তার ও পার্টি রিপোর্ট)")
+        st.write("📅 **Select Year & Month (বছর ও মাস সিলেক্ট করুন):**")
         col_yr, col_mo = st.columns(2)
         with col_yr:
             selected_year = st.selectbox("Select Year (বছর)", [2026, 2025, 2024], index=0)
@@ -1602,8 +1622,13 @@ elif selected_menu == "Daily & Monthly Work (দৈনিক ও মাসিক
                 "10": "October (অক্টোবর)", "11": "November (নভেম্বর)", "12": "December (ডিসেম্বর)"
             }
             current_mo_num = get_ist_time().strftime("%m")
-            selected_mo_key = st.selectbox("Select Month (মাস)", list(months_dict.keys()), format_func=lambda x: months_dict[x], index=list(months_dict.keys()).index(current_mo_num) if current_mo_num in months_dict else 7)
-
+            selected_mo_key = st.selectbox(
+                "Select Month (মাস)",
+                list(months_dict.keys()),
+                format_func=lambda x: months_dict[x],
+                index=list(months_dict.keys()).index(current_mo_num) if current_mo_num in months_dict else 7
+            )
+            
         selected_month = f"{selected_year}-{selected_mo_key}"
         if selected_month.strip():
             all_locs_df = pd.read_sql_query("SELECT party_name, address, lat, lon FROM locations ORDER BY party_name ASC", conn)
@@ -1612,48 +1637,55 @@ elif selected_menu == "Daily & Monthly Work (দৈনিক ও মাসিক
                 for idx, loc_row in all_locs_df.iterrows():
                     p_name = loc_row['party_name']
                     is_mapped = "Mapped (ম্যাপযুক্ত)" if pd.notna(loc_row['lat']) and pd.notna(loc_row['lon']) else "Non-Map (ম্যাপবিহীন)"
-                    c.execute("""
-                        SELECT COUNT(*) FROM daily_work 
-                        WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Visit%'
-                    """, (p_name, f"{selected_month}%"))
+                    
+                    c.execute(
+                        "SELECT COUNT(*) FROM daily_work WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Visit%'",
+                        (p_name, f"{selected_month}%")
+                    )
                     v_count = c.fetchone()[0]
-
-                    c.execute("""
-                        SELECT COUNT(*) FROM daily_work 
-                        WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Order%'
-                    """, (p_name, f"{selected_month}%"))
+                    
+                    c.execute(
+                        "SELECT COUNT(*) FROM daily_work WHERE party_name = ? AND work_date LIKE ? AND activity_type LIKE '%Order%'",
+                        (p_name, f"{selected_month}%")
+                    )
                     o_count = c.fetchone()[0]
-
+                    
                     report_data.append({
                         "Party Name": p_name,
                         "Type": is_mapped,
                         "Total Visits": v_count,
                         "Total Orders": o_count
                     })
+                    
                 report_summary_df = pd.DataFrame(report_data)
                 st.write(f"##### Complete Activity Summary for {selected_month}")
-                if st.session_state["user_role"] == "admin":
-                    html_summary = generate_html_report(f"Monthly Summary - {selected_month}", report_summary_df)
+                
+                if st.session_state.get("user_role") == "admin":
+                    html_summary = generate_html_report(f"Monthly Summary {selected_month}", report_summary_df)
                     col_ms1, col_ms2 = st.columns(2)
                     with col_ms1:
                         st.download_button(
-                            label="📥 Download Monthly Summary Report",
+                            label=" Download Monthly Summary Report",
                             data=html_summary,
                             file_name=f"mediseller_monthly_summary_{selected_month}.html",
                             mime="text/html",
                             type="primary"
                         )
                     with col_ms2:
-                        if st.button(f"🗑️ Delete All Work Records for Month: {selected_month}", type="secondary"):
+                        if st.button(f" Delete All Work Records for Month: {selected_month}", type="secondary"):
                             c.execute("DELETE FROM daily_work WHERE work_date LIKE ?", (f"{selected_month}%",))
                             conn.commit()
                             st.success(f"All records for {selected_month} deleted successfully! (মুছে ফেলা হয়েছে!)")
                             st.rerun()
                     st.write("---")
                 else:
-                    st.markdown("<p style='color: #60a5fa; font-size: 13px;'><i>Note: Monthly report downloads and management are restricted to admins only. Agents can only view their summary above.</i></p>", unsafe_allow_html=True)
-
+                    st.markdown(
+                        "<p style='color: #60a5fa; font-size: 13px;'><i>Note: Monthly report downloads and management are restricted to admins only. Agents can only view their summary above.</i></p>",
+                        unsafe_allow_html=True
+                    )
+                    
                 st.dataframe(report_summary_df, use_container_width=True)
+                
                 zero_activity_df = report_summary_df[(report_summary_df["Total Visits"] == 0) & (report_summary_df["Total Orders"] == 0)]
                 st.write(f"⚠️ **Doctors/Parties with ZERO Visits & ZERO Orders ({len(zero_activity_df)}):**")
                 if not zero_activity_df.empty:
