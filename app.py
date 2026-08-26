@@ -1697,85 +1697,92 @@ elif selected_menu == "Daily & Monthly Work (দৈনিক ও মাসিক
 
 elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভারি)":
     st.markdown('<div class="main-title">Delivery & Due Plan (ডেলিভারি ও ডিউ প্ল্যান)</div>', unsafe_allow_html=True)
+    
     c.execute("SELECT username, fullname FROM users")
     users_data = c.fetchall()
     all_agents = [r[0] for r in users_data]
     agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in users_data}
-
+    
     c.execute("SELECT party_name, lat, lon FROM locations ORDER BY party_name ASC")
     loc_data = c.fetchall()
     party_coords = {r[0]: (r[1], r[2]) for r in loc_data}
     all_parties = [r[0] for r in loc_data]
 
     task_tab1, task_tab2, task_tab3, task_tab4 = st.tabs([
-        "🚀 Active Tasks (চলমান কাজ)",
-        "📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
-        "✅ Completed Tasks History (সম্পন্ন কাজ)",
-        "💰 Master Due List (ডিউ লিস্ট)"
+        "Active Tasks (চলমান কাজ)",
+        "Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)",
+        "Completed Tasks History (সম্পন্ন কাজ)",
+        "Master Due List (ডিউ লিস্ট)"
     ])
+
+    # --- TAB 1: ACTIVE TASKS ---
     with task_tab1:
         if st.session_state.get("user_role") == "admin":
             full_tasks_df = pd.read_sql_query("""
-                SELECT t.id, u.fullname as agent_fullname, t.agent_name, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, t.status, t.created_at, l.address 
-                FROM task_assignments t 
-                LEFT JOIN users u ON t.agent_name = u.username 
-                LEFT JOIN locations l ON t.party_name = l.party_name 
-                WHERE t.status='Pending' 
+                SELECT t.id, u.fullname as agent_fullname, t.agent_name,
+                       t.party_name, t.task_type, t.due_amount, t.sale_amount,
+                       t.payment_collected_actual, t.status, t.created_at, l.address
+                FROM task_assignments t
+                LEFT JOIN users u ON t.agent_name = u.username
+                LEFT JOIN locations l ON t.party_name = l.party_name
+                WHERE t.status='Pending'
                 ORDER BY t.id DESC
             """, conn)
+
             if not full_tasks_df.empty:
                 export_tasks_df = full_tasks_df.copy()
                 export_tasks_df['Agent Name'] = export_tasks_df.apply(lambda r: r['agent_fullname'] if pd.notna(r['agent_fullname']) and r['agent_fullname'] else r['agent_name'], axis=1)
                 export_tasks_df['Party Name'] = export_tasks_df['party_name']
                 export_tasks_df['Task Type'] = export_tasks_df['task_type']
-                export_tasks_df['Sale Amount (₹)'] = export_tasks_df['sale_amount']
-                export_tasks_df['Collection Amount (₹)'] = export_tasks_df['payment_collected_actual']
-                export_tasks_df['Due Amount (₹)'] = export_tasks_df['due_amount']
+                export_tasks_df['Sale Amount'] = export_tasks_df['sale_amount']
+                export_tasks_df['Collection Amount'] = export_tasks_df['payment_collected_actual']
+                export_tasks_df['Due Amount'] = export_tasks_df['due_amount']
                 export_tasks_df['Assigned Date'] = export_tasks_df['created_at'].apply(lambda x: format_date_display(x))
                 export_tasks_df['Address'] = export_tasks_df['address']
-                export_tasks_df_final = export_tasks_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (₹)', 'Collection Amount (₹)', 'Due Amount (₹)', 'Assigned Date', 'Address']]
+                
+                export_tasks_df_final = export_tasks_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount', 'Collection Amount', 'Due Amount', 'Assigned Date', 'Address']]
                 html_tasks_report = generate_html_report("Active Tasks & Deliveries Report", export_tasks_df_final)
+                
                 st.download_button(
-                    label="📥 Download Tasks Report (PDF/HTML)",
+                    label="Download Tasks Report (PDF/HTML)",
                     data=html_tasks_report,
                     file_name="mediseller_due_delivery_report.html",
                     mime="text/html",
                     type="primary"
                 )
                 st.write("---")
-    
-        # --- ১. অটো-স্ক্রল হ্যান্ডলার (টাস্ক কমপ্লিট হলে উপরে নিয়ে যাবে) ---
+
         if st.session_state.get("scroll_to_top", False):
             st.session_state["scroll_to_top"] = False
             import streamlit.components.v1 as components
             components.html("""
                 <script>
-                    var mainContainer = window.parent.document.querySelector('section.main');
-                    if (mainContainer) {
-                        mainContainer.scrollTo({top: 0, behavior: 'smooth'});
-                    }
+                var mainContainer = window.parent.document.querySelector('section.main');
+                if (mainContainer) {
+                    mainContainer.scrollTo({top: 0, behavior: 'smooth'});
+                }
                 </script>
             """, height=0)
-    
-        st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
-        
+
+        st.write("**Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
         if "task_search_reset_counter" not in st.session_state:
             st.session_state["task_search_reset_counter"] = 0
-    
+
         task_search_text = st.text_input(
-            "Search Party for Task", 
-            key=f"task_party_search_{st.session_state['task_search_reset_counter']}", 
-            placeholder="Type name, address or keyword...", 
+            "Search Party for Task",
+            key=f"task_party_search_{st.session_state['task_search_reset_counter']}",
+            placeholder="Type name, address or keyword...",
             label_visibility="collapsed"
         )
-    
+
         if task_search_text.strip():
             q_term = f"%{task_search_text.strip()}%"
             c.execute("SELECT party_name FROM locations WHERE party_name LIKE ? OR address LIKE ? OR party_phone LIKE ? ORDER BY party_name ASC", (q_term, q_term, q_term))
             filtered_task_parties = [r[0] for r in c.fetchall()]
         else:
             filtered_task_parties = all_parties
-    
+
+        sel_pt = ""
         if task_search_text.strip() and filtered_task_parties:
             st.markdown(f"<p style='color: #60a5fa; font-size: 12px; margin: 2px 0;'>Suggestions ({len(filtered_task_parties)} found): Select below</p>", unsafe_allow_html=True)
             sel_pt = st.radio(
@@ -1784,45 +1791,20 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 key=f"task_floating_radio_{st.session_state['task_search_reset_counter']}",
                 label_visibility="collapsed"
             )
+        elif filtered_task_parties:
+            sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key=f"task_select_box_{st.session_state['task_search_reset_counter']}")
         else:
-            if filtered_task_parties:
-                sel_pt = st.selectbox("Select Party", filtered_task_parties, label_visibility="collapsed", key=f"task_select_box_{st.session_state['task_search_reset_counter']}")
-            else:
-                st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
-                sel_pt = ""
-    
+            st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
+
         auto_due_val = "0"
         if sel_pt and sel_pt.strip():
-            c.execute("SELECT current_due FROM locations WHERE party_name=?", (sel_pt.strip(),))
+            c.execute("SELECT current_due FROM locations WHERE party_name = ?", (sel_pt.strip(),))
             res_due = c.fetchone()
             if res_due and res_due[0] is not None:
                 auto_due_val = str(int(res_due[0]) if float(res_due[0]).is_integer() else res_due[0])
-    
-        st.markdown("""
-        <style>
-        div[data-testid="stForm"] {
-            padding: 10px 15px !important;
-            margin-top: 5px !important;
-            margin-bottom: 5px !important;
-        }
-        div[data-testid="stCheckbox"] label div[role="checkbox"] {
-            height: 32px !important;
-            width: 32px !important;
-            border-radius: 6px !important;
-        }
-        div[data-testid="stCheckbox"] label p {
-            font-size: 1.2rem !important; 
-            font-weight: 600 !important;
-        }
-        div[data-testid="stForm"] > div {
-            gap: 8px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    
+
         with st.form("easy_assign_form", clear_on_submit=True):
-            st.markdown("<h5 style='margin-bottom:5px; margin-top:0px;'>🚚 Assign New Task (নতুন টাস্ক দিন)</h5>", unsafe_allow_html=True)
-            
+            st.markdown("<h5 style='margin-bottom:5px; margin-top:0px;'>Assign New Task (নতুন টাস্ক দিন)</h5>", unsafe_allow_html=True)
             current_logged_user = st.session_state.get("username", "")
             sel_ag = st.selectbox(
                 "Select Agent (এজেন্ট সিলেক্ট করুন)",
@@ -1830,50 +1812,47 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 index=all_agents.index(current_logged_user) if current_logged_user in all_agents else 0,
                 format_func=lambda x: agent_name_map.get(x, x)
             )
-            
             col_amt1, col_amt2 = st.columns([1, 1])
             with col_amt1:
-                is_delivery = st.checkbox("🚚 Delivery (ডেলিভারি)", value=True)
+                is_delivery = st.checkbox("Delivery (ডেলিভারি)", value=True)
             with col_amt2:
                 d_amount = st.text_input("Old Due Amount (পুরনো ডিউ)", value=auto_due_val)
-    
-            submit_easy_task = st.form_submit_button("✔️ Add Task (কাজ যোগ)")
             
-            if submit_easy_task:
-                if not sel_pt or not sel_pt.strip():
-                    st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
-                else:
-                    try:
-                        o_due = float(d_amount) if d_amount.strip() else 0.0
-                    except ValueError:
-                        o_due = 0.0
-    
-                    n_bill = 0.0
-                    t_type_str = "Delivery (ডেলিভারি)" if is_delivery else "Due Collection (ডিউ কালেকশন)"
-    
-                    c.execute(
-                        "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (sel_ag, sel_pt.strip(), t_type_str, str(o_due), str(n_bill), "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
-                    )
-                    conn.commit()
-                    
-                    st.session_state["task_search_reset_counter"] += 1
-                    st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
-                    st.rerun()
-    
+            submit_easy_task = st.form_submit_button("Add Task (কাজ যোগ)")
+
+        if submit_easy_task:
+            if not sel_pt or not sel_pt.strip():
+                st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
+            else:
+                try:
+                    o_due = float(d_amount) if d_amount.strip() else 0.0
+                except ValueError:
+                    o_due = 0.0
+                n_bill = 0.0
+                t_type_str = "Delivery (ডেলিভারি)" if is_delivery else "Due Collection (ডিউ কালেকশন)"
+                c.execute(
+                    "INSERT INTO task_assignments (agent_name, party_name, task_type, due_amount, sale_amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (sel_ag, sel_pt.strip(), t_type_str, str(o_due), str(n_bill), "Pending", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+                )
+                conn.commit()
+                st.session_state["task_search_reset_counter"] += 1
+                st.success("Task assigned successfully! (কাজ দেওয়া হয়েছে!)")
+                st.rerun()
+
         st.write("---")
-        st.write("#### Active Pending Tasks (কর্মচারী অনুযায়ী কাজ)")
+        st.write("#### Active Pending Tasks (কর্মচারী অনুযায়ী কাজ)")
         
         pending_tasks_df = pd.read_sql_query("""
-            SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, t.task_type, t.due_amount, t.sale_amount, t.created_at, l.address, l.party_phone 
-            FROM task_assignments t 
-            LEFT JOIN users u ON t.agent_name = u.username 
-            LEFT JOIN locations l ON t.party_name = l.party_name 
-            WHERE t.status='Pending' 
+            SELECT t.id, t.agent_name, u.fullname as agent_fullname,
+                   t.party_name, t.task_type, t.due_amount, t.sale_amount, t.created_at, l.address, l.party_phone
+            FROM task_assignments t
+            LEFT JOIN users u ON t.agent_name = u.username
+            LEFT JOIN locations l ON t.party_name = l.party_name
+            WHERE t.status='Pending'
             ORDER BY t.created_at DESC
         """, conn)
-    
-        tab_delivery, tab_due = st.tabs(["📦 Delivery Tasks (ডেলিভারি)", "💰 Due Collection Tasks (ডিউ কালেকশন)"])
+
+        tab_delivery, tab_due = st.tabs(["Delivery Tasks (ডেলিভারি)", "Due Collection Tasks (ডিউ কালেকশন)"])
         
         if not pending_tasks_df.empty:
             del_df = pending_tasks_df[pending_tasks_df['task_type'].str.contains('Delivery', na=False, case=False)]
@@ -1881,8 +1860,8 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         else:
             del_df = pd.DataFrame()
             due_df = pd.DataFrame()
-    
-        # --- DELIVERY TAB ---
+
+        # DELIVERY TAB
         with tab_delivery:
             if del_df.empty:
                 st.info("No pending delivery tasks at the moment. (কোনো ডেলিভারি টাস্ক নেই)")
@@ -1890,8 +1869,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 for ag_username in del_df['agent_name'].unique():
                     ag_rows = del_df[del_df['agent_name'] == ag_username]
                     ag_disp_name = ag_rows.iloc[0]['agent_fullname'] if pd.notna(ag_rows.iloc[0]['agent_fullname']) else ag_username
-                    
-                    with st.expander(f"👤 Agent: {ag_disp_name} ({len(ag_rows)} Delivery Tasks)", expanded=False):
+                    with st.expander(f"Agent: {ag_disp_name} ({len(ag_rows)} Delivery Tasks)", expanded=False):
                         for idx, row in ag_rows.iterrows():
                             task_id = int(row['id'])
                             o_due = float(row['due_amount']) if pd.notna(row['due_amount']) and str(row['due_amount']).strip() else 0.0
@@ -1899,17 +1877,17 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                             master_due = o_due + s_amt
                             
                             st.markdown(f"""
-                                <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
-                                    <span style='font-size: 14px; color: #555;'><b>Party:</b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;|&nbsp; 
-                                    <span style='font-size: 14px; color: #555;'><b>Task:</b></span> <span style='font-size: 14px; color: #000;'>{row['task_type']}</span><br>
-                                    <span style='font-size: 14px; color: #555;'><b>বর্তমান বিল / পুরনো ডিউ (Master Due):</b></span> <span style='font-size: 15px; font-weight: bold; color: #d90429;'>₹{master_due}</span>
-                                </div>
+                            <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
+                            <span style='font-size: 14px; color: #555;'><b>Party:</b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;|&nbsp;
+                            <span style='font-size: 14px; color: #555;'><b>Task:</b></span> <span style='font-size: 14px; color: #000;'>{row['task_type']}</span><br>
+                            <span style='font-size: 14px; color: #555;'><b>বর্তমান বিল/ পুরনো ডিউ (Master Due):</b></span> <span style='font-size: 15px; font-weight: bold; color: #d90429;'>{master_due}</span>
+                            </div>
                             """, unsafe_allow_html=True)
-                            
+
                             if pd.notna(row['address']) and row['address']:
-                                ph_str = f" | 📞 Ph: {row['party_phone']}" if pd.notna(row['party_phone']) else ""
-                                st.markdown(f"<div style='font-size: 13px; color: #666; margin-bottom: 12px;'>📍 {row['address']}{ph_str}</div>", unsafe_allow_html=True)
-    
+                                ph_str = f" | Ph: {row['party_phone']}" if pd.notna(row['party_phone']) else ""
+                                st.markdown(f"<div style='font-size: 13px; color: #666; margin-bottom: 12px;'>{row['address']}{ph_str}</div>", unsafe_allow_html=True)
+
                             with st.form(key=f"complete_task_form_del_{task_id}", clear_on_submit=True):
                                 col_f1, col_f2 = st.columns(2)
                                 with col_f1:
@@ -1917,47 +1895,45 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                                     sale_input = st.text_input("Sale Amount (কত টাকা সেল)*", value=default_sale_val, key=f"sale_amt_del_{task_id}", placeholder="অ্যামাউন্ট টাইপ করুন")
                                 with col_f2:
                                     payment_input = st.text_input("Payment Collected (কত টাকা পেমেন্ট)", value=str(master_due), key=f"pay_amt_del_{task_id}")
-                                    
+                                
                                 submit_complete = st.form_submit_button("✓ Complete Task (সম্পন্ন)", type="primary")
-                                if submit_complete:
-                                    if not sale_input.strip():
-                                        st.error("⚠️ সেল অ্যামাউন্ট বসানো বাধ্যতামূলক! (Sale Amount cannot be empty)")
-                                    else:
-                                        try:
-                                            final_sale = float(sale_input.strip())
-                                            if final_sale <= 0:
-                                                st.error("⚠️ সেল অ্যামাউন্ট ০ এর চেয়ে বেশি হতে হবে!")
-                                            else:
-                                                p_amt = float(payment_input) if payment_input.strip() else 0.0
-                                                r_due = o_due + final_sale - p_amt
-                                                
-                                                c.execute(
-                                                    "UPDATE task_assignments SET status='Completed', sale_amount=?, payment_collected_actual=?, remaining_due=? WHERE id=?",
-                                                    (str(final_sale), payment_input, str(r_due), task_id)
-                                                )
-                                                c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (r_due, row['party_name']))
-                                                c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-                                                conn.commit()
-                                                
-                                                # --- ২. ফিল্ড রিকোয়েস্ট রিসেট ও স্ক্রল ফ্ল্যাগ সেট ---
-                                                st.session_state["task_search_reset_counter"] += 1
-                                                st.session_state["scroll_to_top"] = True
-                                                
-                                                st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
-                                                st.rerun()
-                                        except ValueError:
-                                            st.error("⚠️ সেল অ্যামাউন্ট সঠিক সংখ্যায় টাইপ করুন!")
-    
+
+                            if submit_complete:
+                                if not sale_input.strip():
+                                    st.error("সেল অ্যামাউন্ট বসানো বাধ্যতামূলক!")
+                                else:
+                                    try:
+                                        final_sale = float(sale_input.strip())
+                                        if final_sale <= 0:
+                                            st.error("সেল অ্যামাউন্ট ০ এর চেয়ে বেশি হতে হবে!")
+                                        else:
+                                            p_amt = float(payment_input) if payment_input.strip() else 0.0
+                                            r_due = (o_due + final_sale) - p_amt  # Fixed calculation bug
+                                            
+                                            c.execute(
+                                                "UPDATE task_assignments SET status='Completed', sale_amount=?, payment_collected_actual=?, remaining_due=? WHERE id=?",
+                                                (str(final_sale), str(p_amt), str(r_due), task_id)
+                                            )
+                                            c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (r_due, row['party_name']))
+                                            c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
+                                            conn.commit()
+                                            
+                                            st.session_state["task_search_reset_counter"] += 1
+                                            st.session_state["scroll_to_top"] = True
+                                            st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
+                                            st.rerun()
+                                    except ValueError:
+                                        st.error("সেল অ্যামাউন্ট সঠিক সংখ্যায় টাইপ করুন!")
+
                             if st.session_state.get("user_role") == "admin":
-                                if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_task_del_btn_{task_id}"):
+                                if st.button("Delete Task (টাস্ক ডিলিট)", key=f"del_task_del_btn_{task_id}"):
                                     move_to_recycle_bin("Task", row['party_name'], dict(row))
                                     c.execute("DELETE FROM task_assignments WHERE id=?", (task_id,))
                                     conn.commit()
                                     st.success("Task moved to Recycle Bin!")
                                     st.rerun()
-                            st.write("---")
-    
-        # --- DUE COLLECTION TAB ---
+
+        # DUE COLLECTION TAB
         with tab_due:
             if due_df.empty:
                 st.info("No pending due collection tasks at the moment. (কোনো ডিউ টাস্ক নেই)")
@@ -1965,68 +1941,66 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 for ag_username in due_df['agent_name'].unique():
                     ag_rows = due_df[due_df['agent_name'] == ag_username]
                     ag_disp_name = ag_rows.iloc[0]['agent_fullname'] if pd.notna(ag_rows.iloc[0]['agent_fullname']) else ag_username
-                    
-                    with st.expander(f"👤 Agent: {ag_disp_name} ({len(ag_rows)} Due Collection Tasks)", expanded=False):
+                    with st.expander(f"Agent: {ag_disp_name} ({len(ag_rows)} Due Collection Tasks)", expanded=False):
                         for idx, row in ag_rows.iterrows():
                             task_id = int(row['id'])
                             o_due = float(row['due_amount']) if pd.notna(row['due_amount']) and str(row['due_amount']).strip() else 0.0
                             
                             st.markdown(f"""
-                                <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
-                                    <span style='font-size: 14px; color: #555;'><b>Party:</b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;|&nbsp; 
-                                    <span style='font-size: 14px; color: #555;'><b>Task:</b></span> <span style='font-size: 14px; color: #000;'>{row['task_type']}</span><br>
-                                    <span style='font-size: 14px; color: #555;'><b>Total Due (মোট ডিউ):</b></span> <span style='font-size: 15px; font-weight: bold; color: #d90429;'>₹{o_due}</span>
-                                </div>
+                            <div style='font-family: sans-serif; margin-bottom: 5px; line-height: 1.6;'>
+                            <span style='font-size: 14px; color: #555;'><b>Party: </b></span> <span style='font-size: 15px; color: #111; font-weight: 600;'>{row['party_name']}</span> &nbsp;&nbsp;
+                            <span style='font-size: 14px; color: #555;'><b>Task: </b></span> <span style='font-size: 14px; color: #000;'>{row['task_type']}</span><br>
+                            <span style='font-size: 14px; color: #555;'><b>Total Due (মোট ডিউ): </b></span> <span style='font-size: 15px; font-weight: bold; color: #d90429;'>{o_due}</span>
+                            </div>
                             """, unsafe_allow_html=True)
-                            
+
                             if pd.notna(row['address']) and row['address']:
-                                ph_str = f" | 📞 Ph: {row['party_phone']}" if pd.notna(row['party_phone']) else ""
-                                st.markdown(f"<div style='font-size: 13px; color: #666; margin-bottom: 12px;'>📍 {row['address']}{ph_str}</div>", unsafe_allow_html=True)
-    
+                                ph_str = f" | Ph: {row['party_phone']}" if pd.notna(row['party_phone']) else ""
+                                st.markdown(f"<div style='font-size: 13px; color: #666; margin-bottom: 12px;'>{row['address']}{ph_str}</div>", unsafe_allow_html=True)
+
                             with st.form(key=f"complete_task_form_due_{task_id}", clear_on_submit=True):
                                 payment_input = st.text_input("Payment Collected (কত টাকা পেমেন্ট)", value=str(o_due), key=f"pay_amt_due_{task_id}")
-                                
                                 submit_complete = st.form_submit_button("✓ Complete Task (সম্পন্ন)", type="primary")
-                                if submit_complete:
-                                    try:
-                                        p_amt = float(payment_input) if payment_input.strip() else 0.0
-                                        r_due = o_due - p_amt
-                                        
-                                        c.execute(
-                                            "UPDATE task_assignments SET status='Completed', sale_amount='0', payment_collected_actual=?, remaining_due=? WHERE id=?",
-                                            (payment_input, str(r_due), task_id)
-                                        )
-                                        c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (r_due, row['party_name']))
-                                        c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
-                                        conn.commit()
-                                        
-                                        # --- ৩. ফিল্ড রিকোয়েস্ট রিসেট ও স্ক্রল ফ্ল্যাগ সেট ---
-                                        st.session_state["task_search_reset_counter"] += 1
-                                        st.session_state["scroll_to_top"] = True
-                                        
-                                        st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
-                                        st.rerun()
-                                    except Exception as e:
-                                        conn.rollback()
-                                        st.error(f"Error completing task: {e}")
-    
+
+                            if submit_complete:
+                                try:
+                                    p_amt = float(payment_input) if payment_input.strip() else 0.0
+                                    r_due = o_due - p_amt
+                                    c.execute(
+                                        "UPDATE task_assignments SET status='Completed', sale_amount='0', payment_collected_actual=?, remaining_due=? WHERE id=?",
+                                        (str(p_amt), str(r_due), task_id)
+                                    )
+                                    c.execute("UPDATE locations SET current_due=? WHERE party_name=?", (r_due, row['party_name']))
+                                    c.execute("UPDATE agent_live_locations SET completed_deliveries = completed_deliveries + 1 WHERE username=?", (row['agent_name'],))
+                                    conn.commit()
+                                    
+                                    st.session_state["task_search_reset_counter"] += 1
+                                    st.session_state["scroll_to_top"] = True
+                                    st.success("Task marked as completed successfully! (সম্পন্ন হয়েছে!)")
+                                    st.rerun()
+                                except Exception as e:
+                                    conn.rollback()
+                                    st.error(f"Error completing task: {e}")
+
                             if st.session_state.get("user_role") == "admin":
-                                if st.button("🗑️ Delete Task (টাস্ক ডিলিট)", key=f"del_task_due_btn_{task_id}"):
+                                if st.button("Delete Task (টাস্ক ডিলিট)", key=f"del_task_due_btn_{task_id}"):
                                     move_to_recycle_bin("Task", row['party_name'], dict(row))
                                     c.execute("DELETE FROM task_assignments WHERE id=?", (task_id,))
                                     conn.commit()
                                     st.success("Task moved to Recycle Bin!")
                                     st.rerun()
-                            st.write("---") 
-   
+
+    # --- TAB 2: AGENT SUMMARY ---
     with task_tab2:
-        st.markdown("#### 📊 Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
+        st.markdown("#### Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
         agent_sum_df = pd.read_sql_query("""
-            SELECT t.agent_name, u.fullname as agent_fullname, SUBSTR(t.created_at, 1, 10) as task_date, 
-                   COUNT(t.id) as total_tasks, SUM(CASE WHEN t.status='Completed' THEN 1 ELSE 0 END) as completed_tasks 
-            FROM task_assignments t 
-            LEFT JOIN users u ON LOWER(TRIM(t.agent_name)) = LOWER(TRIM(u.username)) 
-            GROUP BY t.agent_name, task_date 
+            SELECT t.agent_name, u.fullname as agent_fullname,
+                   SUBSTR(t.created_at, 1, 10) as task_date,
+                   COUNT(t.id) as total_tasks, 
+                   SUM(CASE WHEN t.status='Completed' THEN 1 ELSE 0 END) as completed_tasks
+            FROM task_assignments t
+            LEFT JOIN users u ON LOWER(TRIM(t.agent_name)) = LOWER(TRIM(u.username))
+            GROUP BY t.agent_name, task_date
             ORDER BY task_date DESC
         """, conn)
 
@@ -2041,9 +2015,10 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 export_sum_df['Total Tasks'] = export_sum_df['total_tasks']
                 export_sum_df['Completed Tasks'] = export_sum_df['completed_tasks']
                 export_sum_df_final = export_sum_df[['Agent Name', 'Date', 'Total Tasks', 'Completed Tasks']]
+                
                 html_agent_sum = generate_html_report("Agent Task Summary Report", export_sum_df_final)
                 st.download_button(
-                    label="📥 Download Agent Summary Report",
+                    label="Download Agent Summary Report",
                     data=html_agent_sum,
                     file_name="mediseller_agent_summary_report.html",
                     mime="text/html",
@@ -2056,97 +2031,79 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 t_date = format_date_display(row['task_date'])
                 tot = row['total_tasks']
                 comp = row['completed_tasks']
-                
+
                 st.markdown(f"""
                 <div style="background: #1e293b; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                    <p style="margin: 0 0 6px 0; color: #38bdf8 !important; font-weight: 700; font-size: 16px;">👤 Agent: {ag_disp}</p>
-                    <p style="margin: 0 0 4px 0; color: #cbd5e1 !important; font-size: 13px;">📅 Date: <b>{t_date}</b></p>
-                    <p style="margin: 0 0 4px 0; color: #cbd5e1 !important; font-size: 13px;">Total Tasks: <b>{tot}</b> | ✓ Completed: <b style="color: #34d399;">{comp}</b></p>
+                    <p style="margin: 0 0 6px 0; color: #38bdf8 !important; font-size: 16px;">Agent: {ag_disp}</p>
+                    <p style="margin: 0 0 4px 0; color: #cbd5e1 !important; font-size: 13px;">Date: <b>{t_date}</b></p>
+                    <p style="margin: 0 0 4px 0; color: #cbd5e1 !important; font-size: 13px;">Total Tasks: <b>{tot}</b> | Completed: <b style="color: #34d399;">{comp}</b></p>
                 </div>
                 """, unsafe_allow_html=True)
 
                 agent_identifier = str(row['agent_name']).strip()
-                
-                # এজেন্টের অনুমতি স্ট্যাটাস চেক
-                c.execute("""
-                    SELECT allow_resubmit FROM users 
-                    WHERE LOWER(TRIM(username))=LOWER(?) OR LOWER(TRIM(fullname))=LOWER(?)
-                """, (agent_identifier, agent_identifier))
+                c.execute("SELECT allow_resubmit FROM users WHERE LOWER(TRIM(username))=LOWER(?) OR LOWER(TRIM(fullname))=LOWER(?)", (agent_identifier, agent_identifier))
                 resub_row = c.fetchone()
-                
                 agent_allowed = True if resub_row and str(resub_row[0]) in ['1', 'True', 'true'] else False
 
-                # অ্যাডমিন হলে অনুমতি প্রদান/বাতিল করার টিকচিহ্ন অপশন
                 if is_admin:
                     resub_toggle = st.checkbox(
-                        f"🔄 Allow {ag_disp} to Re-submit completed tasks (রি-সাবমিশনের অনুমতি প্রদান করুন)",
+                        f"Allow {ag_disp} to Re-submit completed tasks (রি-সাবমিশনের অনুমতি প্রদান করুন)",
                         value=agent_allowed,
                         key=f"resub_perm_{agent_identifier}_{row['task_date']}_{idx}"
                     )
                     if resub_toggle != agent_allowed:
-                        c.execute("""
-                            UPDATE users SET allow_resubmit=? 
-                            WHERE LOWER(TRIM(username))=LOWER(?) OR LOWER(TRIM(fullname))=LOWER(?)
-                        """, (1 if resub_toggle else 0, agent_identifier, agent_identifier))
+                        c.execute("UPDATE users SET allow_resubmit=? WHERE LOWER(TRIM(username))=LOWER(?) OR LOWER(TRIM(fullname))=LOWER(?)", (1 if resub_toggle else 0, agent_identifier, agent_identifier))
                         conn.commit()
                         st.rerun()
 
                 comp_tasks_df = pd.read_sql_query("""
-                    SELECT id, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due 
-                    FROM task_assignments 
+                    SELECT id, party_name, task_type, due_amount, sale_amount, payment_collected_actual, remaining_due
+                    FROM task_assignments
                     WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=? AND status='Completed'
                 """, conn, params=(row['agent_name'], row['task_date']))
 
                 if not comp_tasks_df.empty:
-                    with st.expander(f"⚙️ Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন - {len(comp_tasks_df)})", expanded=False):
-                        
-                        # অ্যাডমিন অথবা অ্যাডমিন অনুমোদিত যে কেউ বাটন দেখতে পাবে
+                    with st.expander(f"Re-submission Option (ভুলবশত কমপ্লিট হওয়া কাজ পুনরায় একটিভ করুন {len(comp_tasks_df)})", expanded=False):
                         can_do_resubmit = is_admin or agent_allowed
-                        
                         if not can_do_resubmit:
-                            st.warning("⚠️ রি-সাবমিশন করার অনুমতি নেই। শুধুমাত্র অ্যাডমিন বা অ্যাডমিন অনুমতি দিলে এই এজেন্ট কাজ পুনরায় একটিভ করতে পারবে।")
+                            st.warning("রি-সাবমিশন করার অনুমতি নেই। শুধুমাত্র অ্যাডমিন বা অ্যাডমিন অনুমতি দিলে এই এজেন্ট কাজ পুনরায় একটিভ করতে পারবে।")
                         else:
-                            for _, ct_row in comp_tasks_df.iterrows():
-                                st.markdown(f"**Party:** `{ct_row['party_name']}` | **Type:** `{ct_row['task_type']}` | **Collected:** `₹{ct_row['payment_collected_actual']}`")
-                                if st.button(f"🔄 Move to Active Tasks (পুনরায় একটিভ করুন)", key=f"btn_resub_ok_{ct_row['id']}_{idx}"):
+                            for ct_idx, ct_row in comp_tasks_df.iterrows(): # Fixed tuple unpacking bug
+                                st.markdown(f"**Party:** `{ct_row['party_name']}` | **Type:** `{ct_row['task_type']}` | **Collected:** `{ct_row['payment_collected_actual']}`")
+                                if st.button(f"Move to Active Tasks (পুনরায় একটিভ করুন)", key=f"btn_resub_ok_{ct_row['id']}_{idx}"):
                                     c.execute("UPDATE task_assignments SET status='Pending' WHERE id=?", (ct_row['id'],))
                                     c.execute("""
-                                        UPDATE agent_live_locations 
-                                        SET completed_deliveries = CASE WHEN completed_deliveries > 0 THEN completed_deliveries - 1 ELSE 0 END 
+                                        UPDATE agent_live_locations
+                                        SET completed_deliveries = CASE WHEN completed_deliveries > 0 THEN completed_deliveries - 1 ELSE 0 END
                                         WHERE LOWER(TRIM(username))=LOWER(?)
                                     """, (agent_identifier,))
                                     conn.commit()
-                                    st.success("Task moved back to Active Tasks! (কাজটি সফলভাবে পুনরায় একটিভ টাস্কে পাঠানো হয়েছে!)")
+                                    st.success("Task moved back to Active Tasks!")
                                     st.rerun()
-                                st.write("---")
 
                 if is_admin:
-                    if st.button(f"🗑️ Delete Tasks ({ag_disp} - {t_date})", key=f"del_agent_date_sum_{agent_identifier}_{row['task_date']}_{idx}"):
+                    if st.button(f"Delete Tasks ({ag_disp} {t_date})", key=f"del_agent_date_sum_{agent_identifier}_{row['task_date']}_{idx}"):
                         c.execute("DELETE FROM task_assignments WHERE agent_name=? AND SUBSTR(created_at, 1, 10)=?", (row['agent_name'], row['task_date']))
                         conn.commit()
-                        st.success("Deleted successfully! (ডিলিট হয়েছে!)")
+                        st.success("Deleted successfully!")
                         st.rerun()
                 st.write("---")
         else:
             st.info("No summary records found.")
+
+    # --- TAB 3: COMPLETED TASKS HISTORY ---
     with task_tab3:
         from io import BytesIO
         import re
-        import pandas as pd
-        import streamlit as st
         
-        st.markdown("#### ✅ Completed Tasks History (সম্পন্ন কাজ)")
+        st.markdown("#### Completed Tasks History (সম্পন্ন কাজ)")
         
-        # PDF তৈরির জন্য প্রয়োজনীয় লাইব্রেরি ইম্পোর্ট
         try:
             from xhtml2pdf import pisa
         except ImportError:
-            st.error("⚠️ `xhtml2pdf` লাইব্রেরি পাওয়া যায়নি! দয়া করে requirements.txt ফাইলে `xhtml2pdf` যুক্ত করুন।")
+            st.error("xhtml2pdf লাইব্রেরি পাওয়া যায়নি! requirements.txt ফাইলে যুক্ত করুন।")
             pisa = None
-        
-        # ---------------------------------------------------------
-        # ১. পারমিশন টেবিল চেক ও তৈরি (SQLite Database)
-        # ---------------------------------------------------------
+
         c = conn.cursor()
         c.execute("""
             CREATE TABLE IF NOT EXISTS pdf_permissions (
@@ -2155,18 +2112,13 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
             )
         """)
         conn.commit()
-        
-        # বর্তমান লগইনকৃত ইউজারের তথ্য
+
         current_user = st.session_state.get("username", st.session_state.get("user", ""))
         current_user_role = st.session_state.get("user_role", "")
         is_admin = (current_user_role == "admin")
-        
-        # ---------------------------------------------------------
-        # ২. এডমিন পারমিশন কন্ট্রোল প্যানেল (শুধুমাত্র Admin দেখতে পাবেন)
-        # ---------------------------------------------------------
+
         if is_admin:
-            with st.expander("🔐 Manage Agent PDF Download Permissions (এজেন্টদের ডাউনলোডের অনুমতি দিন)"):
-                # ডাটাবেসের সমস্ত এজেন্টের তালিকা আনা
+            with st.expander("Manage Agent PDF Download Permissions (এজেন্টদের ডাউনলোডের অনুমতি দিন)"):
                 try:
                     users_df = pd.read_sql_query("SELECT username, COALESCE(fullname, username) as name FROM users WHERE role != 'admin'", conn)
                     all_agents_db = users_df['username'].tolist()
@@ -2174,73 +2126,60 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                 except Exception:
                     all_agents_db = []
                     user_display_map = {}
-        
-                # বর্তমানে অনুমতি পাওয়া এজেন্টদের লিস্ট নিয়ে আসা
+
                 permitted_agents_df = pd.read_sql_query("SELECT username FROM pdf_permissions WHERE can_download = 1", conn)
                 allowed_list = permitted_agents_df['username'].tolist()
-        
-                # এডমিন এখানে সিলেক্ট/আনসিলেক্ট করে পারমিশন চেঞ্জ করতে পারবেন
+
                 selected_allowed_agents = st.multiselect(
                     "অনুমোদিত এজেন্ট বেছে নিন (যারা PDF ডাউনলোড করতে পারবে):",
                     options=all_agents_db,
                     default=[ag for ag in allowed_list if ag in all_agents_db],
                     format_func=lambda x: user_display_map.get(x, x)
                 )
-        
-                # সেভ করার বাটন
-                if st.button("💾 Save Permissions (পারমিশন সেভ করুন)", type="primary"):
+
+                if st.button("Save Permissions (পারমিশন সেভ করুন)", type="primary"):
                     c.execute("UPDATE pdf_permissions SET can_download = 0")
                     for ag in selected_allowed_agents:
                         c.execute("""
-                            INSERT INTO pdf_permissions (username, can_download) 
-                            VALUES (?, 1) 
-                            ON CONFLICT(username) DO UPDATE SET can_download=1
+                            INSERT INTO pdf_permissions (username, can_download)
+                            VALUES (?, 1)
+                            ON CONFLICT(username) DO UPDATE SET can_download = 1
                         """, (ag,))
                     conn.commit()
-                    st.success("পারমিশন সফলভাবে আপডেট করা হয়েছে!")
+                    st.success("পারমিশন সফলভাবে আপডেট করা হয়েছে!")
                     st.rerun()
-        
-        # ---------------------------------------------------------
-        # ৩. কারেন্ট ইউজারের ডাউনলোড পারমিশন চেক
-        # ---------------------------------------------------------
+
         if is_admin:
             can_download = True
         else:
-            # এজেন্টের ইউজারনেম ডাটাবেসে অনুমোদিত কিনা চেক করা
             perm_check = pd.read_sql_query("SELECT can_download FROM pdf_permissions WHERE LOWER(username) = LOWER(?)", conn, params=(current_user,))
-            if not perm_check.empty and perm_check.iloc[0]['can_download'] == 1:
-                can_download = True
-            else:
-                can_download = False
-        
-        # ---------------------------------------------------------
-        # ৪. ডাটাবেস থেকে সম্পন্ন হওয়া কাজের তথ্য আনা
-        # ---------------------------------------------------------
+            can_download = True if not perm_check.empty and perm_check.iloc[0]['can_download'] == 1 else False
+
         completed_tasks_df = pd.read_sql_query("""
-            SELECT t.id, t.agent_name, u.fullname as agent_fullname, t.party_name, 
-                   t.task_type, t.due_amount, t.sale_amount, t.payment_collected_actual, 
-                   t.remaining_due, t.created_at, l.address, l.current_due as master_due
-            FROM task_assignments t 
-            LEFT JOIN users u ON LOWER(t.agent_name) = LOWER(u.username) 
-            LEFT JOIN locations l ON t.party_name = l.party_name 
-            WHERE t.status='Completed' 
+            SELECT t.id, t.agent_name, u.fullname as agent_fullname,
+                   t.party_name, t.task_type, t.due_amount, t.sale_amount,
+                   t.payment_collected_actual, t.remaining_due, t.created_at,
+                   l.address, l.current_due as master_due
+            FROM task_assignments t
+            LEFT JOIN users u ON LOWER(t.agent_name) = LOWER(u.username)
+            LEFT JOIN locations l ON t.party_name = l.party_name
+            WHERE t.status='Completed'
             ORDER BY t.created_at DESC
         """, conn)
-        
+
         if not completed_tasks_df.empty:
             completed_tasks_df['created_datetime'] = pd.to_datetime(completed_tasks_df['created_at'], errors='coerce')
             completed_tasks_df['created_date'] = completed_tasks_df['created_datetime'].dt.date
             completed_tasks_df['month_year'] = completed_tasks_df['created_datetime'].dt.strftime('%B %Y')
             completed_tasks_df['display_agent'] = completed_tasks_df['agent_fullname'].fillna(completed_tasks_df['agent_name'])
-        
-            st.markdown("##### 🔍 Filter Records (তারিখ ও এজেন্ট অনুযায়ী খুঁজুন)")
+
+            st.markdown("##### Filter Records (তারিখ ও এজেন্ট অনুযায়ী খুঁজুন)")
             col_f1, col_f2 = st.columns(2)
-        
             with col_f1:
                 min_date = completed_tasks_df['created_date'].min()
                 max_date = completed_tasks_df['created_date'].max()
                 selected_date = st.date_input("Select Date (তারিখ সিলেক্ট করুন)", value=max_date, min_value=min_date, max_value=max_date)
-        
+            
             with col_f2:
                 all_agents_list = completed_tasks_df['display_agent'].dropna().unique().tolist()
                 try:
@@ -2249,27 +2188,21 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     all_agents_list = list(set(all_agents_list + db_agents))
                 except Exception:
                     pass
-        
                 all_agents_list = sorted([str(ag) for ag in all_agents_list if ag])
                 agent_list = ["All Agents (সব এজেন্ট)"] + all_agents_list
                 selected_agent = st.selectbox("Select Agent (এজেন্ট সিলেক্ট করুন)", agent_list)
-        
-            # তারিখ ও এজেন্ট ফিল্টারিং
+
             filtered_df = completed_tasks_df[completed_tasks_df['created_date'] == selected_date]
-        
             if selected_agent != "All Agents (সব এজেন্ট)":
                 final_filtered_df = filtered_df[filtered_df['display_agent'] == selected_agent]
             else:
                 final_filtered_df = filtered_df
-        
+
             st.write("---")
-        
+
             if final_filtered_df.empty:
-                st.warning(f"⚠️ {selected_date} তারিখে '{selected_agent}' এর কোনো সম্পন্ন হওয়া কাজ পাওয়া যায়নি।")
+                st.warning(f"{selected_date} তারিখে '{selected_agent}' এর কোনো সম্পন্ন হওয়া কাজ পাওয়া যায়নি।")
             else:
-                # ---------------------------------------------------------
-                # ৫. PDF ডাউনলোড বাটন (পারমিশন চেক সাপেক্ষে)
-                # ---------------------------------------------------------
                 if can_download:
                     def clean_text_for_pdf(text):
                         if not isinstance(text, str):
@@ -2277,7 +2210,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                         cleaned = re.sub(r'[\u0980-\u09FF]+', '', text)
                         cleaned = re.sub(r'\(\s*\)', '', cleaned).strip()
                         return cleaned if cleaned else text
-        
+
                     export_comp_df = final_filtered_df.copy()
                     export_comp_df['Agent Name'] = export_comp_df['display_agent']
                     export_comp_df['Party Name'] = export_comp_df['party_name']
@@ -2287,124 +2220,103 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
                     export_comp_df['Task Remaining Due (Rs.)'] = export_comp_df['remaining_due']
                     export_comp_df['Master Total Due (Rs.)'] = export_comp_df['master_due']
                     export_comp_df['Completed Date'] = export_comp_df['created_at'].apply(lambda x: format_date_display(x))
-                    
-                    export_comp_df_final = export_comp_df[[
-                        'Agent Name', 'Party Name', 'Task Type', 'Sale Amount (Rs.)', 
-                        'Collection Amount (Rs.)', 'Task Remaining Due (Rs.)', 
-                        'Master Total Due (Rs.)', 'Completed Date'
-                    ]]
-                    
+
+                    export_comp_df_final = export_comp_df[['Agent Name', 'Party Name', 'Task Type', 'Sale Amount (Rs.)', 'Collection Amount (Rs.)', 'Task Remaining Due (Rs.)', 'Master Total Due (Rs.)', 'Completed Date']]
                     pdf_clean_df = export_comp_df_final.copy()
+                    
                     for col in pdf_clean_df.columns:
                         pdf_clean_df[col] = pdf_clean_df[col].apply(clean_text_for_pdf)
-        
+
                     clean_agent_title = clean_text_for_pdf(selected_agent)
-                    report_title = f"Tasks Report - {selected_date} ({clean_agent_title})"
+                    report_title = f"Tasks Report {selected_date} ({clean_agent_title})"
                     html_comp_tasks = generate_html_report(report_title, pdf_clean_df)
-                    
+
                     col_tc1, col_tc2 = st.columns(2)
                     with col_tc1:
                         if pisa:
                             pdf_buffer = BytesIO()
                             pisa_status = pisa.CreatePDF(html_comp_tasks, dest=pdf_buffer)
-                            
                             if not pisa_status.err:
                                 st.download_button(
-                                    label=f"📥 Download PDF ({selected_agent})",
+                                    label=f"Download PDF ({selected_agent})",
                                     data=pdf_buffer.getvalue(),
                                     file_name=f"report_{selected_date}_{clean_agent_title.replace(' ', '_')}.pdf",
                                     mime="application/pdf",
                                     type="primary"
                                 )
                             else:
-                                st.error("PDF তৈরিতে সমস্যা হয়েছে।")
-        
+                                st.error("PDF তৈরিতে সমস্যা হয়েছে।")
                     with col_tc2:
                         if is_admin:
-                            if st.button("🗑️ Clear Filtered Tasks History", type="secondary"):
+                            if st.button("Clear Filtered Tasks History", type="secondary"):
                                 task_ids = final_filtered_df['id'].tolist()
-                                for _, r in final_filtered_df.iterrows():
+                                for r_idx, r in final_filtered_df.iterrows(): # Fixed typo loop bug
                                     move_to_recycle_bin("Task", r['party_name'], dict(r))
-                                
                                 conn.executemany("DELETE FROM task_assignments WHERE id=?", [(tid,) for tid in task_ids])
                                 conn.commit()
                                 st.success("Filtered tasks moved to Recycle Bin!")
                                 st.rerun()
-                    st.write("---")
                 else:
-                    st.info("ℹ️ আপনার PDF ডাউনলোড করার অনুমতি নেই। প্রয়োজনে অ্যাডমিনের সাথে যোগাযোগ করুন।")
-        
-                # ---------------------------------------------------------
-                # ৬. এজেন্টদের কাজগুলোর লিস্ট প্রদর্শন
-                # ---------------------------------------------------------
+                    st.info("আপনার PDF ডাউনলোড করার অনুমতি নেই। প্রয়োজনে অ্যাডমিনের সাথে যোগাযোগ করুন।")
+
+                st.write("---")
                 for idx, row in final_filtered_df.iterrows():
                     ag_c_name = row['display_agent']
                     st.markdown(f"**Agent:** `{ag_c_name}` | **Party:** `{row['party_name']}` | **Task:** `{row['task_type']}`")
-                
-                    master_due_text = f" | Master Due: `₹{row['master_due']}`" if pd.notna(row['master_due']) else ""
-                    st.markdown(f"Sale: `₹{row['sale_amount']}` | Collected: `₹{row['payment_collected_actual']}` | Task Due: `₹{row['remaining_due']}`{master_due_text}")
-                
+                    master_due_text = f" | Master Due: `{row['master_due']}`" if pd.notna(row['master_due']) else ""
+                    st.markdown(f"Sale: `{row['sale_amount']}` | Collected: `{row['payment_collected_actual']}` | Task Due: `{row['remaining_due']}`{master_due_text}")
+
                     if is_admin:
-                        if st.button("🗑️ Delete Task Record", key=f"del_comp_task_{row['id']}"):
+                        if st.button("Delete Task Record", key=f"del_comp_task_{row['id']}"):
                             move_to_recycle_bin("Task", row['party_name'], dict(row))
                             conn.execute("DELETE FROM task_assignments WHERE id=?", (row['id'],))
                             conn.commit()
                             st.success("Moved to Recycle Bin!")
                             st.rerun()
                     st.write("---")
-            
-                # ---------------------------------------------------------
-                # ৭. মাসিক বাল্ক ডিলিট অপশন (শুধুমাত্র Admin)
-                # ---------------------------------------------------------
+
                 if is_admin:
-                    with st.expander("⚠️ Monthly Bulk Delete (মাসিক ভিত্তিতে ডেটা মুছুন)"):
+                    with st.expander("Monthly Bulk Delete (মাসিক ভিত্তিতে ডেটা মুছুন)"):
                         st.warning("এখান থেকে কোনো মাসের ডেটা ডিলিট করলে সেটি সরাসরি রিসাইকেল বিনে চলে যাবে।")
-                    
                         unique_months = completed_tasks_df['month_year'].dropna().unique().tolist()
-                    
                         if unique_months:
                             selected_month_to_delete = st.selectbox("Select Month to Delete (যে মাসের ডেটা মুছতে চান):", unique_months)
-                        
-                            if st.button(f"🗑️ Delete All Data for {selected_month_to_delete}", type="primary"):
+                            if st.button(f"Delete All Data for {selected_month_to_delete}", type="primary"):
                                 month_df_to_delete = completed_tasks_df[completed_tasks_df['month_year'] == selected_month_to_delete]
                                 month_task_ids = month_df_to_delete['id'].tolist()
-                            
-                                for _, r in month_df_to_delete.iterrows():
+                                for r_idx, r in month_df_to_delete.iterrows():
                                     move_to_recycle_bin("Task", r['party_name'], dict(r))
-                            
                                 conn.executemany("DELETE FROM task_assignments WHERE id=?", [(tid,) for tid in month_task_ids])
                                 conn.commit()
-                                st.success(f"{selected_month_to_delete} মাসের সমস্ত ডেটা সফলভাবে ডিলিট হয়ে রিসাইকেল বিনে চলে গেছে!")
+                                st.success(f"{selected_month_to_delete} মাসের সমস্ত ডেটা সফলভাবে ডিলিট হয়ে রিসাইকেল বিনে চলে গেছে!")
                                 st.rerun()
                         else:
-                            st.info("ডিলিট করার মতো কোনো মাসের ডেটা পাওয়া যায়নি।")
-        
+                            st.info("ডিলিট করার মতো কোনো মাসের ডেটা পাওয়া যায়নি।")
         else:
             st.info("No completed tasks history found.")
+
+    # --- TAB 4: MASTER DUE LIST ---
     with task_tab4:
-        st.write("#### 💰 Master Due List & Management (পার্টি ডিউ ম্যানেজমেন্ট)")
-    
-        # --- 1. Party Search & Month Filter Section ---
+        st.write("#### Master Due List & Management (পার্টি ডিউ ম্যানেজমেন্ট)")
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             if "master_due_search_key" not in st.session_state:
                 st.session_state["master_due_search_key"] = ""
-            party_search_query = st.text_input("🔍 Search Party (পার্টি সার্চ করুন)", placeholder="Type party name...", key="master_due_search_input")
-    
+            party_search_query = st.text_input("Search Party (পার্টি সার্চ করুন)", placeholder="Type party name...", key="master_due_search_input")
+        
         with col_f2:
             import datetime
             current_year_month = datetime.datetime.now().strftime("%Y-%m")
-            selected_month = st.selectbox("📅 Select Month (মাস সিলেক্ট করুন)", [current_year_month, "All Months (সব মাস)"], key="master_due_month_select")
-    
+            selected_month = st.selectbox("Select Month (মাস সিলেক্ট করুন)", [current_year_month, "All Months (সব মাস)"], key="master_due_month_select")
+
         st.write("---")
-    
-        # শুধু ডিউ তালিকা এবং রেকর্ড দেখানোর অংশটি রাখা হলো
         st.write("##### Due Summary & Records (ডিউ তালিকা)")
+        
         if selected_month != "All Months (সব মাস)":
             st.info(f"Showing records for: {selected_month}")
         else:
             st.info("Showing all time records.")
-        
+
         if party_search_query.strip():
             c.execute("SELECT party_name, current_due FROM locations WHERE party_name LIKE ? ORDER BY party_name ASC", (f"%{party_search_query.strip()}%",))
         else:
@@ -2412,8 +2324,7 @@ elif selected_menu == "Due & Delivery (বকেয়া ও ডেলিভার
         
         parties_due_data = c.fetchall()
         if parties_due_data:
-            import pandas as pd
-            df_due_show = pd.DataFrame(parties_due_data, columns=["Party Name", "Current Due (₹)"])
+            df_due_show = pd.DataFrame(parties_due_data, columns=["Party Name", "Current Due"])
             st.dataframe(df_due_show, use_container_width=True, hide_index=True)
         else:
             st.warning("No data available.")
