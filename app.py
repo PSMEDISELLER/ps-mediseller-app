@@ -789,6 +789,16 @@ if selected_menu != current_page_param:
 
 st.write("---")
 
+# Session state-এ ল্যাটিটিউড এবং লঙ্গিটিউড না থাকলে ডিফল্ট ভ্যালু সেট করা হলো (যাতে KeyError না আসে)
+if "selected_lat" not in st.session_state:
+    st.session_state["selected_lat"] = 22.8671 
+if "selected_lon" not in st.session_state:
+    st.session_state["selected_lon"] = 87.3468 
+
+# GPS ভেরিয়েবল আগে থেকে ডিফাইন করা হলো যাতে NameError না আসে
+gps_lat = None
+gps_lon = None
+
 if selected_menu == "Add Location (লোকেশন যোগ)":
     st.write("### Add Location & Party (লোকেশন ও পার্টি)")
     
@@ -796,12 +806,16 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
     c.execute("CREATE TABLE IF NOT EXISTS routes (id INTEGER PRIMARY KEY AUTOINCREMENT, route_name TEXT UNIQUE)")
     try:
         c.execute("ALTER TABLE locations ADD COLUMN route TEXT")
-    except Exception:
+    except sqlite3.OperationalError: # বাগ ফিক্স: broad Exception এর বদলে নির্দিষ্ট OperationalError
         pass
     conn.commit()
 
+    # ডাটাবেস থেকে আগে রুটগুলো ফেচ করে নেওয়া হলো (ডিলিট অপশনে দেখানোর জন্য)
+    existing_routes = [r[0] for r in c.execute("SELECT route_name FROM routes ORDER BY route_name ASC").fetchall()]
+
     if st.session_state.get("user_role") == "admin":
-        with st.expander(" Admin: Add Route (রুট সেট করুন)"):
+        with st.expander(" Admin: Manage Routes (রুট ম্যানেজ করুন)"):
+            st.write("**Add New Route (নতুন রুট যোগ করুন)**")
             col_ar1, col_ar2 = st.columns([3, 1])
             with col_ar1:
                 new_route_admin = st.text_input(
@@ -816,11 +830,32 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                         try:
                             c.execute("INSERT INTO routes (route_name) VALUES (?)", (new_route_admin.strip(),))
                             conn.commit()
-                            st.success("Route saved! (সেভ হয়েছে)")
+                            st.success("Route saved! (সেভ হয়েছে)")
                             st.rerun()
                         except sqlite3.IntegrityError:
                             st.error("Already exists! (আগেই আছে)")
+            
+            st.write("---")
+            st.write("**Delete Route (রুট ডিলিট করুন)**")
+            col_dr1, col_dr2 = st.columns([3, 1])
+            with col_dr1:
+                route_to_delete = st.selectbox(
+                    "Select Route to Delete", 
+                    [""] + existing_routes, 
+                    key="admin_del_route", 
+                    label_visibility="collapsed"
+                )
+            with col_dr2:
+                if st.button("Delete Route", key="admin_delete_route_btn"):
+                    if route_to_delete:
+                        c.execute("DELETE FROM routes WHERE route_name = ?", (route_to_delete,))
+                        conn.commit()
+                        st.success(f"Route deleted! ({route_to_delete} রুটটি ডিলিট হয়েছে)")
+                        st.rerun()
+                    else:
+                        st.error("Select a route! (একটি রুট সিলেক্ট করুন)")
 
+    # আপডেট হওয়ার পর আবার রুট ফেচ করা হলো
     existing_routes = [r[0] for r in c.execute("SELECT route_name FROM routes ORDER BY route_name ASC").fetchall()]
 
     # High Accuracy & Multi-Try GPS Fetching Component
@@ -886,7 +921,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
         "Select Entry Mode (মোড সিলেক্ট):",
         [
             "With Map Party (ম্যাপ সহ পার্টি)",
-            "Without Map Party (ম্যাপ ছাড়া পার্টি)"
+            "Without Map Party (ম্যাপ ছাড়া পার্টি)"
         ],
         label_visibility="collapsed"
     )
@@ -946,7 +981,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                                 (p_name.strip(), "Visit (ভিজিট)", current_date_str)
                             )
                             conn.commit()
-                            st.success("Location saved and visit recorded successfully! (সেভ হয়েছে!)")
+                            st.success("Location saved and visit recorded successfully! (সেভ হয়েছে!)")
                             st.rerun()
                         except sqlite3.IntegrityError:
                             st.error("Party already exists! (ইতিমধ্যে আছে!)")
@@ -954,7 +989,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                     st.error("Party name and phone required. (নাম ও ফোন আবশ্যক।)")
     else:
         with st.form("doctor_details_form", clear_on_submit=True):
-            st.write("#### 2. Without Map Party Details (ম্যাপ ছাড়া পার্টির বিবরণ)")
+            st.write("#### 2. Without Map Party Details (ম্যাপ ছাড়া পার্টির বিবরণ)")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 doc_name = st.text_input("Name (নাম)", key="input_doc_name")
@@ -998,7 +1033,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                                 (doc_name.strip(), "Visit (ভিজিট)", get_ist_time().strftime("%Y-%m-%d"))
                             )
                             conn.commit()
-                            st.success("Saved successfully! (সফলভাবে সেভ হয়েছে!)")
+                            st.success("Saved successfully! (সফলভাবে সেভ হয়েছে!)")
                             st.rerun()
                         except sqlite3.IntegrityError:
                             st.error("Party already exists! (ইতিমধ্যে আছে!)")
@@ -1013,10 +1048,10 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
             if gps_lat and gps_lon:
                 st.session_state["selected_lat"] = gps_lat
                 st.session_state["selected_lon"] = gps_lon
-                st.success("High-accuracy multi-try GPS location taken! (নেওয়া হয়েছে!)")
+                st.success("High-accuracy multi-try GPS location taken! (নেওয়া হয়েছে!)")
                 st.rerun()
             else:
-                st.warning("GPS not found! ম্যাপে ক্লিক করে বা বাইরে গিয়ে চেষ্টা করুন।")
+                st.warning("GPS not found! ম্যাপে ক্লিক করে বা বাইরে গিয়ে চেষ্টা করুন।")
     with col_m2:
         st.write(f"Coordinates (স্থানাঙ্ক): {st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}")
 
@@ -1048,7 +1083,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
 
     folium.Marker(
         [st.session_state["selected_lat"], st.session_state["selected_lon"]],
-        popup="<b>Selected Point (নির্বাচিত পয়েন্ট)</b>",
+        popup="<b>Selected Point (নির্বাচিত পয়েন্ট)</b>",
         tooltip="Will save here (এখানে সেভ হবে)",
         icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
     ).add_to(advanced_map)
@@ -1131,7 +1166,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                 key="order_select_party_box"
             )
         else:
-            st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
+            st.warning("No matching party found! (কোনো পার্টি পাওয়া যায়নি!)")
             selected_order_party_native = ""
 
     with st.form("order_visit_entry_form", clear_on_submit=True):
@@ -1157,7 +1192,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                 )
                 conn.commit()
                 st.session_state["order_party_search_text_input"] = ""
-                st.success("Order submitted successfully! (জমা দেওয়া হয়েছে!)")
+                st.success("Order submitted successfully! (জমা দেওয়া হয়েছে!)")
                 st.rerun()
 
         if submitted_visit:
@@ -1171,7 +1206,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                 )
                 conn.commit()
                 st.session_state["order_party_search_text_input"] = ""
-                st.success("Visit saved successfully! (সেভ হয়েছে!)")
+                st.success("Visit saved successfully! (সেভ হয়েছে!)")
                 st.rerun()
 
     st.write("---")
@@ -1203,7 +1238,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                 cols[2].write(f"Date: `{format_date_display(r_row['Work Date'])}`")
         else:
             st.info("No reports found. (কোনো রিপোর্ট নেই।)")
-        
+
 elif selected_menu == "Search & Details (অনুসন্ধান ও বিবরণ)":
     st.write("### Search & Party Management (সার্চ ও ম্যানেজমেন্ট)")
     
