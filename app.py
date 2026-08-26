@@ -2602,8 +2602,12 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)
 
 elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state.get("user_role") == "admin":
-    st.write("### Live Agent Tracking & Last Saved Locations")
-    st.markdown("Live tracking and last saved coordinates of agents.", unsafe_allow_html=True)
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h4 style="margin:0; color:white; font-size: 22px;">📍 Live Agent Tracking</h4>
+        <p style="margin:5px 0 0 0; font-size: 15px; opacity: 0.9;">এজেন্টদের লাইভ লোকেশন এবং সর্বশেষ আপডেট এখানে দেখুন।</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     try:
         live_df = pd.read_sql_query("""
@@ -2622,7 +2626,7 @@ elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)"
             d_name = f"{r['fullname']} ({r['username']})" if pd.notna(r.get('fullname')) and r['fullname'] else r['username']
             agent_options.append(d_name)
 
-        selected_agent_box = st.selectbox("Select Agent:", agent_options)
+        selected_agent_box = st.selectbox("🔍 Select Agent to Track:", agent_options)
         st.write("---")
 
         filtered_df = live_df
@@ -2639,29 +2643,25 @@ elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)"
             last_up = r.get('last_updated')
             completed = r.get('completed_deliveries', 0)
 
-            with st.expander(f"Agent: {name} ({username})", expanded=True):
-                st.markdown(f"""
-                * **Phone:** {phone}
-                * **Completed Tasks:** {completed}
-                * **Last Updated:** {last_up if pd.notna(last_up) else 'No update'}
-                * **Coordinates:** `{lat}, {lon}`
-                """, unsafe_allow_html=True)
+            with st.expander(f"👤 Agent: {name} (ID: {username})", expanded=True):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.info(f"📞 **Phone Number:**\n\n{phone}")
+                with c2:
+                    st.success(f"✅ **Completed Tasks:**\n\n{completed}")
+                with c3:
+                    st.warning(f"🕒 **Last Updated:**\n\n{last_up if pd.notna(last_up) else 'No update'}")
 
                 if pd.notna(lat) and pd.notna(lon):
                     g_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-                    st.markdown(f'''
-                    <a href="{g_url}" target="_blank" style="text-decoration: none;">
-                        <button style="background: #10b981; color:white; border:none; padding: 8px 16px; border-radius: 6px; cursor:pointer; font-weight:bold;">
-                            Track on Google Maps
-                        </button>
-                    </a>
-                    ''', unsafe_allow_html=True)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    # HTML বাটনের বদলে স্ট্রিমলিটের লেটেস্ট লিংক বাটন ব্যবহার করা হয়েছে, যা দেখতে অনেক সুন্দর
+                    st.link_button("🗺️ Track on Google Maps", url=g_url, type="primary", use_container_width=True)
                 else:
-                    st.warning("GPS coordinates not available.")
+                    st.error("⚠️ GPS coordinates not available for this agent.")
     else:
-        st.write("---")
-        st.warning("কোনো এজেন্টের লাইভ লোকেশন ডাটা পাওয়া যায়নি বা টেবিলটি খালি আছে।")
-        st.info("এজেন্ট অ্যাপ থেকে লোকেশন আপডেট হলে এখানে দেখতে পাবেন।")
+        st.warning("⚠️ কোনো এজেন্টের লাইভ লোকেশন ডাটা পাওয়া যায়নি বা টেবিলটি খালি আছে।")
+        st.info("💡 এজেন্ট অ্যাপ থেকে লোকেশন আপডেট হলে এখানে দেখতে পাবেন।")
 
 elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state.get("user_role") == "admin":
     st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
