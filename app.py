@@ -365,6 +365,17 @@ CREATE TABLE IF NOT EXISTS locations (
 """)
 
 c.execute("""
+    CREATE TABLE IF NOT EXISTS agent_live_locations (
+        username TEXT PRIMARY KEY,
+        lat REAL,
+        lon REAL,
+        last_updated TEXT,
+        completed_deliveries INTEGER DEFAULT 0
+    )
+""")
+conn.commit()
+
+c.execute("""
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     party_name TEXT NOT NULL,
