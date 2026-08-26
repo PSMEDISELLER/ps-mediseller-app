@@ -2406,26 +2406,38 @@ elif selected_menu == "Attendance (উপস্থিতি)":
     current_year = now_dt.year
     current_month = now_dt.month
 
-    st.write("### Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
+    st.write("### 📅 Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
     c.execute("SELECT username, fullname, role FROM users")
     att_users_data = c.fetchall()
     agent_name_map = {r[0]: (r[1] if r[1] else r[0]) for r in att_users_data}
 
     att_tab1, att_tab2 = st.tabs([
         "✔ Daily Attendance (আজকের উপস্থিতি ও চেক-ইন)",
-        " Monthly & Agent Attendance Report (মাসিক ও কর্মী উপস্থিতি রিপোর্ট)"
+        "📋 Monthly & Agent Attendance Report (মাসিক রিপোর্ট)"
     ])
 
     with att_tab1:
-        st.write("#### Today's Check-in")
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h4 style="margin:0; color:white; font-size: 22px;">🌟 Daily Attendance & Check-in</h4>
+            <p style="margin:5px 0 0 0; font-size: 15px; opacity: 0.9;">আপনার আজকের উপস্থিতি নিশ্চিত করতে নিচের বাটনে ক্লিক করুন।</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         today_date_str = safe_ist_now().strftime("%Y-%m-%d")
-        today_display_str = safe_ist_now().strftime("%d.%m.%y")
+        today_display_str = safe_ist_now().strftime("%d.%m.%Y")
         
         with st.form("attendance_form", clear_on_submit=True):
-            st.write(f"Today Date: **{today_display_str}**")
             agent_for_att = st.session_state.get("username", "staff")
-            st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
-            submit_att = st.form_submit_button(" Give Attendance / Check-in (উপস্থিতি দিন)", type="primary")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.info(f"📅 **আজকের তারিখ:**\n\n**{today_display_str}**")
+            with c2:
+                st.success(f"👤 **স্টাফের নাম:**\n\n**{agent_name_map.get(agent_for_att, agent_for_att)}**")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            submit_att = st.form_submit_button("🚀 Give Attendance / Check-in (উপস্থিতি দিন)", type="primary", use_container_width=True)
 
         if submit_att:
             try:
@@ -2435,13 +2447,13 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     (agent_for_att, today_date_str, check_time_str, "Present")
                 )
                 conn.commit()
-                st.success("Attendance recorded successfully! (উপস্থিতি নথিভুক্ত হয়েছে!)")
+                st.success("✨ Attendance recorded successfully! (উপস্থিতি সফলভাবে নথিভুক্ত হয়েছে!)")
                 st.rerun()
             except sqlite3.IntegrityError:
-                st.warning("Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)[cite: 6]")
+                st.warning("⚠️ Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)")
 
-        st.write("---")
-        st.write("#### Today's Attendance List (আজকের উপস্থিতি তালিকা)")
+        st.markdown("---")
+        st.markdown("#### 📊 Today's Attendance List (আজকের উপস্থিতি তালিকা)")
         today_att_df = pd.read_sql_query("""
             SELECT a.date AS 'Date', u.fullname AS 'Agent Name', a.check_time AS 'Check-in Time', a.status AS 'Status'
             FROM attendance a
@@ -2454,7 +2466,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
             st.dataframe(today_att_df, use_container_width=True)
         else:
-            st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)[cite: 6]")
+            st.info("ℹ️ No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
 
     with att_tab2:
         current_role = st.session_state.get("user_role", "staff")
@@ -2521,7 +2533,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                                 type="primary"
                             )
                     else:
-                        st.info(f"এই মাসের জন্য {agent_name_map.get(selected_rep_agent, selected_rep_agent)}-এর কোনো উপস্থিতির রেকর্ড পাওয়া যায়নি।[cite: 6]")
+                        st.info(f"এই মাসের জন্য {agent_name_map.get(selected_rep_agent, selected_rep_agent)}-এর কোনো উপস্থিতির রেকর্ড পাওয়া যায়নি।")
 
             st.write("---")
             st.write("#### Delete Attendance Records (Admin Only)")
@@ -2549,10 +2561,10 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                         if record_exists > 0:
                             c.execute("DELETE FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
                             conn.commit()
-                            st.success(f"Successfully deleted attendance record on {del_date.strftime('%d-%m-%Y')}![cite: 6]")
+                            st.success(f"Successfully deleted attendance record on {del_date.strftime('%d-%m-%Y')}!")
                             st.rerun()
                         else:
-                            st.warning(f"No attendance record found on {del_date.strftime('%d-%m-%Y')}.[cite: 6]")
+                            st.warning(f"No attendance record found on {del_date.strftime('%d-%m-%Y')}.")
             else:
                 col_m1, col_m2 = st.columns(2)
                 with col_m1:
@@ -2568,7 +2580,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     if month_count > 0:
                         c.execute("DELETE FROM attendance WHERE SUBSTR(date, 1, 7) = ?", (month_str,))
                         conn.commit()
-                        st.success(f"Successfully deleted all attendance records for {calendar.month_name[target_month]} {target_year}!")[cite: 6]
+                        st.success(f"Successfully deleted all attendance records for {calendar.month_name[target_month]} {target_year}!")
                         st.rerun()
                     else:
                         st.warning(f"No attendance records found for {calendar.month_name[target_month]} {target_year}.")
