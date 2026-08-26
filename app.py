@@ -789,15 +789,99 @@ if selected_menu != current_page_param:
 
 st.write("---")
 
-# Session state-এ ল্যাটিটিউড এবং লঙ্গিটিউড না থাকলে ডিফল্ট ভ্যালু সেট করা হলো (যাতে KeyError না আসে)
+import streamlit as st
+import folium
+from streamlit_folium import st_folium
+from folium.plugins import MousePosition
+import sqlite3
+import pandas as pd
+import tempfile
+import os
+import streamlit.components.v1 as components
+
+# --- GPS Component Setup (একেবারে শক্তিশালী ও নির্ভুল GPS সিস্টেম) ---
+@st.cache_resource
+def get_gps_component():
+    tmpdir = tempfile.mkdtemp()
+    with open(os.path.join(tmpdir, "index.html"), "w", encoding="utf-8") as f:
+        f.write("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { margin: 0; padding: 0; display: flex; flex-direction: column; align-items: flex-start; font-family: sans-serif; background: transparent; }
+                #getLocBtn {
+                    background-color: #1a73e8; color: white; border: none; 
+                    padding: 8px 16px; border-radius: 4px; cursor: pointer; 
+                    font-size: 14px; font-weight: bold; width: 100%; text-align: center;
+                }
+                #getLocBtn:active { background-color: #1557b0; }
+                #getLocBtn:disabled { background-color: #555; color: #aaa; cursor: not-allowed; }
+                #gpsStatus { font-size: 12px; margin-top: 5px; color: #888; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <button id="getLocBtn">Current Loc (স্ট্রং জিপিএস)</button>
+            <div id="gpsStatus"></div>
+            <script>
+                function sendToStreamlit(type, data) {
+                    window.parent.postMessage(Object.assign({isStreamlitMessage: true, type: type}, data), "*");
+                }
+                function init() { sendToStreamlit("streamlit:componentReady", {apiVersion: 1}); }
+                function setHeight() { sendToStreamlit("streamlit:setFrameHeight", {height: 65}); }
+                function sendValue(value) { sendToStreamlit("streamlit:setComponentValue", {value: value}); }
+
+                window.addEventListener("message", function(e) { if (e.data.type === "streamlit:render") setHeight(); });
+
+                const btn = document.getElementById('getLocBtn');
+                const status = document.getElementById('gpsStatus');
+
+                btn.onclick = function() {
+                    if (!navigator.geolocation) { status.innerText = "GPS Not Supported!"; return; }
+                    btn.disabled = true;
+                    status.innerText = "Fetching... (অপেক্ষা করুন)";
+                    
+                    let bestPos = null; let attempts = 0;
+                    function tryPos() {
+                        attempts++;
+                        navigator.geolocation.getCurrentPosition(
+                            (pos) => {
+                                if (!bestPos || pos.coords.accuracy < bestPos.coords.accuracy) bestPos = pos;
+                                if (attempts < 3 && pos.coords.accuracy > 20) {
+                                    status.innerText = `Try ${attempts}... (Acc: ${Math.round(pos.coords.accuracy)}m)`;
+                                    setTimeout(tryPos, 1000);
+                                } else {
+                                    status.innerText = `Success! (Acc: ${Math.round(bestPos.coords.accuracy)}m)`;
+                                    sendValue({lat: bestPos.coords.latitude, lon: bestPos.coords.longitude});
+                                    setTimeout(() => { btn.disabled = false; status.innerText = ""; }, 3000);
+                                }
+                            },
+                            (err) => {
+                                if (attempts < 3) { setTimeout(tryPos, 1500); }
+                                else { status.innerText = "Error: " + err.message; btn.disabled = false; }
+                            },
+                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                        );
+                    }
+                    tryPos();
+                };
+                init();
+            </script>
+        </body>
+        </html>
+        """)
+    return components.declare_component("gps_component", path=tmpdir)
+
+
+# Session state-এ ল্যাটিটিউড এবং লঙ্গিটিউড সেট করা হলো
 if "selected_lat" not in st.session_state:
     st.session_state["selected_lat"] = 22.8671 
 if "selected_lon" not in st.session_state:
     st.session_state["selected_lon"] = 87.3468 
-
-# GPS ভেরিয়েবল আগে থেকে ডিফাইন করা হলো যাতে NameError না আসে
-gps_lat = None
-gps_lon = None
+if "gps_lat" not in st.session_state:
+    st.session_state["gps_lat"] = None
+if "gps_lon" not in st.session_state:
+    st.session_state["gps_lon"] = None
 
 if selected_menu == "Add Location (লোকেশন যোগ)":
     st.write("### Add Location & Party (লোকেশন ও পার্টি)")
@@ -806,11 +890,10 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
     c.execute("CREATE TABLE IF NOT EXISTS routes (id INTEGER PRIMARY KEY AUTOINCREMENT, route_name TEXT UNIQUE)")
     try:
         c.execute("ALTER TABLE locations ADD COLUMN route TEXT")
-    except sqlite3.OperationalError: # বাগ ফিক্স: broad Exception এর বদলে নির্দিষ্ট OperationalError
+    except sqlite3.OperationalError: 
         pass
     conn.commit()
 
-    # ডাটাবেস থেকে আগে রুটগুলো ফেচ করে নেওয়া হলো (ডিলিট অপশনে দেখানোর জন্য)
     existing_routes = [r[0] for r in c.execute("SELECT route_name FROM routes ORDER BY route_name ASC").fetchall()]
 
     if st.session_state.get("user_role") == "admin":
@@ -855,67 +938,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                     else:
                         st.error("Select a route! (একটি রুট সিলেক্ট করুন)")
 
-    # আপডেট হওয়ার পর আবার রুট ফেচ করা হলো
     existing_routes = [r[0] for r in c.execute("SELECT route_name FROM routes ORDER BY route_name ASC").fetchall()]
-
-    # High Accuracy & Multi-Try GPS Fetching Component
-    import streamlit.components.v1 as components
-    gps_component_code = """
-    <div>
-        <button id="getLocBtn" style="background-color: #1a73e8; color: white; border:none; padding: 8px 16px; border-radius: 4px; cursor:pointer; font-size:14px; font-weight: bold;"> Strong GPS Fix (স্ট্রং জিপিএস ফিক্স)</button>
-        <p id="gpsStatus" style="font-size: 12px; margin-top:5px; color:#666;"></p>
-    </div>
-    <script>
-    const btn = document.getElementById('getLocBtn');
-    const status = document.getElementById('gpsStatus');
-    btn.onclick = function() {
-        if (!navigator.geolocation) {
-            status.innerText = "Geolocation is not supported by your browser";
-            return;
-        }
-        status.innerText = "Getting strong GPS fix (Multi-try)... Please wait...";
-        let bestPosition = null;
-        let attempts = 0;
-        const maxAttempts = 3;
-        function tryGetPosition() {
-            attempts++;
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const acc = position.coords.accuracy;
-                    if (!bestPosition || acc < bestPosition.coords.accuracy) {
-                        bestPosition = position;
-                    }
-                    if (attempts < maxAttempts && acc > 20) {
-                        status.innerText = `Attempt ${attempts}: Accuracy ~${Math.round(acc)}m. Retries for better accuracy...`;
-                        setTimeout(tryGetPosition, 1000);
-                    } else {
-                        const lat = bestPosition.coords.latitude;
-                        const lon = bestPosition.coords.longitude;
-                        const finalAcc = Math.round(bestPosition.coords.accuracy);
-                        status.innerText = `Success! Best Accuracy: ~${finalAcc} meters`;
-                        const data = {lat: lat, lon: lon};
-                        window.parent.postMessage({type: 'streamlit:setComponentValue', value: data}, '*');
-                    }
-                },
-                (error) => {
-                    if (attempts < maxAttempts) {
-                        setTimeout(tryGetPosition, 1500);
-                    } else {
-                        status.innerText = "Error: " + error.message + ". Try moving to open sky.";
-                    }
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 12000,
-                    maximumAge: 0
-                }
-            );
-        }
-        tryGetPosition();
-    };
-    </script>
-    """
-    components.html(gps_component_code, height=80)
 
     selected_entry_tab = st.radio(
         "Select Entry Mode (মোড সিলেক্ট):",
@@ -1043,15 +1066,23 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
     st.write("---")
     st.write("#### Select Location from Map (ম্যাপ থেকে সিলেক্ট করুন)")
     col_m1, col_m2 = st.columns([1, 4])
+    
     with col_m1:
-        if st.button(" Current Loc (স্ট্রং জিপিএস)"):
-            if gps_lat and gps_lon:
-                st.session_state["selected_lat"] = gps_lat
-                st.session_state["selected_lon"] = gps_lon
-                st.success("High-accuracy multi-try GPS location taken! (নেওয়া হয়েছে!)")
+        # স্বয়ংক্রিয়ভাবে পাইথনে ডেটা পাঠানোর জন্য নতুন GPS Component ব্যবহার করা হলো
+        gps_comp = get_gps_component()
+        gps_data = gps_comp(key="gps_fetcher_btn")
+        
+        if gps_data and isinstance(gps_data, dict) and "lat" in gps_data:
+            new_lat, new_lon = float(gps_data["lat"]), float(gps_data["lon"])
+            # লুপ এড়ানোর জন্য ভ্যালু চেক করা হচ্ছে
+            if st.session_state.get("selected_lat") != new_lat or st.session_state.get("selected_lon") != new_lon:
+                st.session_state["selected_lat"] = new_lat
+                st.session_state["selected_lon"] = new_lon
+                st.session_state["gps_lat"] = new_lat
+                st.session_state["gps_lon"] = new_lon
+                st.toast("High-accuracy GPS location taken! (লোকেশন নেওয়া হয়েছে!)", icon="✅")
                 st.rerun()
-            else:
-                st.warning("GPS not found! ম্যাপে ক্লিক করে বা বাইরে গিয়ে চেষ্টা করুন।")
+
     with col_m2:
         st.write(f"Coordinates (স্থানাঙ্ক): {st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}")
 
@@ -1088,9 +1119,9 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
         icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
     ).add_to(advanced_map)
 
-    if gps_lat and gps_lon:
+    if st.session_state["gps_lat"] and st.session_state["gps_lon"]:
         folium.CircleMarker(
-            location=[gps_lat, gps_lon],
+            location=[st.session_state["gps_lat"], st.session_state["gps_lon"]],
             radius=9,
             color="#0056b3",
             fill=True,
@@ -1238,7 +1269,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                 cols[2].write(f"Date: `{format_date_display(r_row['Work Date'])}`")
         else:
             st.info("No reports found. (কোনো রিপোর্ট নেই।)")
-
+            
 elif selected_menu == "Search & Details (অনুসন্ধান ও বিবরণ)":
     st.write("### Search & Party Management (সার্চ ও ম্যানেজমেন্ট)")
     
