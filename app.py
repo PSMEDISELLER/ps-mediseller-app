@@ -2423,7 +2423,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
         
         with st.form("attendance_form", clear_on_submit=True):
             st.write(f"Today Date: **{today_display_str}**")
-            agent_for_att = st.session_state.get("username", "delivery")
+            agent_for_att = st.session_state.get("username", "staff")
             st.write(f"Agent: **{agent_name_map.get(agent_for_att, agent_for_att)}**")
             submit_att = st.form_submit_button(" Give Attendance / Check-in (উপস্থিতি দিন)", type="primary")
 
@@ -2438,7 +2438,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                 st.success("Attendance recorded successfully! (উপস্থিতি নথিভুক্ত হয়েছে!)")
                 st.rerun()
             except sqlite3.IntegrityError:
-                st.warning("Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)")
+                st.warning("Attendance already given for today! (আজকে ইতিমধ্যে উপস্থিতি দেওয়া হয়েছে!)[cite: 6]")
 
         st.write("---")
         st.write("#### Today's Attendance List (আজকের উপস্থিতি তালিকা)")
@@ -2454,15 +2454,15 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             today_att_df['Date'] = today_att_df['Date'].apply(lambda x: format_date_display(x))
             st.dataframe(today_att_df, use_container_width=True)
         else:
-            st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
+            st.info("No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)[cite: 6]")
 
     with att_tab2:
         current_role = st.session_state.get("user_role", "staff")
-        current_user = st.session_state.get("username", "delivery")
+        current_user = st.session_state.get("username", "staff")
 
         if current_role == "admin":
             st.write("#### Agent-wise Monthly Attendance & Report Download")
-            st.write("নিচে থেকে যেকোনো এজেন্টকে সিলেক্ট করে তার এই মাসের মোট কাজের দিন দেখতে পাবেন এবং তার ব্যক্তিগত রিপোর্ট ডাউনলোড করতে পারবেন:")
+            st.write("নিচে থেকে যেকোনো এজেন্টকে সিলেক্ট করে তার এই মাসের মোট কাজের দিন দেখতে পাবেন এবং তার ব্যক্তিগত রিপোর্ট ডাউনলোড করতে পারবেন:")[cite: 6]
             
             c.execute("SELECT username, fullname FROM users WHERE role='staff'")
             staff_list = c.fetchall()
@@ -2521,34 +2521,57 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                                 type="primary"
                             )
                     else:
-                        st.info(f"এই মাসের জন্য {agent_name_map.get(selected_rep_agent, selected_rep_agent)}-এর কোনো উপস্থিতির রেকর্ড পাওয়া যায়নি।")
+                        st.info(f"এই মাসের জন্য {agent_name_map.get(selected_rep_agent, selected_rep_agent)}-এর কোনো উপস্থিতির রেকর্ড পাওয়া যায়নি।[cite: 6]")
 
             st.write("---")
-            st.write("#### Delete Agent Attendance Record (Admin Only)")
-            col_del1, col_del2 = st.columns(2)
-            with col_del1:
-                del_agent = st.selectbox(
-                    "Select Agent:",
-                    options=[s[0] for s in staff_list] if staff_list else [],
-                    format_func=lambda x: agent_name_map.get(x, x),
-                    key="del_agent_select"
-                )
-            with col_del2:
-                del_date = st.date_input("Select Date to Delete:", value=safe_ist_now().date(), key="del_date_select")
+            st.write("#### Delete Attendance Records (Admin Only)")
+            
+            del_mode = st.radio("Delete Option:", ["Delete Single Date", "Delete Full Month Data"], horizontal=True)
 
-            if st.button("Delete Selected Attendance Record", type="primary", key="btn_del_att"):
-                if staff_list:
-                    del_date_str = del_date.strftime("%Y-%m-%d")
-                    c.execute("SELECT COUNT(*) FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
-                    record_exists = c.fetchone()[0]
+            if del_mode == "Delete Single Date":
+                col_del1, col_del2 = st.columns(2)
+                with col_del1:
+                    del_agent = st.selectbox(
+                        "Select Agent:",
+                        options=[s[0] for s in staff_list] if staff_list else [],
+                        format_func=lambda x: agent_name_map.get(x, x),
+                        key="del_agent_select"
+                    )
+                with col_del2:
+                    del_date = st.date_input("Select Date to Delete:", value=safe_ist_now().date(), key="del_date_select")
 
-                    if record_exists > 0:
-                        c.execute("DELETE FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
+                if st.button("Delete Selected Attendance Record", type="primary", key="btn_del_att"):
+                    if staff_list:
+                        del_date_str = del_date.strftime("%Y-%m-%d")
+                        c.execute("SELECT COUNT(*) FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
+                        record_exists = c.fetchone()[0]
+
+                        if record_exists > 0:
+                            c.execute("DELETE FROM attendance WHERE username = ? AND date = ?", (del_agent, del_date_str))
+                            conn.commit()
+                            st.success(f"Successfully deleted attendance record on {del_date.strftime('%d-%m-%Y')}![cite: 6]")
+                            st.rerun()
+                        else:
+                            st.warning(f"No attendance record found on {del_date.strftime('%d-%m-%Y')}.[cite: 6]")
+            else:
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    target_year = st.number_input("Year (বছর):", min_value=2024, max_value=2035, value=current_year)
+                with col_m2:
+                    target_month = st.selectbox("Month (মাস):", options=list(range(1, 13)), format_func=lambda x: calendar.month_name[x], index=current_month-1)
+
+                if st.button("⚠️ Delete All Attendance for This Month", type="primary", key="btn_del_full_month"):
+                    month_str = f"{target_year}-{target_month:02d}"
+                    c.execute("SELECT COUNT(*) FROM attendance WHERE SUBSTR(date, 1, 7) = ?", (month_str,))
+                    month_count = c.fetchone()[0]
+                    
+                    if month_count > 0:
+                        c.execute("DELETE FROM attendance WHERE SUBSTR(date, 1, 7) = ?", (month_str,))
                         conn.commit()
-                        st.success(f"Successfully deleted attendance record on {del_date.strftime('%d-%m-%Y')}!")
+                        st.success(f"Successfully deleted all attendance records for {calendar.month_name[target_month]} {target_year}!")[cite: 6]
                         st.rerun()
                     else:
-                        st.warning(f"No attendance record found on {del_date.strftime('%d-%m-%Y')}.")
+                        st.warning(f"No attendance records found for {calendar.month_name[target_month]} {target_year}.")
         else:
             st.write("#### Your Monthly Attendance Report")
             staff_att_df = pd.read_sql_query("""
