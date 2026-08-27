@@ -365,18 +365,6 @@ CREATE TABLE IF NOT EXISTS locations (
 """)
 
 c.execute("""
-CREATE TABLE IF NOT EXISTS agent_live_locations (
-    username TEXT PRIMARY KEY,
-    lat REAL,
-    lon REAL,
-    last_updated TEXT,
-    completed_deliveries INTEGER DEFAULT 0,
-    completed_dues INTEGER DEFAULT 0
-)
-""")
-conn.commit()
-
-c.execute("""
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     party_name TEXT NOT NULL,
@@ -393,6 +381,18 @@ CREATE TABLE IF NOT EXISTS daily_work (
     party_name TEXT NOT NULL,
     activity_type TEXT NOT NULL,
     work_date TEXT NOT NULL
+)
+""")
+
+# Combined duplicate creation bug fix for agent_live_locations
+c.execute("""
+CREATE TABLE IF NOT EXISTS agent_live_locations (
+    username TEXT PRIMARY KEY,
+    lat REAL,
+    lon REAL,
+    last_updated TEXT,
+    completed_deliveries INTEGER DEFAULT 0,
+    completed_dues INTEGER DEFAULT 0
 )
 """)
 
@@ -432,7 +432,6 @@ CREATE TABLE IF NOT EXISTS recycle_bin (
 )
 """)
 
-# Schema migrations safety check
 c.execute("PRAGMA table_info(locations)")
 existing_cols_loc = [row[1] for row in c.fetchall()]
 if "party_phone" not in existing_cols_loc:
@@ -471,11 +470,6 @@ if "payment_collected_actual" not in existing_cols_task:
 if "remaining_due" not in existing_cols_task:
     c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
 
-c.execute("PRAGMA table_info(agent_live_locations)")
-existing_cols_agent = [row[1] for row in c.fetchall()]
-if "completed_dues" not in existing_cols_agent:
-    c.execute("ALTER TABLE agent_live_locations ADD COLUMN completed_dues INTEGER DEFAULT 0")
-
 conn.commit()
 
 # === INITIAL DEFAULT USERS CREATION ===
@@ -491,18 +485,23 @@ if c.fetchone()[0] == 0:
     )
     conn.commit()
 
+c.execute("SELECT username FROM users WHERE username='staff'")
+if not c.fetchone():
+    c.execute(
+        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ("staff", "user123", "staff", "Staff Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0)
+    )
+    conn.commit()
+
 # === UNIFIED & BULLETPROOF USER SESSION & REFRESH PERSISTENCE ===
 url_user = st.query_params.get("login")
 if isinstance(url_user, list):
     url_user = url_user[0] if url_user else None
 
-saved_user_js = None
-if "ps_js_eval_run" not in st.session_state:
-    saved_user_js = streamlit_js_eval(
-        js_expressions="localStorage.getItem('ps_mediseller_user')",
-        key="get_saved_user_storage_unique"
-    )
-    st.session_state["ps_js_eval_run"] = True
+saved_user_js = streamlit_js_eval(
+    js_expressions="localStorage.getItem('ps_mediseller_user')",
+    key="get_saved_user_storage_unique"
+)
 
 target_login = None
 if url_user:
@@ -524,18 +523,17 @@ if user_row:
         st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
         st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
         st.query_params.clear()
+        conn.close() # Prevent DB Leak
         st.stop()
     else:
         st.session_state["username"] = target_login
         st.session_state["user_role"] = r_role
-        if st.query_params.get("login") != target_login:
-            st.query_params["login"] = target_login
+        st.query_params["login"] = target_login
         st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
 else:
     st.session_state["username"] = "staff"
     st.session_state["user_role"] = "staff"
-    if st.query_params.get("login") != "staff":
-        st.query_params["login"] = "staff"
+    st.query_params["login"] = "staff"
 
 def move_to_recycle_bin(item_type, item_title, item_data_dict):
     data_json = json.dumps(item_data_dict)
@@ -546,10 +544,9 @@ def move_to_recycle_bin(item_type, item_title, item_data_dict):
     )
     conn.commit()
 
-# === OPTIMIZED AUTOMATIC CLEANUP LOGIC ===
+# === AUTOMATIC CLEANUP LOGIC ===
 current_dt_str = get_ist_time()
 c.execute("SELECT id, order_date FROM orders")
-orders_to_del = []
 for row_ord in c.fetchall():
     try:
         cleaned_date = str(row_ord[1]).strip()
@@ -558,34 +555,30 @@ for row_ord in c.fetchall():
         else:
             o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
         if (current_dt_str - o_time) > timedelta(days=7):
-            orders_to_del.append((row_ord[0],))
+            c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
     except Exception:
         pass
 
-if orders_to_del:
-    c.executemany("DELETE FROM orders WHERE id=?", orders_to_del)
-
-c.execute("SELECT id, created_at, status FROM task_assignments WHERE LOWER(status)='completed'")
-tasks_to_del = []
+c.execute("SELECT id, created_at, status FROM task_assignments")
 for row_task in c.fetchall():
     try:
-        cleaned_task_date = str(row_task[1]).strip()
-        if " " in cleaned_task_date:
-            t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        else:
-            t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        if (current_dt_str - t_time) > timedelta(hours=48):
-            tasks_to_del.append((row_task[0],))
+        t_status = str(row_task[2]).strip().lower() if row_task[2] else ""
+        if t_status == "completed":
+            cleaned_task_date = str(row_task[1]).strip()
+            if " " in cleaned_task_date:
+                t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+            else:
+                t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+            if (current_dt_str - t_time) > timedelta(hours=48):
+                c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
     except Exception:
         pass
-
-if tasks_to_del:
-    c.executemany("DELETE FROM task_assignments WHERE id=?", tasks_to_del)
 
 conn.commit()
 
 def generate_html_report(title, dataframe):
-    safe_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    import datetime as dt # Fix shadowing bug
+    safe_now = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=5, minutes=30)
     time_str = safe_now.strftime('%d.%m.%y %H:%M:%S')
     table_html = dataframe.to_html(index=False, border=0)
     html_content = f"""
@@ -627,6 +620,7 @@ if current_logged_username != "admin":
     res_act = c.fetchone()
     if res_act and res_act[0] == 0:
         st.error("আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
+        conn.close() # Prevent DB Leak
         st.stop()
 
 col_ht1, col_ht2 = st.columns([3, 1])
@@ -648,10 +642,12 @@ with col_ht2:
             st.session_state["user_role"] = "staff"
             st.query_params.clear()
             st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
+            conn.close() # Prevent DB Leak
             st.rerun()
     else:
         if st.button("Admin Login (অ্যাডমিন)", key="login_btn_top"):
             st.session_state["show_admin_login"] = True
+            conn.close() # Prevent DB Leak
             st.rerun()
 
 c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
@@ -684,8 +680,8 @@ if show_notif and total_pending_items > 0:
     with col_n2:
         if st.button("সরান", key="dismiss_notif_bar_btn"):
             st.session_state["notif_dismissed_time"] = get_ist_time()
+            conn.close() # Prevent DB Leak
             st.rerun()       
-
 if st.session_state.get("show_admin_login", False):
     with st.form("admin_login_popup_form"):
         st.write("#### Admin Login (অ্যাডমিন লগইন)")
@@ -706,12 +702,14 @@ if st.session_state.get("show_admin_login", False):
                 st.query_params["login"] = "admin"
                 st.markdown("<script>localStorage.setItem('ps_mediseller_user', 'admin');</script>", unsafe_allow_html=True)
                 st.success("Admin login successful! (সফল!)")
+                conn.close() # Prevent DB Leak
                 st.rerun()
             else:
                 st.error("Incorrect Password! (ভুল পাসওয়ার্ড!)")
         
         if cancel_admin:
             st.session_state["show_admin_login"] = False
+            conn.close() # Prevent DB Leak
             st.rerun()
             
     with st.expander("পাসওয়ার্ড ভুলে গেছেন? (Forgot Password)"):
@@ -742,6 +740,12 @@ if c.rowcount == 0:
         (st.session_state["username"], gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
     )
 conn.commit()
+
+# === CONNECTION LEAK FIX (PREVENTS HANG/CRASH) ===
+try:
+    conn.close()
+except:
+    pass
 
 all_basic_menus = [
     "Add Location (লোকেশন যোগ)",
