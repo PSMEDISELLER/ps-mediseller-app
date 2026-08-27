@@ -13,8 +13,10 @@ from datetime import datetime, timedelta, timezone
 
 # === 1GB FILE UPLOAD LIMIT CONFIGURATION ===
 os.makedirs(".streamlit", exist_ok=True)
-with open(".streamlit/config.toml", "w") as f:
-    f.write("[server]\nmaxUploadSize = 1024\n")
+config_path = ".streamlit/config.toml"
+if not os.path.exists(config_path):
+    with open(config_path, "w") as f:
+        f.write("[server]\nmaxUploadSize = 1024\n")
 
 # === PAGE CONFIGURATION ===
 st.set_page_config(
@@ -55,14 +57,18 @@ def format_date_display(date_str):
     except Exception:
         return date_str
 
-# === ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION ===
-logo_b64 = ""
-for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
-    if os.path.exists(logo_name):
-        with open(logo_name, "rb") as f:
-            logo_b64 = base64.b64encode(f.read()).decode()
-        break
+# === CACHED ASSETS LOADING FOR SPEED ===
+@st.cache_data
+def load_logo_b64():
+    for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
+        if os.path.exists(logo_name):
+            with open(logo_name, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+    return ""
 
+logo_b64 = load_logo_b64()
+
+# === ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION ===
 pwa_manifest_html = f"""
 <script>
 try {{
@@ -328,167 +334,182 @@ div[data-testid="stTextArea"] div p,
 </style>
 """, unsafe_allow_html=True)
 
-# === DATABASE SETUP ===
+# === DATABASE SETUP & HIGH-PERFORMANCE INITIALIZATION ===
 DB_FILE = "mediseller_delivery.db"
 
-conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-c = conn.cursor()
+def get_db_connection():
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    username TEXT PRIMARY KEY,
-    password TEXT,
-    role TEXT NOT NULL,
-    fullname TEXT,
-    phone TEXT,
-    created_at TIMESTAMP,
-    is_active INTEGER DEFAULT 1,
-    allow_resubmit INTEGER DEFAULT 0,
-    allowed_menus TEXT DEFAULT 'Add Location (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due & Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance (উপস্থিতি)'
-)
-""")
+@st.cache_resource
+def init_db():
+    conn = get_db_connection()
+    c = conn.cursor()
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS locations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    party_name TEXT NOT NULL UNIQUE,
-    address TEXT,
-    party_phone TEXT UNIQUE,
-    lat REAL,
-    lon REAL,
-    route_order INTEGER DEFAULT 0,
-    current_due REAL DEFAULT 0
-)
-""")
-
-c.execute("""
-CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    party_name TEXT NOT NULL,
-    order_details TEXT,
-    order_date TEXT NOT NULL,
-    status TEXT DEFAULT 'Pending',
-    payment_collected TEXT DEFAULT '0'
-)
-""")
-
-c.execute("""
-CREATE TABLE IF NOT EXISTS daily_work (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    party_name TEXT NOT NULL,
-    activity_type TEXT NOT NULL,
-    work_date TEXT NOT NULL
-)
-""")
-
-# Combined duplicate creation bug fix for agent_live_locations
-c.execute("""
-CREATE TABLE IF NOT EXISTS agent_live_locations (
-    username TEXT PRIMARY KEY,
-    lat REAL,
-    lon REAL,
-    last_updated TEXT,
-    completed_deliveries INTEGER DEFAULT 0,
-    completed_dues INTEGER DEFAULT 0
-)
-""")
-
-c.execute("""
-CREATE TABLE IF NOT EXISTS task_assignments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    agent_name TEXT NOT NULL,
-    party_name TEXT NOT NULL,
-    task_type TEXT NOT NULL,
-    due_amount TEXT DEFAULT '0',
-    sale_amount TEXT DEFAULT '0',
-    payment_collected_actual TEXT DEFAULT '0',
-    remaining_due TEXT DEFAULT '0',
-    status TEXT DEFAULT 'Pending',
-    created_at TEXT NOT NULL
-)
-""")
-
-c.execute("""
-CREATE TABLE IF NOT EXISTS attendance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL,
-    date TEXT NOT NULL,
-    check_time TEXT NOT NULL,
-    status TEXT DEFAULT 'Present',
-    UNIQUE (username, date)
-)
-""")
-
-c.execute("""
-CREATE TABLE IF NOT EXISTS recycle_bin (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_type TEXT NOT NULL,
-    item_title TEXT NOT NULL,
-    item_data TEXT NOT NULL,
-    deleted_at TEXT NOT NULL
-)
-""")
-
-c.execute("PRAGMA table_info(locations)")
-existing_cols_loc = [row[1] for row in c.fetchall()]
-if "party_phone" not in existing_cols_loc:
-    c.execute("ALTER TABLE locations ADD COLUMN party_phone TEXT")
-if "current_due" not in existing_cols_loc:
-    c.execute("ALTER TABLE locations ADD COLUMN current_due REAL DEFAULT 0")
-
-c.execute("PRAGMA table_info(orders)")
-existing_cols_ord = [row[1] for row in c.fetchall()]
-if "payment_collected" not in existing_cols_ord:
-    c.execute("ALTER TABLE orders ADD COLUMN payment_collected TEXT DEFAULT '0'")
-if "status" not in existing_cols_ord:
-    c.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'Pending'")
-
-c.execute("PRAGMA table_info(users)")
-existing_user_cols = [row[1] for row in c.fetchall()]
-if "fullname" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
-if "phone" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN phone TEXT")
-if "created_at" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP")
-if "is_active" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
-if "allow_resubmit" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN allow_resubmit INTEGER DEFAULT 0")
-if "allowed_menus" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN allowed_menus TEXT DEFAULT 'Add Location (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due & Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance (উপস্থিতি)'")
-
-c.execute("PRAGMA table_info(task_assignments)")
-existing_cols_task = [row[1] for row in c.fetchall()]
-if "sale_amount" not in existing_cols_task:
-    c.execute("ALTER TABLE task_assignments ADD COLUMN sale_amount TEXT DEFAULT '0'")
-if "payment_collected_actual" not in existing_cols_task:
-    c.execute("ALTER TABLE task_assignments ADD COLUMN payment_collected_actual TEXT DEFAULT '0'")
-if "remaining_due" not in existing_cols_task:
-    c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
-
-conn.commit()
-
-# === INITIAL DEFAULT USERS CREATION ===
-c.execute("SELECT COUNT(*) FROM users")
-if c.fetchone()[0] == 0:
-    c.execute(
-        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ("admin", "admin123", "admin", "Admin", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 1)
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password TEXT,
+        role TEXT NOT NULL,
+        fullname TEXT,
+        phone TEXT,
+        created_at TIMESTAMP,
+        is_active INTEGER DEFAULT 1,
+        allow_resubmit INTEGER DEFAULT 0,
+        allowed_menus TEXT DEFAULT 'Add Location (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due & Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance (উপস্থিতি)'
     )
-    c.execute(
-        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ("staff", "user123", "staff", "Staff Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0)
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS locations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_name TEXT NOT NULL UNIQUE,
+        address TEXT,
+        party_phone TEXT UNIQUE,
+        lat REAL,
+        lon REAL,
+        route_order INTEGER DEFAULT 0,
+        current_due REAL DEFAULT 0
     )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS agent_live_locations (
+        username TEXT PRIMARY KEY,
+        lat REAL,
+        lon REAL,
+        last_updated TEXT,
+        completed_deliveries INTEGER DEFAULT 0,
+        completed_dues INTEGER DEFAULT 0
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_name TEXT NOT NULL,
+        order_details TEXT,
+        order_date TEXT NOT NULL,
+        status TEXT DEFAULT 'Pending',
+        payment_collected TEXT DEFAULT '0'
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS daily_work (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_name TEXT NOT NULL,
+        activity_type TEXT NOT NULL,
+        work_date TEXT NOT NULL
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS task_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_name TEXT NOT NULL,
+        party_name TEXT NOT NULL,
+        task_type TEXT NOT NULL,
+        due_amount TEXT DEFAULT '0',
+        sale_amount TEXT DEFAULT '0',
+        payment_collected_actual TEXT DEFAULT '0',
+        remaining_due TEXT DEFAULT '0',
+        status TEXT DEFAULT 'Pending',
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS attendance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        date TEXT NOT NULL,
+        check_time TEXT NOT NULL,
+        status TEXT DEFAULT 'Present',
+        UNIQUE (username, date)
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS recycle_bin (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_type TEXT NOT NULL,
+        item_title TEXT NOT NULL,
+        item_data TEXT NOT NULL,
+        deleted_at TEXT NOT NULL
+    )
+    """)
+
+    # --- MIGRATIONS ---
+    c.execute("PRAGMA table_info(locations)")
+    existing_cols_loc = [row[1] for row in c.fetchall()]
+    if "party_phone" not in existing_cols_loc:
+        c.execute("ALTER TABLE locations ADD COLUMN party_phone TEXT")
+    if "current_due" not in existing_cols_loc:
+        c.execute("ALTER TABLE locations ADD COLUMN current_due REAL DEFAULT 0")
+
+    c.execute("PRAGMA table_info(orders)")
+    existing_cols_ord = [row[1] for row in c.fetchall()]
+    if "payment_collected" not in existing_cols_ord:
+        c.execute("ALTER TABLE orders ADD COLUMN payment_collected TEXT DEFAULT '0'")
+    if "status" not in existing_cols_ord:
+        c.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'Pending'")
+
+    c.execute("PRAGMA table_info(users)")
+    existing_user_cols = [row[1] for row in c.fetchall()]
+    if "fullname" not in existing_user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
+    if "phone" not in existing_user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+    if "created_at" not in existing_user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP")
+    if "is_active" not in existing_user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
+    if "allow_resubmit" not in existing_user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN allow_resubmit INTEGER DEFAULT 0")
+    if "allowed_menus" not in existing_user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN allowed_menus TEXT DEFAULT 'Add Location (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due & Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance (উপস্থিতি)'")
+
+    c.execute("PRAGMA table_info(task_assignments)")
+    existing_cols_task = [row[1] for row in c.fetchall()]
+    if "sale_amount" not in existing_cols_task:
+        c.execute("ALTER TABLE task_assignments ADD COLUMN sale_amount TEXT DEFAULT '0'")
+    if "payment_collected_actual" not in existing_cols_task:
+        c.execute("ALTER TABLE task_assignments ADD COLUMN payment_collected_actual TEXT DEFAULT '0'")
+    if "remaining_due" not in existing_cols_task:
+        c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
+
+    c.execute("PRAGMA table_info(agent_live_locations)")
+    existing_cols_agent_loc = [row[1] for row in c.fetchall()]
+    if "completed_dues" not in existing_cols_agent_loc:
+        c.execute("ALTER TABLE agent_live_locations ADD COLUMN completed_dues INTEGER DEFAULT 0")
+
+    # Initial Default Users Creation
+    c.execute("SELECT COUNT(*) FROM users")
+    if c.fetchone()[0] == 0:
+        ist_now = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
+        c.execute(
+            "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("admin", "admin123", "admin", "Admin", "8918740325", ist_now, 1, 1)
+        )
+        c.execute(
+            "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("staff", "user123", "staff", "Staff Agent", "8918740325", ist_now, 1, 0)
+        )
+
+    c.execute("SELECT username FROM users WHERE username='staff'")
+    if not c.fetchone():
+        ist_now = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
+        c.execute(
+            "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("staff", "user123", "staff", "Staff Agent", "8918740325", ist_now, 1, 0)
+        )
     conn.commit()
+    conn.close()
 
-c.execute("SELECT username FROM users WHERE username='staff'")
-if not c.fetchone():
-    c.execute(
-        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ("staff", "user123", "staff", "Staff Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0)
-    )
-    conn.commit()
+# Initialize DB structure once
+init_db()
 
 # === UNIFIED & BULLETPROOF USER SESSION & REFRESH PERSISTENCE ===
 url_user = st.query_params.get("login")
@@ -511,71 +532,93 @@ elif "username" in st.session_state and st.session_state["username"] not in ["st
 if not target_login:
     target_login = "staff"
 
+conn = get_db_connection()
+c = conn.cursor()
 c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
 user_row = c.fetchone()
 
 if user_row:
-    f_name, r_role, is_active = user_row
+    f_name, r_role, is_active = user_row["fullname"], user_row["role"], user_row["is_active"]
     if is_active == 0:
+        conn.close()
         st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
         st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
         st.query_params.clear()
-        conn.close() # Prevent DB Leak
         st.stop()
     else:
         st.session_state["username"] = target_login
         st.session_state["user_role"] = r_role
-        st.query_params["login"] = target_login
+        if st.query_params.get("login") != target_login:
+            st.query_params["login"] = target_login
         st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
 else:
     st.session_state["username"] = "staff"
     st.session_state["user_role"] = "staff"
-    st.query_params["login"] = "staff"
+    if st.query_params.get("login") != "staff":
+        st.query_params["login"] = "staff"
 
 def move_to_recycle_bin(item_type, item_title, item_data_dict):
     data_json = json.dumps(item_data_dict)
     deleted_at = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute(
+    db = get_db_connection()
+    cur = db.cursor()
+    cur.execute(
         "INSERT INTO recycle_bin (item_type, item_title, item_data, deleted_at) VALUES (?, ?, ?, ?)",
         (item_type, item_title, data_json, deleted_at)
     )
-    conn.commit()
+    db.commit()
+    db.close()
 
-# === AUTOMATIC CLEANUP LOGIC ===
-current_dt_str = get_ist_time()
-c.execute("SELECT id, order_date FROM orders")
-for row_ord in c.fetchall():
-    try:
-        cleaned_date = str(row_ord[1]).strip()
-        if " " in cleaned_date:
-            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        else:
-            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        if (current_dt_str - o_time) > timedelta(days=7):
-            c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
-    except Exception:
-        pass
+# === EFFICIENT CLEANUP LOGIC ===
+def run_automatic_cleanup():
+    db = get_db_connection()
+    cur = db.cursor()
+    current_dt = get_ist_time()
 
-c.execute("SELECT id, created_at, status FROM task_assignments")
-for row_task in c.fetchall():
-    try:
-        t_status = str(row_task[2]).strip().lower() if row_task[2] else ""
-        if t_status == "completed":
-            cleaned_task_date = str(row_task[1]).strip()
+    cur.execute("SELECT id, order_date FROM orders")
+    orders = cur.fetchall()
+    to_delete_orders = []
+    for row_ord in orders:
+        try:
+            cleaned_date = str(row_ord["order_date"]).strip()
+            if " " in cleaned_date:
+                o_time = datetime.strptime(cleaned_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+            else:
+                o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+            if (current_dt - o_time) > timedelta(days=7):
+                to_delete_orders.append((row_ord["id"],))
+        except Exception:
+            pass
+    if to_delete_orders:
+        cur.executemany("DELETE FROM orders WHERE id=?", to_delete_orders)
+
+    cur.execute("SELECT id, created_at, status FROM task_assignments WHERE status IS NOT NULL AND LOWER(TRIM(status))='completed'")
+    tasks = cur.fetchall()
+    to_delete_tasks = []
+    for row_task in tasks:
+        try:
+            cleaned_task_date = str(row_task["created_at"]).strip()
             if " " in cleaned_task_date:
                 t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
             else:
                 t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            if (current_dt_str - t_time) > timedelta(hours=48):
-                c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
-    except Exception:
-        pass
+            if (current_dt - t_time) > timedelta(hours=48):
+                to_delete_tasks.append((row_task["id"],))
+        except Exception:
+            pass
+    if to_delete_tasks:
+        cur.executemany("DELETE FROM task_assignments WHERE id=?", to_delete_tasks)
 
-conn.commit()
+    db.commit()
+    db.close()
+
+if "last_cleanup_time" not in st.session_state or (datetime.now() - st.session_state["last_cleanup_time"]).total_seconds() > 300:
+    run_automatic_cleanup()
+    st.session_state["last_cleanup_time"] = datetime.now()
 
 def generate_html_report(title, dataframe):
-    import datetime as dt # Fix shadowing bug
-    safe_now = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=5, minutes=30)
+    import datetime
+    safe_now = datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
     time_str = safe_now.strftime('%d.%m.%y %H:%M:%S')
     table_html = dataframe.to_html(index=False, border=0)
     html_content = f"""
@@ -615,9 +658,9 @@ current_logged_username = st.session_state["username"]
 if current_logged_username != "admin":
     c.execute("SELECT is_active FROM users WHERE username=?", (current_logged_username,))
     res_act = c.fetchone()
-    if res_act and res_act[0] == 0:
+    if res_act and res_act["is_active"] == 0:
+        conn.close()
         st.error("আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
-        conn.close() # Prevent DB Leak
         st.stop()
 
 col_ht1, col_ht2 = st.columns([3, 1])
@@ -639,18 +682,18 @@ with col_ht2:
             st.session_state["user_role"] = "staff"
             st.query_params.clear()
             st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
-            conn.close() # Prevent DB Leak
+            conn.close()
             st.rerun()
     else:
         if st.button("Admin Login (অ্যাডমিন)", key="login_btn_top"):
             st.session_state["show_admin_login"] = True
-            conn.close() # Prevent DB Leak
+            conn.close()
             st.rerun()
 
 c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
 curr_user_row = c.fetchone()
-if curr_user_row and curr_user_row[0]:
-    display_user_name = curr_user_row[0]
+if curr_user_row and curr_user_row["fullname"]:
+    display_user_name = curr_user_row["fullname"]
 else:
     display_user_name = st.session_state['username']
 
@@ -677,8 +720,9 @@ if show_notif and total_pending_items > 0:
     with col_n2:
         if st.button("সরান", key="dismiss_notif_bar_btn"):
             st.session_state["notif_dismissed_time"] = get_ist_time()
-            conn.close() # Prevent DB Leak
+            conn.close()
             st.rerun()       
+
 if st.session_state.get("show_admin_login", False):
     with st.form("admin_login_popup_form"):
         st.write("#### Admin Login (অ্যাডমিন লগইন)")
@@ -692,21 +736,21 @@ if st.session_state.get("show_admin_login", False):
         if submit_admin:
             c.execute("SELECT password, role FROM users WHERE username='admin'")
             adm_row = c.fetchone()
-            if adm_row and adm_row[0] == admin_pass_input:
+            if adm_row and adm_row["password"] == admin_pass_input:
                 st.session_state["username"] = "admin"
                 st.session_state["user_role"] = "admin"
                 st.session_state["show_admin_login"] = False
                 st.query_params["login"] = "admin"
                 st.markdown("<script>localStorage.setItem('ps_mediseller_user', 'admin');</script>", unsafe_allow_html=True)
                 st.success("Admin login successful! (সফল!)")
-                conn.close() # Prevent DB Leak
+                conn.close()
                 st.rerun()
             else:
                 st.error("Incorrect Password! (ভুল পাসওয়ার্ড!)")
         
         if cancel_admin:
             st.session_state["show_admin_login"] = False
-            conn.close() # Prevent DB Leak
+            conn.close()
             st.rerun()
             
     with st.expander("পাসওয়ার্ড ভুলে গেছেন? (Forgot Password)"):
@@ -724,25 +768,23 @@ if st.session_state.get("show_admin_login", False):
 loc = get_geolocation(component_key="hidden_background_gps_tracker")
 gps_lat, gps_lon = None, None
 if loc and "coords" in loc:
-    gps_lat = loc["coords"]["latitude"]
-    gps_lon = loc["coords"]["longitude"]
+    gps_lat = loc["coords"].get("latitude")
+    gps_lon = loc["coords"].get("longitude")
 
-c.execute(
-    "UPDATE agent_live_locations SET lat=?, lon=?, last_updated=? WHERE username=?",
-    (gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), st.session_state["username"])
-)
-if c.rowcount == 0:
+if gps_lat is not None and gps_lon is not None:
     c.execute(
-        "INSERT INTO agent_live_locations (username, lat, lon, last_updated) VALUES (?, ?, ?, ?)",
-        (st.session_state["username"], gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+        "UPDATE agent_live_locations SET lat=?, lon=?, last_updated=? WHERE username=?",
+        (gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), st.session_state["username"])
     )
-conn.commit()
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO agent_live_locations (username, lat, lon, last_updated) VALUES (?, ?, ?, ?)",
+            (st.session_state["username"], gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+    conn.commit()
 
-# === CONNECTION LEAK FIX (PREVENTS HANG/CRASH) ===
-try:
-    conn.close()
-except:
-    pass
+# Safely close connection context at the end of the top-level script flow
+conn.close()
 
 # --- Menu Setup ---
 all_basic_menus = [
