@@ -3016,62 +3016,103 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
 
     # --- TAB 3: UNKNOWN & BLOCKED AGENTS ---
     with set_tab3:
-        st.write("#### Manage Agents (Block / Unblock / Delete)")
-        
-        c.execute("SELECT username, fullname, is_active FROM users WHERE role='staff'")
-        all_agents = c.fetchall()
+    st.write("### 🛡️ Unknown & Blocked Agents Management")
+    st.caption("লিংক দিয়ে প্রবেশ করা নতুন ইউজার এবং ব্লকড এজেন্টদের তালিকা ও পরিচালনা সেকশন।")
 
-        if not all_agents:
-            st.warning("কোনো এজেন্ট একাউন্ট নেই।")
-        else:
-            agent_dict = {row[0]: (row[1] if row[1] else row[0]) for row in all_agents}
-            agent_options = [row[0] for row in all_agents]
+    # ডাটাবেজ থেকে স্টাফ ও অজানা (Unknown) ইউজারদের ডাটা ফেচ করা
+    c.execute("SELECT username, fullname, role, is_active, created_at FROM users WHERE role != 'admin'")
+    all_users_data = c.fetchall()
 
-            selected_agent_uname = st.selectbox(
-                "Choose Agent Username to Manage",
-                options=agent_options,
-                format_func=lambda x: f"{agent_dict.get(x, x)} ({x})"
-            )
+    if "delete_msg" in st.session_state:
+        st.success(st.session_state["delete_msg"])
+        del st.session_state["delete_msg"]
 
-            if selected_agent_uname:
-                c.execute("SELECT username, fullname, is_active FROM users WHERE username=?", (selected_agent_uname,))
-                agent_row = c.fetchone()
+    if not all_users_data:
+        st.info("বর্তমানে কোনো Unknown বা Blocked এজেন্ট পাওয়া যায়নি।")
+    else:
+        # ১. ড্রপডাউন ফিল্টারিং
+        user_options = [row[0] for row in all_users_data]
+        user_dict = {row[0]: f"{row[1]} (@{row[0]}) - [{row[2].upper()}]" for row in all_users_data}
+
+        st.markdown("##### 🔍 সিলেক্ট করুন যাকে ম্যানেজ করতে চান")
+        selected_uname = st.selectbox(
+            "ইউজারনেম বা আইডি নির্বাচন করুন:",
+            options=user_options,
+            format_func=lambda x: user_dict.get(x, x)
+        )
+
+        if selected_uname:
+            c.execute("SELECT username, fullname, role, is_active, phone FROM users WHERE username=?", (selected_uname,))
+            u_row = c.fetchone()
+            
+            if u_row:
+                s_uname, s_fname, s_role, s_act, s_phone = u_row
+                status_label = "🟢 Active" if s_act == 1 else "🔴 Blocked"
+                role_label = "⚠️ Unknown (Link Access)" if s_role == "unknown" else f"👤 {s_role.capitalize()}"
                 
-                if agent_row:
-                    s_uname, s_fname, s_act = agent_row
-                    status = "Active" if s_act else "Blocked"
-                    st.info(f"**Selected Agent:** {s_fname} (`{s_uname}`) | Status: **{status}**")
+                # 📌 কার্ডের মতো সুন্দর ডিটেইলস ডিসপ্লে
+                st.info(f"""
+                **নাম:** {s_fname}  
+                **ইউজারনেম:** `{s_uname}` | **ফোন:** {s_phone}  
+                **টাইপ:** {role_label} | **স্ট্যাটাস:** {status_label}
+                """)
 
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if s_act:
-                            if st.button("Block Agent", key=f"blk_{s_uname}"):
-                                c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_uname,))
-                                conn.commit()
-                                st.success(f"Agent '{s_uname}' has been blocked.")
-                                st.rerun()
-                        else:
-                            if st.button("Unblock Agent", key=f"unblk_{s_uname}"):
-                                c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_uname,))
-                                conn.commit()
-                                st.success(f"Agent '{s_uname}' has been unblocked.")
-                                st.rerun()
+                col1, col2, col3 = st.columns([1, 1, 1])
 
-                    with col2:
-                        if st.button("Delete Agent", key=f"del_{s_uname}"):
-                            c.execute("DELETE FROM users WHERE username=?", (s_uname,))
+                # কলাম ১: ব্লক / আনব্লক অ্যাকশন
+                with col1:
+                    if s_act == 1:
+                        if st.button("🔒 Block User", key=f"blk_{s_uname}", use_container_width=True):
+                            c.execute("UPDATE users SET is_active=0 WHERE username=?", (s_uname,))
                             conn.commit()
-                            st.success(f"Agent '{s_uname}' deleted successfully!")
+                            st.success(f"'{s_uname}' কে ব্লক করা হয়েছে।")
+                            st.rerun()
+                    else:
+                        if st.button("🔓 Unblock User", key=f"unblk_{s_uname}", use_container_width=True):
+                            c.execute("UPDATE users SET is_active=1 WHERE username=?", (s_uname,))
+                            conn.commit()
+                            st.success(f"'{s_uname}' কে আনব্লক করা হয়েছে।")
                             st.rerun()
 
-            st.write("---")
-            st.markdown("##### All Staff Summary")
-            for s_uname, s_fname, s_act in all_agents:
-                status_text = "Active" if s_act else "Blocked"
-                st.text(f"• {s_fname or s_uname} ({s_uname}) -> {status_text}")
+                # কলাম ২: স্টাফ হিসেবে অ্যাপ্রুভ করা (Unknown ইউজারদের জন্য)
+                with col2:
+                    if s_role == "unknown":
+                        if st.button("✅ Approve as Staff", key=f"appr_{s_uname}", use_container_width=True):
+                            c.execute("UPDATE users SET role='staff' WHERE username=?", (s_uname,))
+                            conn.commit()
+                            st.success(f"'{s_uname}' এখন রেজিস্টার্ড Staff!")
+                            st.rerun()
+
+                # কলাম ৩: ডিলিট অ্যাকশন
+                with col3:
+                    if st.button("🗑️ Delete User", key=f"del_{s_uname}", type="primary", use_container_width=True):
+                        c.execute("DELETE FROM users WHERE username=?", (s_uname,))
+                        conn.commit()
+                        st.session_state["delete_msg"] = f"User '{s_uname}' সফলভাবে মুছে ফেলা হয়েছে!"
+                        st.rerun()
+
+        st.divider()
+
+        # ২. সামারি টেবিল ও লিস্ট
+        st.markdown("##### 📋 সকল এজেন্ট ও অটো-লগইন ইউজারদের সামারি")
+        
+        summary_list = []
+        for u in all_users_data:
+            uname, fname, role, is_act, created = u
+            st_text = "🟢 Active" if is_act == 1 else "🔴 Blocked"
+            type_text = "🔗 Link User (Unknown)" if role == "unknown" else "👤 Staff"
+            summary_list.append({
+                "Username": uname,
+                "Full Name": fname,
+                "Type": type_text,
+                "Status": st_text,
+                "Joined": created
+            })
+            
+        st.dataframe(summary_list, use_container_width=True)
    
     # ==========================================
-    # ১. হেলপার ফাংশন (নিরাপদ ব্যাকআপ ও রিস্টোর)
+    # ১. হেলপার ফাংশন (নিরাপদ ব্যাকআপ ও রিস্টোর code start)
     # ==========================================
     def generate_safe_backup(db_path):
         """SQLite-এর নেটিভ ব্যাকআপ ইঞ্জিন ব্যবহার করে নিরাপদ ব্যাকআপ বাইট রিটার্ন করে"""
