@@ -8,6 +8,7 @@ from folium.plugins import MousePosition
 import pandas as pd
 import sqlite3
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_folium import st_folium
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
 from datetime import datetime, timedelta, timezone
