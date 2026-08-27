@@ -10,7 +10,7 @@ import sqlite3
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_folium import st_folium
-from streamlit_js_eval import get_geolocation, streamlit_js_eval
+from streamlit_js_eval import get_geolocation
 from datetime import datetime, timedelta, timezone
 
 # === 1GB FILE UPLOAD LIMIT CONFIGURATION ===
@@ -70,136 +70,7 @@ def load_logo_b64():
 
 logo_b64 = load_logo_b64()
 
-# === ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION ===
-pwa_manifest_html = f"""
-<script>
-try {{
-    const base_url = window.location.href.split('?')[0];
-    const urlParams = new URLSearchParams(window.location.search);
-    let current_user = urlParams.get('login');
-    if (current_user) {{
-        localStorage.setItem('ps_mediseller_user', current_user);
-    }}
-    let saved_user = localStorage.getItem('ps_mediseller_user');
-    if (saved_user && saved_user !== "null" && saved_user !== "None") {{
-        current_user = saved_user;
-    }}
-    const start_url_path = current_user ? base_url + "?login=" + current_user : base_url;
-    const manifest = {{
-        "name": "P.S MEDISELLER",
-        "short_name": "Mediseller",
-        "start_url": start_url_path,
-        "display": "standalone",
-        "background_color": "#0f172a",
-        "theme_color": "#0f172a",
-        "icons": [
-            {{
-                "src": "data:image/jpeg;base64,{logo_b64}",
-                "sizes": "192x192",
-                "type": "image/jpeg"
-            }}
-        ]
-    }};
-    const stringManifest = JSON.stringify(manifest);
-    const blob = new Blob([stringManifest], {{type: 'application/json'}});
-    const manifestURL = URL.createObjectURL(blob);
-    const targetHead = window.parent.document.head || document.head;
-    
-    let link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = manifestURL;
-    targetHead.appendChild(link);
-    
-    let meta1 = document.createElement('meta');
-    meta1.name = 'apple-mobile-web-app-capable';
-    meta1.content = 'yes';
-    targetHead.appendChild(meta1);
-    
-    let meta2 = document.createElement('meta');
-    meta2.name = 'mobile-web-app-capable';
-    meta2.content = 'yes';
-    targetHead.appendChild(meta2);
-    
-    if ('serviceWorker' in navigator) {{
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
-    }}
-}} catch(e) {{
-    console.log("PWA injection error:", e);
-}}
-</script>
-"""
-st.components.v1.html(pwa_manifest_html, height=0)
-
-# === MANDATORY LOCATION PERMISSION ENFORCEMENT COMPONENT ===
-mandatory_location_html = """
-<div id="loc-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.98); z-index: 999999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; font-family: 'Poppins', sans-serif;">
-    <div style="background: #1e293b; border: 2px solid #ef4444; border-radius: 16px; padding: 30px; max-width: 450px; width: 100%; text-align: center; box-shadow: 0 20px 25px 5px rgba(0, 0, 0, 0.5);">
-        <div style="font-size: 48px; margin-bottom: 15px;">📍</div>
-        <h2 style="color: #f87171; margin-top: 0; font-size: 22px;">Location Permission Required<br> (লোকেশন পারমিশন আবশ্যক)</h2>
-        <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
-            P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant permission.<br><br>
-            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
-        </p>
-        <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border: none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
-            Grant Permission / Retry (অনুমতি দিন / রিফ্রেশ)
-        </button>
-        <p id="loc-status" style="color: #fbbf24; font-size: 13px; margin-top: 15px; display: none;"></p>
-    </div>
-</div>
-<script>
-function checkAndRequestLocation() {
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        return;
-    }
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            localStorage.setItem('ps_user_lat', lat);
-            localStorage.setItem('ps_user_lon', lon);
-            const overlay = document.getElementById('loc-overlay');
-            if (overlay) overlay.style.display = 'none';
-        },
-        function(error) {
-            console.warn("Location error:", error.code, error.message);
-            const overlay = document.getElementById('loc-overlay');
-            if (overlay) overlay.style.display = 'flex';
-            const status = document.getElementById('loc-status');
-            if (status) {
-                status.style.display = 'block';
-                if (error.code === error.PERMISSION_DENIED) {
-                    status.innerText = "⚠️ Location permission denied! Please enable it in browser & phone settings. (লোকেশন পারমিশন দিন)";
-                } else if (error.code === error.POSITION_UNAVAILABLE) {
-                    status.innerText = "⚠️ GPS signal unavailable. Please turn on phone GPS/Location. (জিপিএস অন করুন)";
-                } else {
-                    status.innerText = "⚠️ Please enable location to continue. (লোকেশন অন করুন)";
-                }
-            }
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        }
-    );
-}
-function requestLocation() {
-    const status = document.getElementById('loc-status');
-    if (status) {
-        status.style.display = 'block';
-        status.innerText = "Requesting location permission... (অনুমতি নেওয়া হচ্ছে...)";
-    }
-    checkAndRequestLocation();
-}
-window.addEventListener('load', function() {
-    setTimeout(checkAndRequestLocation, 500);
-    setInterval(checkAndRequestLocation, 300000);
-});
-</script>
-"""
-st.components.v1.html(mandatory_location_html, height=0)
-
+# === STYLING & MOBILE UI OPTIMIZATIONS ===
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -266,27 +137,6 @@ input::placeholder, textarea::placeholder {
     color: #60a5fa !important;
     font-weight: 700 !important;
 }
-div[data-testid="stTextInput"] small,
-div[data-testid="stTextArea"] small,
-div[data-testid="stTextInput"] div p,
-div[data-testid="stTextArea"] div p,
-.stTextInput small,
-.stTextArea small {
-    background: rgba(37, 99, 235, 0.25) !important;
-    color: #60a5fa !important;
-    border: 1px solid #3b82f6 !important;
-    padding: 6px 12px !important;
-    border-radius: 6px !important;
-    font-weight: 600 !important;
-    display: inline-block !important;
-    margin-top: 6px !important;
-}
-.stRadio > div {
-    background: transparent !important;
-    padding: 0px !important;
-    border: none !important;
-    box-shadow: none !important;
-}
 .stRadio div[role="radiogroup"] label {
     background: #1e293b !important;
     border: 1px solid rgba(129, 140, 248, 0.35) !important;
@@ -299,20 +149,11 @@ div[data-testid="stTextArea"] div p,
     align-items: center !important;
     width: 100% !important;
 }
-.stRadio div[role="radiogroup"] label:hover {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #60a5fa !important;
-    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.3) !important;
-    transform: translateY(-2px);
-}
 .stRadio div[role="radiogroup"] label p {
     color: #ffffff !important;
     font-weight: 600 !important;
     font-size: 14px !important;
     margin: 0 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
 }
 .stSuccess {
     background: rgba(16, 185, 129, 0.25) !important;
@@ -326,23 +167,15 @@ div[data-testid="stTextArea"] div p,
     color: #fbbf24 !important;
     border-radius: 10px !important;
 }
-.main-title {
-    font-size: 24px;
-    font-weight: bold;
-    color: #ffffff;
-    text-align: center;
-    margin-bottom: 20px;
-}
 </style>
 """, unsafe_allow_html=True)
 
-# === DATABASE SETUP & ACTIVE CONNECTION ===
+# === DATABASE SETUP & PERMANENT CONNECTION ===
 DB_FILE = "mediseller_delivery.db"
 
 def get_db_connection():
     return sqlite3.connect(DB_FILE, check_same_thread=False)
 
-# Global connection and cursor keep script fully active for line 810+
 conn = get_db_connection()
 c = conn.cursor()
 
@@ -470,18 +303,9 @@ if "allow_resubmit" not in existing_user_cols:
 if "allowed_menus" not in existing_user_cols:
     c.execute("ALTER TABLE users ADD COLUMN allowed_menus TEXT DEFAULT 'Add Location (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due & Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance (উপস্থিতি)'")
 
-c.execute("PRAGMA table_info(task_assignments)")
-existing_cols_task = [row[1] for row in c.fetchall()]
-if "sale_amount" not in existing_cols_task:
-    c.execute("ALTER TABLE task_assignments ADD COLUMN sale_amount TEXT DEFAULT '0'")
-if "payment_collected_actual" not in existing_cols_task:
-    c.execute("ALTER TABLE task_assignments ADD COLUMN payment_collected_actual TEXT DEFAULT '0'")
-if "remaining_due" not in existing_cols_task:
-    c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
-
 conn.commit()
 
-# Default Users Creation
+# Ensure Default Users Exist
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     c.execute(
@@ -494,50 +318,33 @@ if c.fetchone()[0] == 0:
     )
     conn.commit()
 
-c.execute("SELECT username FROM users WHERE username='staff'")
-if not c.fetchone():
-    c.execute(
-        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ("staff", "user123", "staff", "Staff Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0)
-    )
-    conn.commit()
+# === BULLETPROOF SESSION & PERSISTENCE HANDLING ===
+# 1. Session state priorities: Preserve existing active session first!
+if "username" not in st.session_state or not st.session_state["username"]:
+    query_user = st.query_params.get("login", None)
+    if isinstance(query_user, list):
+        query_user = query_user[0] if query_user else None
+    
+    if query_user:
+        st.session_state["username"] = str(query_user).strip()
+    else:
+        st.session_state["username"] = "staff"
 
-# === UNIFIED & BULLETPROOF USER SESSION & REFRESH PERSISTENCE ===
-url_user = st.query_params.get("login")
-if isinstance(url_user, list):
-    url_user = url_user[0] if url_user else None
+target_login = st.session_state["username"]
 
-saved_user_js = streamlit_js_eval(
-    js_expressions="localStorage.getItem('ps_mediseller_user')",
-    key="get_saved_user_storage_unique"
-)
-
-target_login = None
-if url_user:
-    target_login = str(url_user).strip()
-elif saved_user_js and saved_user_js not in ["null", "None", "undefined"]:
-    target_login = str(saved_user_js).strip()
-elif "username" in st.session_state and st.session_state["username"] not in ["staff", "delivery"]:
-    target_login = st.session_state["username"]
-
-if not target_login:
-    target_login = "staff"
-
-c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
+# Fetch user details safely from Database
+c.execute("SELECT fullname, role, is_active, allowed_menus FROM users WHERE username=?", (target_login,))
 user_row = c.fetchone()
 
 if user_row:
-    f_name, r_role, is_active = user_row[0], user_row[1], user_row[2]
+    f_name, r_role, is_active, allowed_menus = user_row[0], user_row[1], user_row[2], user_row[3]
     if is_active == 0:
         st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
-        st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
-        st.query_params.clear()
         st.stop()
-    else:
-        st.session_state["username"] = target_login
-        st.session_state["user_role"] = r_role
-        st.query_params["login"] = target_login
-        st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
+    st.session_state["username"] = target_login
+    st.session_state["user_role"] = r_role
+    st.session_state["allowed_menus"] = allowed_menus
+    st.query_params["login"] = target_login
 else:
     st.session_state["username"] = "staff"
     st.session_state["user_role"] = "staff"
@@ -552,84 +359,7 @@ def move_to_recycle_bin(item_type, item_title, item_data_dict):
     )
     conn.commit()
 
-# === AUTOMATIC CLEANUP LOGIC ===
-current_dt_str = get_ist_time()
-c.execute("SELECT id, order_date FROM orders")
-for row_ord in c.fetchall():
-    try:
-        cleaned_date = str(row_ord[1]).strip()
-        if " " in cleaned_date:
-            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        else:
-            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        if (current_dt_str - o_time) > timedelta(days=7):
-            c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
-    except Exception:
-        pass
-
-c.execute("SELECT id, created_at, status FROM task_assignments")
-for row_task in c.fetchall():
-    try:
-        t_status = str(row_task[2]).strip().lower() if row_task[2] else ""
-        if t_status == "completed":
-            cleaned_task_date = str(row_task[1]).strip()
-            if " " in cleaned_task_date:
-                t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            else:
-                t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            if (current_dt_str - t_time) > timedelta(hours=48):
-                c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
-    except Exception:
-        pass
-
-conn.commit()
-
-def generate_html_report(title, dataframe):
-    import datetime
-    safe_now = datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
-    time_str = safe_now.strftime('%d.%m.%y %H:%M:%S')
-    table_html = dataframe.to_html(index=False, border=0)
-    html_content = f"""
-<html>
-<head>
-<title>{title}</title>
-<meta charset="UTF-8">
-<style>
-body {{ font-family: Arial, sans-serif; margin: 20px; color: #333; background: #f9f9f9; }}
-.header {{ text-align: center; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
-h2 {{ color: #1e40af; margin: 0; }}
-p {{ color: #555; font-size: 14px; margin: 5px 0; }}
-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }}
-th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; }}
-th {{ background-color: #3b82f6; color: white; }}
-.footer {{ margin-top: 20px; font-size: 12px; color: #777; text-align: center; }}
-</style>
-</head>
-<body>
-<div class="header">
-<h2>{title}</h2>
-<p>P. S MEDISELLER Report</p>
-</div>
-{table_html}
-<p class="footer">Generated on: {time_str} IST</p>
-</body>
-</html>
-"""
-    return html_content
-
-if "selected_lat" not in st.session_state:
-    st.session_state["selected_lat"] = 22.8620
-if "selected_lon" not in st.session_state:
-    st.session_state["selected_lon"] = 87.3320
-
-current_logged_username = st.session_state["username"]
-if current_logged_username != "admin":
-    c.execute("SELECT is_active FROM users WHERE username=?", (current_logged_username,))
-    res_act = c.fetchone()
-    if res_act and res_act[0] == 0:
-        st.error("আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
-        st.stop()
-
+# === HEADER SECTION ===
 col_ht1, col_ht2 = st.columns([3, 1])
 with col_ht1:
     st.markdown(f"""
@@ -647,8 +377,7 @@ with col_ht2:
         if st.button("Logout (লগআউট)", key="logout_btn_top"):
             st.session_state["username"] = "staff"
             st.session_state["user_role"] = "staff"
-            st.query_params.clear()
-            st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
+            st.query_params["login"] = "staff"
             st.rerun()
     else:
         if st.button("Admin Login (অ্যাডমিন)", key="login_btn_top"):
@@ -657,36 +386,13 @@ with col_ht2:
 
 c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
 curr_user_row = c.fetchone()
-if curr_user_row and curr_user_row[0]:
-    display_user_name = curr_user_row[0]
-else:
-    display_user_name = st.session_state['username']
+display_user_name = curr_user_row[0] if (curr_user_row and curr_user_row[0]) else st.session_state['username']
 
 col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
     st.markdown(f"<h3 style='color: #0ea5e9; font-weight: 600; margin-bottom: 0;'>👤 {display_user_name}</h3>", unsafe_allow_html=True)
 
-c.execute("SELECT COUNT(*) FROM orders WHERE status='Pending'")
-pending_ord_count = c.fetchone()[0]
-c.execute("SELECT COUNT(*) FROM task_assignments WHERE status='Pending'")
-pending_task_count = c.fetchone()[0]
-total_pending_items = pending_ord_count + pending_task_count
-
-show_notif = True
-if "notif_dismissed_time" in st.session_state:
-    time_diff = (get_ist_time() - st.session_state["notif_dismissed_time"]).total_seconds()
-    if time_diff < 3600:
-        show_notif = False
-
-if show_notif and total_pending_items > 0:
-    col_n1, col_n2 = st.columns([5, 1])
-    with col_n1:
-        st.warning("⚠️ **নোটিফিকেশন:** আপনার অর্ডার পেন্ডিং বা ডিউ পেন্ডিং রয়েছে। **পেন্ডিং Order খাতায় তুলতে বাকি!**")
-    with col_n2:
-        if st.button("সরান", key="dismiss_notif_bar_btn"):
-            st.session_state["notif_dismissed_time"] = get_ist_time()
-            st.rerun()       
-
+# Admin Login Popup Form
 if st.session_state.get("show_admin_login", False):
     with st.form("admin_login_popup_form"):
         st.write("#### Admin Login (অ্যাডমিন লগইন)")
@@ -705,45 +411,31 @@ if st.session_state.get("show_admin_login", False):
                 st.session_state["user_role"] = "admin"
                 st.session_state["show_admin_login"] = False
                 st.query_params["login"] = "admin"
-                st.markdown("<script>localStorage.setItem('ps_mediseller_user', 'admin');</script>", unsafe_allow_html=True)
-                st.success("Admin login successful! (সফল!)")
+                st.success("Admin login successful!")
                 st.rerun()
             else:
-                st.error("Incorrect Password! (ভুল পাসওয়ার্ড!)")
+                st.error("Incorrect Password!")
         
         if cancel_admin:
             st.session_state["show_admin_login"] = False
             st.rerun()
-            
-    with st.expander("পাসওয়ার্ড ভুলে গেছেন? (Forgot Password)"):
-        st.info("অ্যাডমিন পাসওয়ার্ড রিসেট করতে মাস্টার কোড ব্যবহার করুন। (Master Code: PSMEDISELLER)")
-        master_code = st.text_input("Master Code (মাস্টার কোড)", type="password")
-        new_admin_pass = st.text_input("New Admin Password", type="password")
-        if st.button("Reset Admin Password (রিসেট করুন)"):
-            if master_code == "PSMEDISELLER" and new_admin_pass.strip():
-                c.execute("UPDATE users SET password=? WHERE username='admin'", (new_admin_pass.strip(),))
-                conn.commit()
-                st.success("পাসওয়ার্ড সফলভাবে রিসেট হয়েছে! (Password Reset Successful!)")
-            else:
-                st.error("ভুল কোড বা পাসওয়ার্ড! (Invalid Code or Password!)")
 
+# GPS Background Tracking
 loc = get_geolocation(component_key="hidden_background_gps_tracker")
-gps_lat, gps_lon = None, None
 if loc and "coords" in loc:
     gps_lat = loc["coords"].get("latitude")
     gps_lon = loc["coords"].get("longitude")
-
-if gps_lat is not None and gps_lon is not None:
-    c.execute(
-        "UPDATE agent_live_locations SET lat=?, lon=?, last_updated=? WHERE username=?",
-        (gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), st.session_state["username"])
-    )
-    if c.rowcount == 0:
+    if gps_lat is not None and gps_lon is not None:
         c.execute(
-            "INSERT INTO agent_live_locations (username, lat, lon, last_updated) VALUES (?, ?, ?, ?)",
-            (st.session_state["username"], gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+            "UPDATE agent_live_locations SET lat=?, lon=?, last_updated=? WHERE username=?",
+            (gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), st.session_state["username"])
         )
-    conn.commit()
+        if c.rowcount == 0:
+            c.execute(
+                "INSERT INTO agent_live_locations (username, lat, lon, last_updated) VALUES (?, ?, ?, ?)",
+                (st.session_state["username"], gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
+            )
+        conn.commit()
 
 # --- Menu Setup ---
 all_basic_menus = [
