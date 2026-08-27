@@ -331,6 +331,7 @@ div[data-testid="stTextArea"] div p,
 # === DATABASE SETUP ===
 DB_FILE = "mediseller_delivery.db"
 
+@st.cache_resource
 def get_db_connection():
     return sqlite3.connect(DB_FILE, check_same_thread=False)
 
