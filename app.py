@@ -331,12 +331,11 @@ div[data-testid="stTextArea"] div p,
 # === DATABASE SETUP ===
 DB_FILE = "mediseller_delivery.db"
 
-@st.cache_resource
-def get_db_connection():
-    return sqlite3.connect(DB_FILE, check_same_thread=False)
+def get_db():
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    return conn, conn.cursor()
 
-conn = get_db_connection()
-c = conn.cursor()
+conn, c = get_db()
 
 c.execute("""
 CREATE TABLE IF NOT EXISTS users (
