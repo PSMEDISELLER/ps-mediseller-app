@@ -10,7 +10,7 @@ import sqlite3
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_folium import st_folium
-from streamlit_js_eval import get_geolocation
+from streamlit_js_eval import get_geolocation, streamlit_js_eval
 from datetime import datetime, timedelta, timezone
 
 # === 1GB FILE UPLOAD LIMIT CONFIGURATION ===
@@ -59,7 +59,7 @@ def format_date_display(date_str):
     except Exception:
         return date_str
 
-# === CACHED ASSETS LOADING FOR SPEED ===
+# === CACHED ASSETS LOADING ===
 @st.cache_data
 def load_logo_b64():
     for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
@@ -70,7 +70,63 @@ def load_logo_b64():
 
 logo_b64 = load_logo_b64()
 
-# === STYLING & MOBILE UI OPTIMIZATIONS ===
+# === PWA STANDALONE MANIFEST & LOCAL STORAGE INJECTION ===
+pwa_manifest_html = f"""
+<script>
+try {{
+    const base_url = window.location.href.split('?')[0];
+    const urlParams = new URLSearchParams(window.location.search);
+    let current_user = urlParams.get('login');
+    if (current_user) {{
+        localStorage.setItem('ps_mediseller_user', current_user);
+    }}
+    let saved_user = localStorage.getItem('ps_mediseller_user');
+    if (saved_user && saved_user !== "null" && saved_user !== "None") {{
+        current_user = saved_user;
+    }}
+    const start_url_path = current_user ? base_url + "?login=" + current_user : base_url;
+    const manifest = {{
+        "name": "P.S MEDISELLER",
+        "short_name": "Mediseller",
+        "start_url": start_url_path,
+        "display": "standalone",
+        "background_color": "#0f172a",
+        "theme_color": "#0f172a",
+        "icons": [
+            {{
+                "src": "data:image/jpeg;base64,{logo_b64}",
+                "sizes": "192x192",
+                "type": "image/jpeg"
+            }}
+        ]
+    }};
+    const stringManifest = JSON.stringify(manifest);
+    const blob = new Blob([stringManifest], {{type: 'application/json'}});
+    const manifestURL = URL.createObjectURL(blob);
+    const targetHead = window.parent.document.head || document.head;
+    
+    let link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = manifestURL;
+    targetHead.appendChild(link);
+    
+    let meta1 = document.createElement('meta');
+    meta1.name = 'apple-mobile-web-app-capable';
+    meta1.content = 'yes';
+    targetHead.appendChild(meta1);
+    
+    let meta2 = document.createElement('meta');
+    meta2.name = 'mobile-web-app-capable';
+    meta2.content = 'yes';
+    targetHead.appendChild(meta2);
+}} catch(e) {{
+    console.log("PWA injection error:", e);
+}}
+</script>
+"""
+components.html(pwa_manifest_html, height=0)
+
+# === STYLING & UI Theme ===
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -93,22 +149,6 @@ div.stExpander, div[data-testid="stForm"] {
     box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.4);
     color: #ffffff !important;
 }
-div.stExpander details summary,
-div.stExpander details summary span,
-div.stExpander details summary p,
-[data-testid="stExpander"] summary,
-[data-testid="stExpander"] summary span,
-[data-testid="stExpander"] summary p {
-    background-color: #1e293b !important;
-    color: #ffffff !important;
-    border-radius: 8px !important;
-    padding: 6px 10px !important;
-}
-div.stExpander details {
-    background: #1e293b !important;
-    border: 1px solid rgba(148, 163, 184, 0.35) !important;
-    border-radius: 14px !important;
-}
 .stButton>button, div.stButton > button, button[kind="secondary"],
 button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
@@ -118,14 +158,6 @@ button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
     font-weight: 600 !important;
     border: 1px solid rgba(255, 255, 255, 0.25) !important;
     box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4) !important;
-    transition: all 0.3s ease !important;
-}
-.stButton>button:hover, div.stButton > button:hover,
-button[kind="secondary"]:hover, button[kind="primary"]:hover,
-[data-testid="stFormSubmitButton"] > button:hover {
-    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6) !important;
-    transform: translateY(-2px);
 }
 input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"] textarea, div[data-baseweb="input"], div[data-baseweb="select"] {
     background-color: #0f172a !important;
@@ -133,44 +165,22 @@ input, textarea, select, [data-baseweb="input"] input, [data-baseweb="textarea"]
     border: 1px solid #3b82f6 !important;
     border-radius: 8px !important;
 }
-input::placeholder, textarea::placeholder {
-    color: #60a5fa !important;
-    font-weight: 700 !important;
-}
 .stRadio div[role="radiogroup"] label {
     background: #1e293b !important;
     border: 1px solid rgba(129, 140, 248, 0.35) !important;
     border-radius: 12px !important;
     padding: 10px 14px !important;
     margin-bottom: 8px !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
-    transition: all 0.3s ease !important;
-    display: flex !important;
-    align-items: center !important;
     width: 100% !important;
 }
 .stRadio div[role="radiogroup"] label p {
     color: #ffffff !important;
     font-weight: 600 !important;
-    font-size: 14px !important;
-    margin: 0 !important;
-}
-.stSuccess {
-    background: rgba(16, 185, 129, 0.25) !important;
-    border: 1px solid #10b981 !important;
-    color: #34d399 !important;
-    border-radius: 10px !important;
-}
-.stWarning {
-    background: rgba(245, 158, 11, 0.25) !important;
-    border: 1px solid #f59e0b !important;
-    color: #fbbf24 !important;
-    border-radius: 10px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# === DATABASE SETUP & PERMANENT CONNECTION ===
+# === DATABASE SETUP & CONNECTION ===
 DB_FILE = "mediseller_delivery.db"
 
 def get_db_connection():
@@ -273,39 +283,9 @@ CREATE TABLE IF NOT EXISTS recycle_bin (
 )
 """)
 
-# Database Column Checks
-c.execute("PRAGMA table_info(locations)")
-existing_cols_loc = [row[1] for row in c.fetchall()]
-if "party_phone" not in existing_cols_loc:
-    c.execute("ALTER TABLE locations ADD COLUMN party_phone TEXT")
-if "current_due" not in existing_cols_loc:
-    c.execute("ALTER TABLE locations ADD COLUMN current_due REAL DEFAULT 0")
-
-c.execute("PRAGMA table_info(orders)")
-existing_cols_ord = [row[1] for row in c.fetchall()]
-if "payment_collected" not in existing_cols_ord:
-    c.execute("ALTER TABLE orders ADD COLUMN payment_collected TEXT DEFAULT '0'")
-if "status" not in existing_cols_ord:
-    c.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'Pending'")
-
-c.execute("PRAGMA table_info(users)")
-existing_user_cols = [row[1] for row in c.fetchall()]
-if "fullname" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
-if "phone" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN phone TEXT")
-if "created_at" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP")
-if "is_active" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
-if "allow_resubmit" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN allow_resubmit INTEGER DEFAULT 0")
-if "allowed_menus" not in existing_user_cols:
-    c.execute("ALTER TABLE users ADD COLUMN allowed_menus TEXT DEFAULT 'Add Location (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due & Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance (উপস্থিতি)'")
-
 conn.commit()
 
-# Ensure Default Users Exist
+# Default User Setup
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     c.execute(
@@ -318,37 +298,32 @@ if c.fetchone()[0] == 0:
     )
     conn.commit()
 
-# === BULLETPROOF SESSION & PERSISTENCE HANDLING ===
-# 1. Session state priorities: Preserve existing active session first!
+# === ACCURATE USER SESSION & FULLNAME MANAGEMENT ===
+query_login = st.query_params.get("login", None)
+if isinstance(query_login, list):
+    query_login = query_login[0] if query_login else None
+
 if "username" not in st.session_state or not st.session_state["username"]:
-    query_user = st.query_params.get("login", None)
-    if isinstance(query_user, list):
-        query_user = query_user[0] if query_user else None
-    
-    if query_user:
-        st.session_state["username"] = str(query_user).strip()
-    else:
-        st.session_state["username"] = "staff"
+    st.session_state["username"] = query_login if query_login else "staff"
+elif query_login and st.session_state["username"] != query_login:
+    st.session_state["username"] = query_login
 
 target_login = st.session_state["username"]
 
-# Fetch user details safely from Database
 c.execute("SELECT fullname, role, is_active, allowed_menus FROM users WHERE username=?", (target_login,))
 user_row = c.fetchone()
 
 if user_row:
-    f_name, r_role, is_active, allowed_menus = user_row[0], user_row[1], user_row[2], user_row[3]
+    db_fullname, db_role, is_active, allowed_menus = user_row[0], user_row[1], user_row[2], user_row[3]
     if is_active == 0:
-        st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
+        st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে।")
         st.stop()
-    st.session_state["username"] = target_login
-    st.session_state["user_role"] = r_role
+    st.session_state["user_role"] = db_role
     st.session_state["allowed_menus"] = allowed_menus
-    st.query_params["login"] = target_login
+    display_user_name = db_fullname if db_fullname else "Staff Agent"
 else:
-    st.session_state["username"] = "staff"
+    display_user_name = "Staff Agent"
     st.session_state["user_role"] = "staff"
-    st.query_params["login"] = "staff"
 
 def move_to_recycle_bin(item_type, item_title, item_data_dict):
     data_json = json.dumps(item_data_dict)
@@ -364,7 +339,7 @@ col_ht1, col_ht2 = st.columns([3, 1])
 with col_ht1:
     st.markdown(f"""
 <div style="display: flex; align-items: center; gap: 12px;">
-    <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+    <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);">
     <div>
         <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-size: 19px !important; background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; line-height: 1.2;">P. S MEDISELLER</h1>
         <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Allopathy & Ayurvedic Wholesaler | Ph: 8918740325</p>
@@ -377,22 +352,16 @@ with col_ht2:
         if st.button("Logout (লগআউট)", key="logout_btn_top"):
             st.session_state["username"] = "staff"
             st.session_state["user_role"] = "staff"
-            st.query_params["login"] = "staff"
+            st.query_params.clear()
             st.rerun()
     else:
         if st.button("Admin Login (অ্যাডমিন)", key="login_btn_top"):
             st.session_state["show_admin_login"] = True
             st.rerun()
 
-c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
-curr_user_row = c.fetchone()
-display_user_name = curr_user_row[0] if (curr_user_row and curr_user_row[0]) else st.session_state['username']
+st.markdown(f"<h3 style='color: #0ea5e9; font-weight: 600; margin-top: 15px;'>👤 {display_user_name}</h3>", unsafe_allow_html=True)
 
-col_u1, col_u2 = st.columns([3, 1])
-with col_u1:
-    st.markdown(f"<h3 style='color: #0ea5e9; font-weight: 600; margin-bottom: 0;'>👤 {display_user_name}</h3>", unsafe_allow_html=True)
-
-# Admin Login Popup Form
+# Admin Login Modal
 if st.session_state.get("show_admin_login", False):
     with st.form("admin_login_popup_form"):
         st.write("#### Admin Login (অ্যাডমিন লগইন)")
@@ -420,7 +389,7 @@ if st.session_state.get("show_admin_login", False):
             st.session_state["show_admin_login"] = False
             st.rerun()
 
-# GPS Background Tracking
+# GPS Tracking Background Action
 loc = get_geolocation(component_key="hidden_background_gps_tracker")
 if loc and "coords" in loc:
     gps_lat = loc["coords"].get("latitude")
@@ -436,6 +405,17 @@ if loc and "coords" in loc:
                 (st.session_state["username"], gps_lat, gps_lon, get_ist_time().strftime("%Y-%m-%d %H:%M:%S"))
             )
         conn.commit()
+
+# Dynamic GPS Component Cache Function
+@st.cache_resource
+def get_gps_component():
+    tmpdir = tempfile.mkdtemp()
+    index_file = os.path.join(tmpdir, "index.html")
+    with open(index_file, "w") as f:
+        f.write("<html><body><script>console.log('GPS Loaded');</script></body></html>")
+    return components.declare_component("gps_component", path=tmpdir)
+
+gps_comp = get_gps_component()
 
 # --- Menu Setup ---
 all_basic_menus = [
