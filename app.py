@@ -3069,26 +3069,57 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
             for s_uname, s_fname, s_act in all_agents:
                 status_text = "Active" if s_act else "Blocked"
                 st.text(f"• {s_fname or s_uname} ({s_uname}) -> {status_text}")
-
-    # --- TAB 4: BACKUP & RESTORE ---
+   
+    import sqlite3
+    import streamlit as st
+    
+    # ১. নিরাপদ ব্যাকআপ ফাংশন (সব পেন্ডিং ডেটা ফাইলে সিঙ্ক করে পড়ে)
+    def get_db_bytes(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.execute("PRAGMA wal_checkpoint(FULL);")  # Unsaved cache memory save করে
+            conn.close()
+            with open(db_path, "rb") as f:
+                return f.read()
+        except Exception as e:
+            st.error(f"Backup Error: {e}")
+            return None
+    
+    # ২. Tab 4 - Backup & Restore UI
     with set_tab4:
         st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
-        try:
-            with open(DB_FILE, "rb") as f:
-                st.download_button("Download Database Backup (.db)", f, file_name="mediseller_backup.db")
-        except Exception as e:
-            st.error(f"ডাটাবেস ফাইল পড়া যাচ্ছে না: {e}")
-
+    
+        db_bytes = get_db_bytes(DB_FILE)
+        if db_bytes:
+            st.download_button(
+                label="Download Database Backup (.db)",
+                data=db_bytes,
+                file_name="mediseller_backup.db",
+                mime="application/x-sqlite3",
+            )
+    
         st.write("---")
+    
         st.write("#### Database Restore")
         uploaded_file = st.file_uploader("Select Database File (.db)", type=["db"])
+    
         if uploaded_file is not None:
             if st.button("Confirm Restore Database"):
-                with open(DB_FILE, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                st.success("Database restored successfully!")
-                st.rerun()
-
+                try:
+                    # ক্যাশ ও কানেকশন রিফ্রেশ
+                    st.cache_resource.clear()
+    
+                    # নতুন ব্যাকআপ ফাইল রাইট
+                    with open(DB_FILE, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+    
+                    st.success(
+                        "Database restored successfully! App is reloading..."
+                    )
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Restore Failed: {e}")
+        
     # --- TAB 5: RECYCLE BIN ---
     with set_tab5:
         st.subheader("Recycle Bin (রিসাইকেল বিন)")
