@@ -16,7 +16,8 @@ from datetime import datetime, timedelta, timezone
 # ==========================================
 os.makedirs(".streamlit", exist_ok=True)
 with open(".streamlit/config.toml", "w") as f:
-    f.write("[server]\nmaxUploadSize = 1024\n")
+    # 1GB এর বদলে 100MB করা হলো যাতে সার্ভার ক্র্যাশ না করে
+    f.write("[server]\nmaxUploadSize = 100\n")
 
 st.set_page_config(
     page_title="P. S MEDISELLER Allopathy & Ayurvedic Wholesaler",
@@ -84,7 +85,8 @@ def generate_html_report(title, dataframe):
 DB_FILE = "mediseller_delivery.db"
 
 def get_db_connection():
-    return sqlite3.connect(DB_FILE, check_same_thread=False)
+    # timeout=10.0 যোগ করা হলো যাতে একসাথে একাধিক ইউজার ব্যবহার করলে Database lock না হয়
+    return sqlite3.connect(DB_FILE, check_same_thread=False, timeout=10.0)
 
 conn = get_db_connection()
 c = conn.cursor()
@@ -255,39 +257,20 @@ def move_to_recycle_bin(item_type, item_title, item_data_dict):
     )
     conn.commit()
 
-# Automatic Cleanup Logic
-current_dt_str = get_ist_time()
-c.execute("SELECT id, order_date FROM orders")
-for row_ord in c.fetchall():
-    try:
-        cleaned_date = str(row_ord[1]).strip()
-        if " " in cleaned_date:
-            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        else:
-            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-        
-        if (current_dt_str - o_time) > timedelta(days=7):
-            c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
-    except Exception:
-        pass
-
-c.execute("SELECT id, created_at, status FROM task_assignments")
-for row_task in c.fetchall():
-    try:
-        t_status = str(row_task[2]).strip().lower() if row_task[2] else ""
-        if t_status == "completed":
-            cleaned_task_date = str(row_task[1]).strip()
-            if " " in cleaned_task_date:
-                t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            else:
-                t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            
-            if (current_dt_str - t_time) > timedelta(hours=48):
-                c.execute("DELETE FROM task_assignments WHERE id=?", (row_task[0],))
-    except Exception:
-        pass
-
-conn.commit()
+# ==========================================
+# FAST AUTOMATIC CLEANUP LOGIC (Optimized SQL)
+# ==========================================
+try:
+    current_time = get_ist_time()
+    seven_days_ago = (current_time - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    forty_eight_hours_ago = (current_time - timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Python লুপের বদলে সরাসরি SQL Query (Instant Deletion)
+    c.execute("DELETE FROM orders WHERE order_date <= ?", (seven_days_ago,))
+    c.execute("DELETE FROM task_assignments WHERE status='completed' AND created_at <= ?", (forty_eight_hours_ago,))
+    conn.commit()
+except Exception:
+    pass
 
 # ==========================================
 # 4. CUSTOM STYLING & PWA INJECTION
@@ -305,12 +288,16 @@ div[data-testid="stImage"] img {
 if os.path.exists("banner.jpg"):
     st.image("banner.jpg", use_container_width=True)
 
-logo_b64 = ""
-for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
-    if os.path.exists(logo_name):
-        with open(logo_name, "rb") as f:
-            logo_b64 = base64.b64encode(f.read()).decode()
-        break
+# লোগো বারবার লোড হওয়া আটকাতে Cache ব্যবহার করা হলো
+@st.cache_data
+def get_base64_logo():
+    for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
+        if os.path.exists(logo_name):
+            with open(logo_name, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+    return ""
+
+logo_b64 = get_base64_logo()
 
 pwa_manifest_html = f"""
 <script>
@@ -378,7 +365,7 @@ mandatory_location_html = """
         <h2 style="color: #f87171; margin-top: 0; font-size: 22px;">Location Permission Required<br> (লোকেশন পারমিশন আবশ্যক)</h2>
         <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
             P.S Mediseller app requires your live GPS location to function properly. Please enable Location/GPS on your device and grant permission.<br><br>
-            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে না।)</b>
+            <b>(অ্যাপটি ব্যবহারের জন্য আপনার ফোনের জিপিএস লোকেশন অন করুন এবং পারমিশন দিন। লোকেশন বন্ধ রাখলে অ্যাপ ব্যবহার করা যাবে কাশী।)</b>
         </p>
         <button onclick="requestLocation()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border: none; padding: 14px 28px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
             Grant Permission / Retry (অনুমতি দিন / রিফ্রেশ)
