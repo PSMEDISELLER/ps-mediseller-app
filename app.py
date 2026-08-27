@@ -16,7 +16,6 @@ from datetime import datetime, timedelta, timezone
 # ==========================================
 os.makedirs(".streamlit", exist_ok=True)
 with open(".streamlit/config.toml", "w") as f:
-    # 1GB এর বদলে 100MB করা হলো যাতে সার্ভার ক্র্যাশ না করে
     f.write("[server]\nmaxUploadSize = 100\n")
 
 st.set_page_config(
@@ -85,7 +84,6 @@ def generate_html_report(title, dataframe):
 DB_FILE = "mediseller_delivery.db"
 
 def get_db_connection():
-    # timeout=10.0 যোগ করা হলো যাতে একসাথে একাধিক ইউজার ব্যবহার করলে Database lock না হয়
     return sqlite3.connect(DB_FILE, check_same_thread=False, timeout=10.0)
 
 conn = get_db_connection()
@@ -265,7 +263,6 @@ try:
     seven_days_ago = (current_time - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     forty_eight_hours_ago = (current_time - timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S")
     
-    # Python লুপের বদলে সরাসরি SQL Query (Instant Deletion)
     c.execute("DELETE FROM orders WHERE order_date <= ?", (seven_days_ago,))
     c.execute("DELETE FROM task_assignments WHERE status='completed' AND created_at <= ?", (forty_eight_hours_ago,))
     conn.commit()
@@ -288,7 +285,6 @@ div[data-testid="stImage"] img {
 if os.path.exists("banner.jpg"):
     st.image("banner.jpg", use_container_width=True)
 
-# লোগো বারবার লোড হওয়া আটকাতে Cache ব্যবহার করা হলো
 @st.cache_data
 def get_base64_logo():
     for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
@@ -564,7 +560,7 @@ div[data-testid="stTextArea"] div p,
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 5. USER SESSION & AUTHENTICATION
+# 5. USER SESSION & AUTHENTICATION (FIXED)
 # ==========================================
 url_user = st.query_params.get("login")
 if isinstance(url_user, list):
@@ -575,17 +571,19 @@ saved_user_js = streamlit_js_eval(
     key="get_saved_user_storage_unique"
 )
 
-target_login = None
-if url_user:
-    target_login = str(url_user).strip()
-elif saved_user_js and saved_user_js not in ["null", "None", "undefined"]:
-    target_login = str(saved_user_js).strip()
-elif "username" in st.session_state and st.session_state["username"] not in ["staff", "delivery"]:
+target_login = "staff" # Default fallback
+
+# Priority 1: URL Param (If shared link or explicitly set)
+if url_user and url_user != "staff":
+    target_login = url_user
+# Priority 2: Session State (Already logged in during this browser tab session)
+elif "username" in st.session_state and st.session_state["username"] != "staff":
     target_login = st.session_state["username"]
+# Priority 3: Local Storage (Remembered from past sessions)
+elif saved_user_js and saved_user_js not in ["null", "None", "undefined", ""]:
+    target_login = saved_user_js
 
-if not target_login:
-    target_login = "staff"
-
+# Verify against database
 c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
 user_row = c.fetchone()
 
@@ -594,17 +592,21 @@ if user_row:
     if is_active == 0:
         st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
         st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
-        st.query_params.clear()
+        st.session_state["username"] = "staff"
+        st.session_state["user_role"] = "staff"
+        if "login" in st.query_params:
+            del st.query_params["login"]
         st.stop()
     else:
         st.session_state["username"] = target_login
         st.session_state["user_role"] = r_role
-        st.query_params["login"] = target_login
-        st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
+        if target_login != "staff":
+            st.query_params["login"] = target_login
 else:
     st.session_state["username"] = "staff"
     st.session_state["user_role"] = "staff"
-    st.query_params["login"] = "staff"
+    if "login" in st.query_params:
+        del st.query_params["login"]
 
 # Default state variables
 if "selected_lat" not in st.session_state:
@@ -641,7 +643,8 @@ with col_ht2:
         if st.button("Logout (লগআউট)", key="logout_btn_top"):
             st.session_state["username"] = "staff"
             st.session_state["user_role"] = "staff"
-            st.query_params.clear()
+            if "login" in st.query_params:
+                del st.query_params["login"]
             st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
             st.rerun()
     else:
@@ -701,7 +704,6 @@ if st.session_state.get("show_admin_login", False):
                 st.session_state["user_role"] = "admin"
                 st.session_state["show_admin_login"] = False
                 st.query_params["login"] = "admin"
-                st.markdown("<script>localStorage.setItem('ps_mediseller_user', 'admin');</script>", unsafe_allow_html=True)
                 st.success("Admin login successful! (সফল!)")
                 st.rerun()
             else:
