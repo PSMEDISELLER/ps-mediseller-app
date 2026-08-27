@@ -1,15 +1,15 @@
-import base64
-from datetime import datetime, timedelta, timezone
-import json
 import os
-import sqlite3
+import json
 import urllib.parse
+import base64
 import folium
 from folium.plugins import MousePosition
 import pandas as pd
+import sqlite3
 import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
+from datetime import datetime, timedelta, timezone
 
 # === 1GB FILE UPLOAD LIMIT CONFIGURATION ===
 os.makedirs(".streamlit", exist_ok=True)
@@ -24,8 +24,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-st.markdown(
-    """
+st.markdown("""
 <style>
 div[data-testid="stImage"] img {
     height: 180px !important;
@@ -33,19 +32,15 @@ div[data-testid="stImage"] img {
     border-radius: 8px;
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 if os.path.exists("banner.jpg"):
     st.image("banner.jpg", use_container_width=True)
-
 
 # === IST TIME & DATE FORMAT HELPERS ===
 def get_ist_time():
     ist_offset = timezone(timedelta(hours=5, minutes=30))
     return datetime.now(ist_offset)
-
 
 def format_date_display(date_str):
     if not date_str:
@@ -59,7 +54,6 @@ def format_date_display(date_str):
         return dt.strftime("%d.%m.%y")
     except Exception:
         return date_str
-
 
 # === ADVANCED CUSTOM STYLING & PWA STANDALONE MANIFEST INJECTION ===
 logo_b64 = ""
@@ -198,8 +192,7 @@ window.addEventListener('load', function() {
 """
 st.components.v1.html(mandatory_location_html, height=0)
 
-st.markdown(
-    """
+st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 html, body, [class*="css"], p, span, label, div {
@@ -333,17 +326,13 @@ div[data-testid="stTextArea"] div p,
     margin-bottom: 20px;
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # === DATABASE SETUP ===
 DB_FILE = "mediseller_delivery.db"
 
-
 def get_db_connection():
     return sqlite3.connect(DB_FILE, check_same_thread=False)
-
 
 conn = get_db_connection()
 c = conn.cursor()
@@ -385,6 +374,7 @@ CREATE TABLE IF NOT EXISTS agent_live_locations (
     completed_dues INTEGER DEFAULT 0
 )
 """)
+conn.commit()
 
 c.execute("""
 CREATE TABLE IF NOT EXISTS orders (
@@ -442,7 +432,7 @@ CREATE TABLE IF NOT EXISTS recycle_bin (
 )
 """)
 
-# Schema updates/migrations
+# Schema migrations safety check
 c.execute("PRAGMA table_info(locations)")
 existing_cols_loc = [row[1] for row in c.fetchall()]
 if "party_phone" not in existing_cols_loc:
@@ -470,38 +460,21 @@ if "is_active" not in existing_user_cols:
 if "allow_resubmit" not in existing_user_cols:
     c.execute("ALTER TABLE users ADD COLUMN allow_resubmit INTEGER DEFAULT 0")
 if "allowed_menus" not in existing_user_cols:
-    c.execute(
-        "ALTER TABLE users ADD COLUMN allowed_menus TEXT DEFAULT 'Add Location"
-        " (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders"
-        " (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due &"
-        " Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance"
-        " (উপস্থিতি)'"
-    )
-
-c.execute("PRAGMA table_info(agent_live_locations)")
-existing_cols_agent = [row[1] for row in c.fetchall()]
-if "completed_dues" not in existing_cols_agent:
-    c.execute(
-        "ALTER TABLE agent_live_locations ADD COLUMN completed_dues INTEGER"
-        " DEFAULT 0"
-    )
+    c.execute("ALTER TABLE users ADD COLUMN allowed_menus TEXT DEFAULT 'Add Location (লোকেশন যোগ), Search & Details (অনুসন্ধান ও বিবরণ), Pending Orders (বাকি অর্ডার), Daily & Monthly Work (দৈনিক ও মাসিক কাজ), Due & Delivery (বকেয়া ও ডেলিভারি), Route Map (রুট ম্যাপ), Attendance (উপস্থিতি)'")
 
 c.execute("PRAGMA table_info(task_assignments)")
 existing_cols_task = [row[1] for row in c.fetchall()]
 if "sale_amount" not in existing_cols_task:
-    c.execute(
-        "ALTER TABLE task_assignments ADD COLUMN sale_amount TEXT DEFAULT '0'"
-    )
+    c.execute("ALTER TABLE task_assignments ADD COLUMN sale_amount TEXT DEFAULT '0'")
 if "payment_collected_actual" not in existing_cols_task:
-    c.execute(
-        "ALTER TABLE task_assignments ADD COLUMN payment_collected_actual TEXT"
-        " DEFAULT '0'"
-    )
+    c.execute("ALTER TABLE task_assignments ADD COLUMN payment_collected_actual TEXT DEFAULT '0'")
 if "remaining_due" not in existing_cols_task:
-    c.execute(
-        "ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT"
-        " '0'"
-    )
+    c.execute("ALTER TABLE task_assignments ADD COLUMN remaining_due TEXT DEFAULT '0'")
+
+c.execute("PRAGMA table_info(agent_live_locations)")
+existing_cols_agent = [row[1] for row in c.fetchall()]
+if "completed_dues" not in existing_cols_agent:
+    c.execute("ALTER TABLE agent_live_locations ADD COLUMN completed_dues INTEGER DEFAULT 0")
 
 conn.commit()
 
@@ -509,53 +482,12 @@ conn.commit()
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     c.execute(
-        "INSERT INTO users (username, password, role, fullname, phone,"
-        " created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?,"
-        " ?)",
-        (
-            "admin",
-            "admin123",
-            "admin",
-            "Admin",
-            "8918740325",
-            get_ist_time().strftime("%Y-%m-%d %H:%M:%S"),
-            1,
-            1,
-        ),
+        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ("admin", "admin123", "admin", "Admin", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 1)
     )
     c.execute(
-        "INSERT INTO users (username, password, role, fullname, phone,"
-        " created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?,"
-        " ?)",
-        (
-            "staff",
-            "user123",
-            "staff",
-            "Staff Agent",
-            "8918740325",
-            get_ist_time().strftime("%Y-%m-%d %H:%M:%S"),
-            1,
-            0,
-        ),
-    )
-    conn.commit()
-
-c.execute("SELECT username FROM users WHERE username='staff'")
-if not c.fetchone():
-    c.execute(
-        "INSERT INTO users (username, password, role, fullname, phone,"
-        " created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?,"
-        " ?)",
-        (
-            "staff",
-            "user123",
-            "staff",
-            "Staff Agent",
-            "8918740325",
-            get_ist_time().strftime("%Y-%m-%d %H:%M:%S"),
-            1,
-            0,
-        ),
+        "INSERT INTO users (username, password, role, fullname, phone, created_at, is_active, allow_resubmit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ("staff", "user123", "staff", "Staff Agent", "8918740325", get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), 1, 0)
     )
     conn.commit()
 
@@ -564,116 +496,97 @@ url_user = st.query_params.get("login")
 if isinstance(url_user, list):
     url_user = url_user[0] if url_user else None
 
-saved_user_js = streamlit_js_eval(
-    js_expressions="localStorage.getItem('ps_mediseller_user')",
-    key="get_saved_user_storage_unique",
-)
+saved_user_js = None
+if "ps_js_eval_run" not in st.session_state:
+    saved_user_js = streamlit_js_eval(
+        js_expressions="localStorage.getItem('ps_mediseller_user')",
+        key="get_saved_user_storage_unique"
+    )
+    st.session_state["ps_js_eval_run"] = True
 
 target_login = None
 if url_user:
     target_login = str(url_user).strip()
 elif saved_user_js and saved_user_js not in ["null", "None", "undefined"]:
     target_login = str(saved_user_js).strip()
-elif (
-    "username" in st.session_state
-    and st.session_state["username"] not in ["staff", "delivery"]
-):
+elif "username" in st.session_state and st.session_state["username"] not in ["staff", "delivery"]:
     target_login = st.session_state["username"]
 
 if not target_login:
     target_login = "staff"
 
-c.execute(
-    "SELECT fullname, role, is_active FROM users WHERE username=?",
-    (target_login,),
-)
+c.execute("SELECT fullname, role, is_active FROM users WHERE username=?", (target_login,))
 user_row = c.fetchone()
 
 if user_row:
     f_name, r_role, is_active = user_row
     if is_active == 0:
-        st.warning(
-            "আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ"
-            " করুন।"
-        )
-        st.markdown(
-            "<script>localStorage.removeItem('ps_mediseller_user');</script>",
-            unsafe_allow_html=True,
-        )
+        st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
+        st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
         st.query_params.clear()
         st.stop()
     else:
         st.session_state["username"] = target_login
         st.session_state["user_role"] = r_role
-        st.query_params["login"] = target_login
-        st.markdown(
-            f"<script>localStorage.setItem('ps_mediseller_user',"
-            f" '{target_login}');</script>",
-            unsafe_allow_html=True,
-        )
+        if st.query_params.get("login") != target_login:
+            st.query_params["login"] = target_login
+        st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
 else:
     st.session_state["username"] = "staff"
     st.session_state["user_role"] = "staff"
-    st.query_params["login"] = "staff"
-
+    if st.query_params.get("login") != "staff":
+        st.query_params["login"] = "staff"
 
 def move_to_recycle_bin(item_type, item_title, item_data_dict):
     data_json = json.dumps(item_data_dict)
     deleted_at = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
     c.execute(
-        "INSERT INTO recycle_bin (item_type, item_title, item_data, deleted_at)"
-        " VALUES (?, ?, ?, ?)",
-        (item_type, item_title, data_json, deleted_at),
+        "INSERT INTO recycle_bin (item_type, item_title, item_data, deleted_at) VALUES (?, ?, ?, ?)",
+        (item_type, item_title, data_json, deleted_at)
     )
     conn.commit()
 
-
-# === AUTOMATIC CLEANUP LOGIC ===
+# === OPTIMIZED AUTOMATIC CLEANUP LOGIC ===
 current_dt_str = get_ist_time()
 c.execute("SELECT id, order_date FROM orders")
+orders_to_del = []
 for row_ord in c.fetchall():
     try:
         cleaned_date = str(row_ord[1]).strip()
         if " " in cleaned_date:
-            o_time = datetime.strptime(
-                cleaned_date, "%Y-%m-%d %H:%M:%S"
-            ).replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
         else:
-            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(
-                tzinfo=timezone(timedelta(hours=5, minutes=30))
-            )
+            o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
         if (current_dt_str - o_time) > timedelta(days=7):
-            c.execute("DELETE FROM orders WHERE id=?", (row_ord[0],))
+            orders_to_del.append((row_ord[0],))
     except Exception:
         pass
 
-c.execute("SELECT id, created_at, status FROM task_assignments")
+if orders_to_del:
+    c.executemany("DELETE FROM orders WHERE id=?", orders_to_del)
+
+c.execute("SELECT id, created_at, status FROM task_assignments WHERE LOWER(status)='completed'")
+tasks_to_del = []
 for row_task in c.fetchall():
     try:
-        t_status = str(row_task[2]).strip().lower() if row_task[2] else ""
-        if t_status == "completed":
-            cleaned_task_date = str(row_task[1]).strip()
-            if " " in cleaned_task_date:
-                t_time = datetime.strptime(
-                    cleaned_task_date, "%Y-%m-%d %H:%M:%S"
-                ).replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            else:
-                t_time = datetime.strptime(
-                    cleaned_task_date, "%Y-%m-%d"
-                ).replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            if (current_dt_str - t_time) > timedelta(hours=48):
-                c.execute(
-                    "DELETE FROM task_assignments WHERE id=?", (row_task[0],)
-                )
+        cleaned_task_date = str(row_task[1]).strip()
+        if " " in cleaned_task_date:
+            t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+        else:
+            t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+        if (current_dt_str - t_time) > timedelta(hours=48):
+            tasks_to_del.append((row_task[0],))
     except Exception:
         pass
+
+if tasks_to_del:
+    c.executemany("DELETE FROM task_assignments WHERE id=?", tasks_to_del)
 
 conn.commit()
 
-
 def generate_html_report(title, dataframe):
-    safe_now = get_ist_time()
-    time_str = safe_now.strftime("%d.%m.%y %H:%M:%S")
+    safe_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    time_str = safe_now.strftime('%d.%m.%y %H:%M:%S')
     table_html = dataframe.to_html(index=False, border=0)
     html_content = f"""
 <html>
@@ -703,7 +616,6 @@ th {{ background-color: #3b82f6; color: white; }}
 """
     return html_content
 
-
 if "selected_lat" not in st.session_state:
     st.session_state["selected_lat"] = 22.8620
 if "selected_lon" not in st.session_state:
@@ -711,22 +623,15 @@ if "selected_lon" not in st.session_state:
 
 current_logged_username = st.session_state["username"]
 if current_logged_username != "admin":
-    c.execute(
-        "SELECT is_active FROM users WHERE username=?",
-        (current_logged_username,),
-    )
+    c.execute("SELECT is_active FROM users WHERE username=?", (current_logged_username,))
     res_act = c.fetchone()
     if res_act and res_act[0] == 0:
-        st.error(
-            "আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি"
-            " ব্যবহার করতে পারবেন না।"
-        )
+        st.error("আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
         st.stop()
 
 col_ht1, col_ht2 = st.columns([3, 1])
 with col_ht1:
-    st.markdown(
-        f"""
+    st.markdown(f"""
 <div style="display: flex; align-items: center; gap: 12px;">
     <img src="data:image/jpeg;base64,{logo_b64}" style="width: 52px; height: 52px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
     <div>
@@ -734,9 +639,7 @@ with col_ht1:
         <p style="margin: 2px 0 0 0; color: #cbd5e1 !important; font-size: 11px; font-weight: 500;">Allopathy & Ayurvedic Wholesaler | Ph: 8918740325</p>
     </div>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
+""", unsafe_allow_html=True)
 
 with col_ht2:
     if st.session_state["user_role"] == "admin":
@@ -744,62 +647,23 @@ with col_ht2:
             st.session_state["username"] = "staff"
             st.session_state["user_role"] = "staff"
             st.query_params.clear()
-            st.markdown(
-                "<script>localStorage.removeItem('ps_mediseller_user');</script>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
             st.rerun()
     else:
         if st.button("Admin Login (অ্যাডমিন)", key="login_btn_top"):
             st.session_state["show_admin_login"] = True
             st.rerun()
 
-# Modal / Admin Login Form trigger
-if st.session_state.get("show_admin_login", False):
-    with st.expander("🔑 Admin Login (অ্যাডমিন লগইন)", expanded=True):
-        admin_user_input = st.text_input("Username", key="admin_login_username")
-        admin_pass_input = st.text_input(
-            "Password", type="password", key="admin_login_password"
-        )
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Submit Login", key="submit_admin_login_btn"):
-                c.execute(
-                    "SELECT username, role FROM users WHERE username=? AND"
-                    " password=?",
-                    (admin_user_input, admin_pass_input),
-                )
-                admin_auth = c.fetchone()
-                if admin_auth and admin_auth[1] == "admin":
-                    st.session_state["username"] = admin_auth[0]
-                    st.session_state["user_role"] = "admin"
-                    st.session_state["show_admin_login"] = False
-                    st.query_params["login"] = admin_auth[0]
-                    st.success("Admin login successful!")
-                    st.rerun()
-                else:
-                    st.error("Invalid Admin Username or Password.")
-        with c2:
-            if st.button("Cancel", key="cancel_admin_login_btn"):
-                st.session_state["show_admin_login"] = False
-                st.rerun()
-
-c.execute(
-    "SELECT fullname FROM users WHERE username=?", (st.session_state["username"],)
-)
+c.execute("SELECT fullname FROM users WHERE username=?", (st.session_state['username'],))
 curr_user_row = c.fetchone()
 if curr_user_row and curr_user_row[0]:
     display_user_name = curr_user_row[0]
 else:
-    display_user_name = st.session_state["username"]
+    display_user_name = st.session_state['username']
 
 col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
-    st.markdown(
-        f"<h3 style='color: #0ea5e9; font-weight: 600; margin-bottom: 0;'>👤"
-        f" {display_user_name}</h3>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"<h3 style='color: #0ea5e9; font-weight: 600; margin-bottom: 0;'>👤 {display_user_name}</h3>", unsafe_allow_html=True)
 
 c.execute("SELECT COUNT(*) FROM orders WHERE status='Pending'")
 pending_ord_count = c.fetchone()[0]
@@ -809,28 +673,23 @@ total_pending_items = pending_ord_count + pending_task_count
 
 show_notif = True
 if "notif_dismissed_time" in st.session_state:
-    time_diff = (
-        get_ist_time() - st.session_state["notif_dismissed_time"]
-    ).total_seconds()
+    time_diff = (get_ist_time() - st.session_state["notif_dismissed_time"]).total_seconds()
     if time_diff < 3600:
         show_notif = False
 
 if show_notif and total_pending_items > 0:
     col_n1, col_n2 = st.columns([5, 1])
     with col_n1:
-        st.warning(
-            "⚠️ **নোটিফিকেশন:** আপনার অর্ডার পেন্ডিং বা ডিউ পেন্ডিং রয়েছে।"
-            " **পেন্ডিং Order খাতায় তুলতে বাকি!**"
-        )
+        st.warning("⚠️ **নোটিফিকেশন:** আপনার অর্ডার পেন্ডিং বা ডিউ পেন্ডিং রয়েছে। **পেন্ডিং Order খাতায় তুলতে বাকি!**")
     with col_n2:
         if st.button("সরান", key="dismiss_notif_bar_btn"):
             st.session_state["notif_dismissed_time"] = get_ist_time()
-            st.rerun()
+            st.rerun()       
 
 if st.session_state.get("show_admin_login", False):
     with st.form("admin_login_popup_form"):
         st.write("#### Admin Login (অ্যাডমিন লগইন)")
-        admin_pass_input = st.text_input("Enter Admin Password (পাসওয়ার্ড দিন)", type="password")
+        admin_pass_input = st.text_input("Enter Admin Password (পাসওয়ার্ড দিন)", type="password")
         col_al1, col_al2 = st.columns(2)
         with col_al1:
             submit_admin = st.form_submit_button("Login (লগইন)", type="primary")
@@ -849,23 +708,23 @@ if st.session_state.get("show_admin_login", False):
                 st.success("Admin login successful! (সফল!)")
                 st.rerun()
             else:
-                st.error("Incorrect Password! (ভুল পাসওয়ার্ড!)")
+                st.error("Incorrect Password! (ভুল পাসওয়ার্ড!)")
         
         if cancel_admin:
             st.session_state["show_admin_login"] = False
             st.rerun()
             
-    with st.expander("পাসওয়ার্ড ভুলে গেছেন? (Forgot Password)"):
-        st.info("অ্যাডমিন পাসওয়ার্ড রিসেট করতে মাস্টার কোড ব্যবহার করুন। (Master Code: PSMEDISELLER)")
+    with st.expander("পাসওয়ার্ড ভুলে গেছেন? (Forgot Password)"):
+        st.info("অ্যাডমিন পাসওয়ার্ড রিসেট করতে মাস্টার কোড ব্যবহার করুন। (Master Code: PSMEDISELLER)")
         master_code = st.text_input("Master Code (মাস্টার কোড)", type="password")
         new_admin_pass = st.text_input("New Admin Password", type="password")
         if st.button("Reset Admin Password (রিসেট করুন)"):
             if master_code == "PSMEDISELLER" and new_admin_pass.strip():
                 c.execute("UPDATE users SET password=? WHERE username='admin'", (new_admin_pass.strip(),))
                 conn.commit()
-                st.success("পাসওয়ার্ড সফলভাবে রিসেট হয়েছে! (Password Reset Successful!)")
+                st.success("পাসওয়ার্ড সফলভাবে রিসেট হয়েছে! (Password Reset Successful!)")
             else:
-                st.error("ভুল কোড বা পাসওয়ার্ড! (Invalid Code or Password!)")
+                st.error("ভুল কোড বা পাসওয়ার্ড! (Invalid Code or Password!)")
 
 loc = get_geolocation(component_key="hidden_background_gps_tracker")
 gps_lat, gps_lon = None, None
