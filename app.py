@@ -2,6 +2,7 @@ import os
 import json
 import urllib.parse
 import base64
+import tempfile
 import folium
 from folium.plugins import MousePosition
 import pandas as pd
