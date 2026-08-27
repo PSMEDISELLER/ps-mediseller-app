@@ -3070,55 +3070,157 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                 status_text = "Active" if s_act else "Blocked"
                 st.text(f"• {s_fname or s_uname} ({s_uname}) -> {status_text}")
    
-    import sqlite3
-    import streamlit as st
-    
-    # ১. নিরাপদ ব্যাকআপ ফাংশন (সব পেন্ডিং ডেটা ফাইলে সিঙ্ক করে পড়ে)
-    def get_db_bytes(db_path):
+    # ==========================================
+    # ১. হেলপার ফাংশন (নিরাপদ ব্যাকআপ ও রিস্টোর)
+    # ==========================================
+    def generate_safe_backup(db_path):
+        """SQLite-এর নেটিভ ব্যাকআপ ইঞ্জিন ব্যবহার করে নিরাপদ ব্যাকআপ বাইট রিটার্ন করে"""
+        if not os.path.exists(db_path):
+            return None
         try:
-            conn = sqlite3.connect(db_path)
-            conn.execute("PRAGMA wal_checkpoint(FULL);")  # Unsaved cache memory save করে
-            conn.close()
-            with open(db_path, "rb") as f:
-                return f.read()
+            # WAL ফ্লাশ করা
+            with sqlite3.connect(db_path) as src_conn:
+                src_conn.execute("PRAGMA wal_checkpoint(FULL);")
+    
+                # মেমোরিতে ব্যাকআপ স্ন্যাপশট নেওয়া (ফাইল লক এড়াতে)
+                mem_db = sqlite3.connect(":memory:")
+                src_conn.backup(mem_db)
+    
+                # বাইনারি ডেটা এক্সপোর্ট
+                raw_bytes = mem_db.serialize()
+                mem_db.close()
+                return raw_bytes
         except Exception as e:
-            st.error(f"Backup Error: {e}")
+            st.error(f"⚠️ Backup creation failed: {e}")
             return None
     
-    # ২. Tab 4 - Backup & Restore UI
-    with set_tab4:
-        st.write("#### Database Backup (ডাটাবেস ব্যাকআপ)")
     
-        db_bytes = get_db_bytes(DB_FILE)
-        if db_bytes:
-            st.download_button(
-                label="Download Database Backup (.db)",
-                data=db_bytes,
-                file_name="mediseller_backup.db",
-                mime="application/x-sqlite3",
+    def validate_and_restore_db(uploaded_file, target_db_path):
+        """আপলোড করা ফাইলটি আসল ও নিখুঁত SQLite ডাটাবেস কিনা তা পরীক্ষা করে রিস্টোর করে"""
+        temp_dir = tempfile.gettempdir()
+        temp_file_path = os.path.join(temp_dir, "temp_restore.db")
+    
+        try:
+            # ১. অস্থায়ী ফাইলে আপলোড করা ফাইল সেভ করা
+            with open(temp_file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+    
+            # ২. ডাটাবেসের সঠিনতা পরীক্ষা (Integrity Check)
+            test_conn = sqlite3.connect(temp_file_path)
+            cursor = test_conn.cursor()
+            cursor.execute("PRAGMA integrity_check;")
+            check_result = cursor.fetchone()[0]
+    
+            # ৩. ডাটাবেসে টেবিল আছে কিনা ভ্যালিডেশন
+            cursor.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table';"
+            )
+            table_count = cursor.fetchone()[0]
+            test_conn.close()
+    
+            if check_result != "ok" or table_count == 0:
+                st.error(
+                    "❌ ফাইলটি একটি ভ্যালিড ডাটাবেস নয় অথবা ডাটাবেসটি কারাপ্ট/খালি!"
+                )
+                return False
+    
+            # ৪. সেফ রিস্টোর: নেটিভ SQLite Backup API দিয়ে আসল ডাটাবেসে রিস্টোর
+            with (
+                sqlite3.connect(temp_file_path) as src_conn,
+                sqlite3.connect(target_db_path) as dst_conn,
+            ):
+                src_conn.backup(dst_conn)
+    
+            # টিডি ক্লিনআপ
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+    
+            return True
+    
+        except Exception as e:
+            st.error(f"❌ Restore Failed: {e}")
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            return False
+    
+    
+    # ==========================================
+    # ২. Tab 4 - Modern Backup & Restore UI
+    # ==========================================
+    with set_tab4:
+        st.markdown("### 💾 Database Management & Security")
+        st.caption("আপনার সিস্টেমের সম্পূর্ণ ডাটাবেস ব্যাকআপ নিন বা আগের ব্যাকআপ রিস্টোর করুন।")
+        st.divider()
+    
+        col_backup, col_restore = st.columns(2, gap="large")
+    
+        # ----- 📦 ডাটাবেস ব্যাকআপ সেকশন -----
+        with col_backup:
+            st.markdown("#### 📥 Database Backup")
+            st.info(
+                "সব সাম্প্রতিক তথ্য সহ একটি ডুপ্লিকেট `.db` ফাইল ব্যাকআপ নিন।"
             )
     
-        st.write("---")
+            # ডাটাবেসের আকার প্রদর্শন
+            if os.path.exists(DB_FILE):
+                db_size_kb = round(os.path.getsize(DB_FILE) / 1024, 2)
+                st.metric(label="Current Database Size", value=f"{db_size_kb} KB")
     
-        st.write("#### Database Restore")
-        uploaded_file = st.file_uploader("Select Database File (.db)", type=["db"])
+            # বর্তমান তারিখ ও সময় দিয়ে ইউনিক ফাইলের নাম
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_filename = f"mediseller_backup_{timestamp}.db"
     
-        if uploaded_file is not None:
-            if st.button("Confirm Restore Database"):
-                try:
-                    # ক্যাশ ও কানেকশন রিফ্রেশ
-                    st.cache_resource.clear()
+            # ব্যাকআপ বাইট জেনারেট
+            db_bytes = generate_safe_backup(DB_FILE)
     
-                    # নতুন ব্যাকআপ ফাইল রাইট
-                    with open(DB_FILE, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
+            if db_bytes:
+                st.download_button(
+                    label="⬇️ Download Fresh Backup (.db)",
+                    data=db_bytes,
+                    file_name=backup_filename,
+                    mime="application/x-sqlite3",
+                    type="primary",
+                    use_container_width=True,
+                )
+            else:
+                st.error("ডাটাবেস ব্যাকআপ তৈরি করতে সমস্যা হয়েছে!")
     
-                    st.success(
-                        "Database restored successfully! App is reloading..."
-                    )
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Restore Failed: {e}")
+        # ----- 🔄 ডাটাবেস রিস্টোর সেকশন -----
+        with col_restore:
+            st.markdown("#### 📤 Database Restore")
+            st.warning(
+                "⚠️ **সতর্কতা:** রিস্টোর করলে বর্তমান ডাটাবেস ওভাররাইট হয়ে যাবে।"
+            )
+    
+            uploaded_file = st.file_uploader(
+                "রিস্টোর করার জন্য `.db` ফাইল সিলেক্ট করুন",
+                type=["db"],
+                key="db_restore_uploader",
+            )
+    
+            if uploaded_file is not None:
+                # আপলোড করা ফাইলের সাইজ
+                file_size_kb = round(uploaded_file.size / 1024, 2)
+                st.caption(
+                    f"📄 Selected File: `{uploaded_file.name}` ({file_size_kb} KB)"
+                )
+    
+                if st.button(
+                    "🔄 Confirm & Restore Database",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    with st.spinner("রিস্টোর করা হচ্ছে এবং ডাটাবেস যাচাই করা হচ্ছে..."):
+                        success = validate_and_restore_db(uploaded_file, DB_FILE)
+    
+                    if success:
+                        # স্ট্রিমলিট ক্যাশ ক্লিয়ার করা যাতে নতুন ডাটা লোড হয়
+                        st.cache_resource.clear()
+                        st.cache_data.clear()
+    
+                        st.success("✅ Database restored successfully!")
+                        st.balloons()
+                        st.rerun()
         
     # --- TAB 5: RECYCLE BIN ---
     with set_tab5:
