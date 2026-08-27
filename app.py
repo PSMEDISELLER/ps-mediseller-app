@@ -919,6 +919,39 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                             st.error("Already exists! (আগেই আছে)")
             
             st.write("---")
+            st.write("**Edit Route (রুট এডিট করুন)**")
+            col_er1, col_er2, col_er3 = st.columns([2, 2, 1])
+            with col_er1:
+                route_to_edit = st.selectbox(
+                    "Select Route to Edit", 
+                    [""] + existing_routes, 
+                    key="admin_edit_route_sel", 
+                    label_visibility="collapsed"
+                )
+            with col_er2:
+                updated_route_name = st.text_input(
+                    "New Route Name",
+                    key="admin_updated_route_name",
+                    label_visibility="collapsed",
+                    placeholder="নতুন নাম লিখুন..."
+                )
+            with col_er3:
+                if st.button("Update Route", key="admin_update_route_btn"):
+                    if route_to_edit and updated_route_name.strip():
+                        try:
+                            # Update route name in routes table
+                            c.execute("UPDATE routes SET route_name = ? WHERE route_name = ?", (updated_route_name.strip(), route_to_edit))
+                            # Update route name in all associated parties/locations
+                            c.execute("UPDATE locations SET route = ? WHERE route = ?", (updated_route_name.strip(), route_to_edit))
+                            conn.commit()
+                            st.success(f"Route updated to '{updated_route_name.strip()}' successfully! (সব পার্টিতে আপডেট হয়েছে)")
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("This route name already exists! (এই নামটি আগেই আছে)")
+                    else:
+                        st.error("Select route & enter new name! (রুট ও নতুন নাম দিন)")
+
+            st.write("---")
             st.write("**Delete Route (রুট ডিলিট করুন)**")
             col_dr1, col_dr2 = st.columns([3, 1])
             with col_dr1:
@@ -1155,12 +1188,12 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
     st.write("### Orders & Visits (অর্ডার ও ভিজিট)")
     st.write("🔍 **Search & Select Party (পার্টি সার্চ ও সিলেক্ট করুন):**")
 
-    if "order_party_search_text_input" not in st.session_state:
-        st.session_state["order_party_search_text_input"] = ""
+    # State fix for text input box
+    if "order_party_search_text_input_key" not in st.session_state:
+        st.session_state["order_party_search_text_input_key"] = ""
 
     order_search_text = st.text_input(
         "Search Party",
-        value=st.session_state["order_party_search_text_input"],
         placeholder="Type name, address or keyword...",
         key="order_party_search_text_input_key",
         label_visibility="collapsed"
@@ -1209,34 +1242,36 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
             submitted_visit = st.form_submit_button(" Save Visit (ভিজিট সেভ)")
 
         if submitted_order:
-            if not selected_order_party_native.strip():
+            # Crash Fix: Handle NoneType
+            if not selected_order_party_native or not str(selected_order_party_native).strip():
                 st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
             else:
                 current_date_str = get_ist_time().strftime("%Y-%m-%d")
                 c.execute(
                     "INSERT INTO orders (party_name, order_details, order_date, status, payment_collected) VALUES (?, ?, ?, ?, ?)",
-                    (selected_order_party_native.strip(), ord_details.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Pending", "0")
+                    (str(selected_order_party_native).strip(), ord_details.strip(), get_ist_time().strftime("%Y-%m-%d %H:%M:%S"), "Pending", "0")
                 )
                 c.execute(
                     "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                    (selected_order_party_native.strip(), "Order (অর্ডার)", current_date_str)
+                    (str(selected_order_party_native).strip(), "Order (অর্ডার)", current_date_str)
                 )
                 conn.commit()
-                st.session_state["order_party_search_text_input"] = ""
+                st.session_state["order_party_search_text_input_key"] = ""  # Input clear
                 st.success("Order submitted successfully! (জমা দেওয়া হয়েছে!)")
                 st.rerun()
 
         if submitted_visit:
-            if not selected_order_party_native.strip():
+            # Crash Fix: Handle NoneType
+            if not selected_order_party_native or not str(selected_order_party_native).strip():
                 st.error("Please select a party. (পার্টি সিলেক্ট করুন।)")
             else:
                 current_date_str = get_ist_time().strftime("%Y-%m-%d")
                 c.execute(
                     "INSERT INTO daily_work (party_name, activity_type, work_date) VALUES (?, ?, ?)",
-                    (selected_order_party_native.strip(), "Visit (ভিজিট)", current_date_str)
+                    (str(selected_order_party_native).strip(), "Visit (ভিজিট)", current_date_str)
                 )
                 conn.commit()
-                st.session_state["order_party_search_text_input"] = ""
+                st.session_state["order_party_search_text_input_key"] = "" # Input clear
                 st.success("Visit saved successfully! (সেভ হয়েছে!)")
                 st.rerun()
 
