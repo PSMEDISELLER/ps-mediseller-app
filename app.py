@@ -1306,7 +1306,6 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
             st.info("No reports found. (কোনো রিপোর্ট নেই।)")
             
 elif selected_menu == "Search & Details (অনুসন্ধান ও বিবরণ)":
-    elif selected_menu == "Search & Details (অনুসন্ধান ও বিবরণ)":
     # Modern Title Header
     st.markdown("""
         <div style='background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 15px 20px; border-radius: 10px; color: white; margin-bottom: 20px;'>
