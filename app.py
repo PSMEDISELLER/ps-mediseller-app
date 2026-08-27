@@ -747,26 +747,33 @@ try:
 except:
     pass
 
+# --- Menu Setup ---
 all_basic_menus = [
     "Add Location (লোকেশন যোগ)",
     "Search & Details (অনুসন্ধান ও বিবরণ)",
     "Pending Orders (বাকি অর্ডার)",
     "Daily & Monthly Work (দৈনিক ও মাসিক কাজ)",
-    "Due & Delivery (বকেয়া ও ডেলিভারি)",
+    "Due & Delivery (বকেয়া ও ডেলিভারি)",
     "Route Map (রুট ম্যাপ)",
     "Attendance (উপস্থিতি)"
 ]
 
-if st.session_state["user_role"] == "admin":
+user_role = st.session_state.get("user_role", "")
+username = st.session_state.get("username", "")
+
+if user_role == "admin":
     menu_options = all_basic_menus + [
         "Live Tracking (লাইভ ট্র্যাকিং)",
         "Settings & Agents (সেটিংসে)"
     ]
 else:
-    c.execute("SELECT allowed_menus FROM users WHERE username=?", (st.session_state["username"],))
-    row = c.fetchone()
-    if row and row[0]:
-        menu_options = [m.strip() for m in row[0].split(",") if m.strip() in all_basic_menus]
+    if username:
+        c.execute("SELECT allowed_menus FROM users WHERE username=?", (username,))
+        row = c.fetchone()
+        if row and row[0]:
+            menu_options = [m.strip() for m in row[0].split(",") if m.strip() in all_basic_menus]
+        else:
+            menu_options = all_basic_menus
     else:
         menu_options = all_basic_menus
     if not menu_options:
@@ -790,16 +797,6 @@ if selected_menu != current_page_param:
     st.rerun()
 
 st.write("---")
-
-import streamlit as st
-import folium
-from streamlit_folium import st_folium
-from folium.plugins import MousePosition
-import sqlite3
-import pandas as pd
-import tempfile
-import os
-import streamlit.components.v1 as components
 
 # --- GPS Component Setup (একেবারে শক্তিশালী ও নির্ভুল GPS সিস্টেম) ---
 @st.cache_resource
@@ -854,7 +851,7 @@ def get_gps_component():
                                     setTimeout(tryPos, 1000);
                                 } else {
                                     status.innerText = `Success! (Acc: ${Math.round(bestPos.coords.accuracy)}m)`;
-                                    sendValue({lat: bestPos.coords.latitude, lon: bestPos.coords.longitude});
+                                    sendValue({lat: bestPos.coords.latitude, lon: bestPos.coords.longitude, timestamp: Date.now()});
                                     setTimeout(() => { btn.disabled = false; status.innerText = ""; }, 3000);
                                 }
                             },
@@ -884,6 +881,8 @@ if "gps_lat" not in st.session_state:
     st.session_state["gps_lat"] = None
 if "gps_lon" not in st.session_state:
     st.session_state["gps_lon"] = None
+if "last_processed_gps" not in st.session_state:
+    st.session_state["last_processed_gps"] = None
 
 if selected_menu == "Add Location (লোকেশন যোগ)":
     st.write("### Add Location & Party (লোকেশন ও পার্টি)")
@@ -946,7 +945,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
                             # Update route name in all associated parties/locations
                             c.execute("UPDATE locations SET route = ? WHERE route = ?", (updated_route_name.strip(), route_to_edit))
                             conn.commit()
-                            st.success(f"Route updated to '{updated_route_name.strip()}' successfully! (সব পার্টিতে আপডেট হয়েছে)")
+                            st.success(f"Route updated to '{updated_route_name.strip()}' successfully! (সব পার্টিতে আপডেট হয়েছে)")
                             st.rerun()
                         except sqlite3.IntegrityError:
                             st.error("This route name already exists! (এই নামটি আগেই আছে)")
@@ -1103,20 +1102,22 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
     col_m1, col_m2 = st.columns([1, 4])
     
     with col_m1:
-        # স্বয়ংক্রিয়ভাবে পাইথনে ডেটা পাঠানোর জন্য নতুন GPS Component ব্যবহার করা হলো
+        # স্বয়ংক্রিয়ভাবে পাইথনে ডেটা পাঠানোর জন্য নতুন GPS Component ব্যবহার করা হলো
         gps_comp = get_gps_component()
         gps_data = gps_comp(key="gps_fetcher_btn")
         
+        # GPS ডেটা একবার প্রসেস হলে পুনরায় লুপ হওয়া আটকানো হলো
         if gps_data and isinstance(gps_data, dict) and "lat" in gps_data:
-            new_lat, new_lon = float(gps_data["lat"]), float(gps_data["lon"])
-            # লুপ এড়ানোর জন্য ভ্যালু চেক করা হচ্ছে
-            if st.session_state.get("selected_lat") != new_lat or st.session_state.get("selected_lon") != new_lon:
-                st.session_state["selected_lat"] = new_lat
-                st.session_state["selected_lon"] = new_lon
-                st.session_state["gps_lat"] = new_lat
-                st.session_state["gps_lon"] = new_lon
-                st.toast("High-accuracy GPS location taken! (লোকেশন নেওয়া হয়েছে!)", icon="✅")
-                st.rerun()
+            if st.session_state.get("last_processed_gps") != gps_data:
+                st.session_state["last_processed_gps"] = gps_data
+                new_lat, new_lon = float(gps_data["lat"]), float(gps_data["lon"])
+                if round(st.session_state.get("selected_lat", 0), 6) != round(new_lat, 6) or round(st.session_state.get("selected_lon", 0), 6) != round(new_lon, 6):
+                    st.session_state["selected_lat"] = new_lat
+                    st.session_state["selected_lon"] = new_lon
+                    st.session_state["gps_lat"] = new_lat
+                    st.session_state["gps_lon"] = new_lon
+                    st.toast("High-accuracy GPS location taken! (লোকেশন নেওয়া হয়েছে!)", icon="✅")
+                    st.rerun()
 
     with col_m2:
         st.write(f"Coordinates (স্থানাঙ্ক): {st.session_state['selected_lat']:.5f}, {st.session_state['selected_lon']:.5f}")
@@ -1176,12 +1177,19 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
 
     folium.LayerControl().add_to(advanced_map)
 
-    map_data = st_folium(advanced_map, width="100%", height=420, key="google_style_interactive_map")
+    # returned_objects যোগ করে মোবাইলে টাচ/ড্র্যাগ করার সময় অপ্রয়োজনীয় রি-রেন্ডার ও হ্যাং হওয়া বন্ধ করা হলো
+    map_data = st_folium(
+        advanced_map, 
+        width="100%", 
+        height=420, 
+        key="google_style_interactive_map",
+        returned_objects=["last_clicked"]
+    )
 
     if map_data and map_data.get("last_clicked"):
-        clicked_lat = map_data["last_clicked"]["lat"]
-        clicked_lon = map_data["last_clicked"]["lng"]
-        if clicked_lat != st.session_state["selected_lat"] or clicked_lon != st.session_state["selected_lon"]:
+        clicked_lat = float(map_data["last_clicked"]["lat"])
+        clicked_lon = float(map_data["last_clicked"]["lng"])
+        if round(clicked_lat, 6) != round(st.session_state["selected_lat"], 6) or round(clicked_lon, 6) != round(st.session_state["selected_lon"], 6):
             st.session_state["selected_lat"] = clicked_lat
             st.session_state["selected_lon"] = clicked_lon
             st.rerun()
