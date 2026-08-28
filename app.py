@@ -2650,10 +2650,10 @@ with task_tab4:
             df_due_show = df_due_show.rename(columns={"party_name": "Party Name", "current_due": "Current Due"})
             df_due_show = df_due_show[["Party Name", "Current Due"]]
             st.dataframe(df_due_show, use_container_width=True, hide_index=True)
-        else:
-            st.warning("No data available.")
-    except Exception as e:
-        st.error(f"বাকি তালিকা লোড করতে সমস্যা হয়েছে: {e}")
+    else:
+        st.warning("No data available.")
+except Exception as e:
+    st.error(f"বাকি তালিকা লোড করতে সমস্যা হয়েছে: {e}")
 
 elif selected_menu == "Route Map (রুট ম্যাপ)" or selected_menu == "Map & Locations (রুট ম্যাপ)":
     # আপনার পরবর্তী কোড...
