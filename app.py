@@ -1132,6 +1132,8 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
             rep_data = rep_res.data if (rep_res and rep_res.data) else []
         except Exception:
             rep_data = []
+
+        report_df = pd.DataFrame(rep_data)
         if not report_df.empty:
             report_df.rename(columns={
                 "party_name": "Party Name",
