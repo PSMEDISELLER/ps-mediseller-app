@@ -1127,9 +1127,11 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
 
     st.write("---")
     with st.expander("📊 Recent Orders & Visits (সাম্প্রতিক রিপোর্ট) Click to Open", expanded=False):
-        rep_res = supabase.table("daily_work").select("party_name, activity_type, work_date").order("work_date", desc=True).limit(20).execute()
-        report_df = pd.DataFrame(rep_res.data) if rep_res.data else pd.DataFrame()
-
+        try:
+            rep_res = supabase.table("daily_work").select("party_name, activity_type, work_date").order("work_date", desc=True).limit(20).execute()
+            rep_data = rep_res.data if (rep_res and rep_res.data) else []
+        except Exception:
+            rep_data = []
         if not report_df.empty:
             report_df.rename(columns={
                 "party_name": "Party Name",
