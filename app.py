@@ -610,8 +610,13 @@ if user_role == "admin":
     ]
 else:
     if username:
-        res = supabase.table("users").select("allowed_menus").eq("username", username).execute()
-        row = res.data[0] if res.data else None
+        if username:
+        try:
+            res = supabase.table("users").select("allowed_menus").eq("username", username).execute()
+            row = res.data[0] if (res and res.data) else None
+        except Exception:
+            row = None
+
         if row and row.get("allowed_menus"):
             menu_options = [m.strip() for m in row["allowed_menus"].split(",") if m.strip() in all_basic_menus]
         else:
