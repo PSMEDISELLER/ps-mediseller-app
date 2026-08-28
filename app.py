@@ -1333,10 +1333,13 @@ if master_search_query.strip():
     res = supabase.table("locations").select("*").or_(
         f"party_name.ilike.{q_term},address.ilike.{q_term},party_phone.ilike.{q_term}"
     ).order("party_name", desc=False).execute()
-else:
-    res = supabase.table("locations").select("*").order("party_name", desc=False).execute()
 
-df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+else:
+    try:
+        res = supabase.table("locations").select("*").order("party_name", desc=False).execute()
+        df = pd.DataFrame(res.data) if (res and res.data) else pd.DataFrame()
+    except Exception:
+        df = pd.DataFrame()
 
 # 3. Admin Report Download Button
 if st.session_state.get("user_role") == "admin" and not df.empty:
