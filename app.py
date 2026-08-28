@@ -1050,7 +1050,7 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
             f"party_name.ilike.{q_term},address.ilike.{q_term},party_phone.ilike.{q_term}"
         ).order("party_name", desc=False).execute()
     else:
-         try:
+        try:
             res_loc = supabase.table("locations").select("party_name").order("party_name", desc=False).execute()
             filtered_parties_list = [r["party_name"] for r in res_loc.data if r.get("party_name")] if (res_loc and res_loc.data) else []
         except Exception:
