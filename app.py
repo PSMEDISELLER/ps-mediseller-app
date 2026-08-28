@@ -77,7 +77,6 @@ th {{ background-color: #3b82f6; color: white; }}
 </html>
 """
     return html_content
-
 # ==========================================
 # 3. DATABASE SETUP & INITIALIZATION (SUPABASE)
 # ==========================================
@@ -92,85 +91,9 @@ def init_supabase() -> Client:
     if not SUPABASE_KEY:
         st.error("⚠️ Missing SUPABASE_KEY in Streamlit Secrets!")
         st.stop()
-    
-    from supabase.lib.client_options import ClientOptions
-    opts = ClientOptions(postgrest_client_timeout=15)
-    return create_client(SUPABASE_URL, SUPABASE_KEY, options=opts)
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase = init_supabase()
-
-# Initial Default Users Check in Supabase
-try:
-    res = supabase.table("users").select("username").eq("username", "admin").execute()
-    if not res.data:
-        supabase.table("users").insert({
-            "username": "admin",
-            "password": "admin123",
-            "role": "admin",
-            "fullname": "Admin",
-            "phone": "8918740325",
-            "created_at": get_ist_time().strftime("%Y-%m-%d %H:%M:%S"),
-            "is_active": 1,
-            "allow_resubmit": 1
-        }).execute()
-        
-    res_staff = supabase.table("users").select("username").eq("username", "staff").execute()
-    if not res_staff.data:
-        supabase.table("users").insert({
-            "username": "staff",
-            "password": "user123",
-            "role": "staff",
-            "fullname": "Staff Agent",
-            "phone": "8918740325",
-            "created_at": get_ist_time().strftime("%Y-%m-%d %H:%M:%S"),
-            "is_active": 1,
-            "allow_resubmit": 0
-        }).execute()
-except Exception as e:
-    pass
-
-def move_to_recycle_bin(item_type, item_title, item_data_dict):
-    data_json = json.dumps(item_data_dict)
-    deleted_at = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
-    supabase.table("recycle_bin").insert({
-        "item_type": item_type,
-        "item_title": item_title,
-        "item_data": data_json,
-        "deleted_at": deleted_at
-    }).execute()
-
-# Automatic Cleanup Logic (Supabase integration)
-try:
-    current_dt_str = get_ist_time()
-    orders_data = supabase.table("orders").select("id, order_date").execute().data
-    for row_ord in orders_data:
-        try:
-            cleaned_date = str(row_ord.get("order_date")).strip()
-            if " " in cleaned_date:
-                o_time = datetime.strptime(cleaned_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            else:
-                o_time = datetime.strptime(cleaned_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-            if (current_dt_str - o_time) > timedelta(days=7):
-                supabase.table("orders").delete().eq("id", row_ord["id"]).execute()
-        except Exception:
-            pass
-
-    tasks_data = supabase.table("task_assignments").select("id, created_at, status").execute().data
-    for row_task in tasks_data:
-        try:
-            t_status = str(row_task.get("status")).strip().lower() if row_task.get("status") else ""
-            if t_status == "completed":
-                cleaned_task_date = str(row_task.get("created_at")).strip()
-                if " " in cleaned_task_date:
-                    t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-                else:
-                    t_time = datetime.strptime(cleaned_task_date, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
-                if (current_dt_str - t_time) > timedelta(hours=48):
-                    supabase.table("task_assignments").delete().eq("id", row_task["id"]).execute()
-        except Exception:
-            pass
-except Exception as e:
-    pass
 
 # ==========================================
 # 4. CUSTOM STYLING & PWA INJECTION
