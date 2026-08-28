@@ -2628,9 +2628,11 @@ def generate_html_report(title, df):
 
 
 # ==========================================
-# TAB 4: MASTER DUE LIST
+# MENU / ROUTE ROUTING LOGIC
 # ==========================================
-with task_tab4:
+
+# ১. Master Due List (যদি এটি ট্যাব হিসেবে থাকে)
+if selected_menu == "Master Due List (পার্টি ডিউ)":
     st.write("#### Master Due List & Management (পার্টি ডিউ ম্যানেজমেন্ট)")
     col_f1, col_f2 = st.columns(2)
     with col_f1:
@@ -2684,9 +2686,7 @@ with task_tab4:
     except Exception as e:
         st.error(f"⚠️ ডিউ তালিকা লোড করতে সমস্যা হয়েছে: {e}")
 
-# ==========================================
-# PAGE/MENU: ROUTE MAP
-# ==========================================
+# ২. Route Map
 elif selected_menu == "Route Map (রুট ম্যাপ)":
     st.write("### Route Map & Locations (রুট ম্যাপ)")
     try:
@@ -2773,9 +2773,7 @@ elif selected_menu == "Route Map (রুট ম্যাপ)":
     else:
         st.info("No mapped locations available to show on route map. (ম্যাপযুক্ত কোনো লোকেশন নেই।)")
 
-# ==========================================
-# PAGE/MENU: ATTENDANCE
-# ==========================================
+# ৩. Attendance
 elif selected_menu == "Attendance (উপস্থিতি)":
     now_dt = safe_ist_now()
     current_year = now_dt.year
@@ -2834,7 +2832,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                         att_payload = {
                             "username": agent_for_att,
                             "date": today_date_str,
-                            "in_time": check_time_str,  # Database schema (in_time) অনুযায়ী ঠিক করা হয়েছে
+                            "in_time": check_time_str,
                             "status": "Present"
                         }
                         supabase.table("attendance").insert(att_payload).execute()
@@ -2872,9 +2870,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
         except Exception as e:
             st.error(f"⚠️ উপস্থিতি ডাটা আনতে সমস্যা: {e}")
 
-# ==========================================
-# PAGE/MENU: MONTHLY REPORT & ADMIN DELETIONS
-# ==========================================
+    # TAB 2: MONTHLY REPORT & ADMIN DELETIONS
     with att_tab2:
         current_role = st.session_state.get("user_role", "staff")
         current_user = st.session_state.get("username", "staff")
@@ -3028,15 +3024,11 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                 st.dataframe(staff_att_df, use_container_width=True, hide_index=True)
             else:
                 st.info("You have no attendance records yet.")
-            
-            st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)
 
-# ==========================================
-# PAGE/MENU: LIVE TRACKING (ADMIN ONLY)
-# ==========================================
+# ৪. Live Tracking
 elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state.get("user_role") == "admin":
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
     <h4 style="margin:0; color: white; font-size: 22px;"> Live Agent Tracking</h4>
     <p style="margin:5px 0 0 0; font-size: 15px; opacity: 0.9;"> এজেন্টদের লাইভ লোকেশন এবং সর্বশেষ আপডেট এখানে দেখুন।</p>
     </div>
@@ -3097,11 +3089,8 @@ elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)"
                     st.error("⚠️ GPS coordinates not available for this agent.")
     else:
         st.warning("⚠️ কোনো এজেন্টের লাইভ লোকেশন ডাটা পাওয়া যায়নি বা টেবিলটি খালি আছে।")
-        st.info("ℹ️ এজেন্ট অ্যাপ থেকে লোকেশন আপডেট হলে এখানে দেখতে পাবেন।")
 
-# ==========================================
-# PAGE/MENU: SETTINGS & AGENTS (ADMIN ONLY)
-# ==========================================
+# ৫. Settings
 elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state.get("user_role") == "admin":
     st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
 
@@ -3141,15 +3130,12 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
         "Admin Password"
     ])
 
-    # TAB 1: ADD AGENTS & AUTO-LOGIN LINKS
     with set_tab1:
         st.write("#### Add New Staff / Agent & Generate Auto-Login Link")
-        st.info("এই সেকশন থেকে অ্যাডমিন নতুন এজেন্টের নাম, ইউজারনেম ও পাসওয়ার্ড দিয়ে একাউন্ট তৈরি করতে পারবেন। সাথে সাথে অটো-লগইন লিংক তৈরি হয়ে যাবে।")
-
         clean_base_url = "https://ps-mediseller-app-gcanjbehuut7h9rzk4xzfg.streamlit.app"
 
         with st.form("add_agent_form", clear_on_submit=True):
-            new_uname = st.text_input("Username (ইউজারনেম, যেমন: rahul1)")
+            new_uname = st.text_input("Username (ইউজারনেম)")
             new_pass = st.text_input("Password (পাসওয়ার্ড)")
             new_fname = st.text_input("Full Name (পুরো নাম)")
             new_phone = st.text_input("Phone Number (ফোন নম্বর)")
@@ -3161,7 +3147,7 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                     check_exist = supabase.table("users").select("username").eq("username", u_target).execute()
                     
                     if check_exist.data:
-                        st.error("⚠️ Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
+                        st.error("⚠️ Username already exists!")
                     else:
                         try:
                             user_payload = {
@@ -3174,596 +3160,301 @@ elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session
                                 "is_active": 1
                             }
                             supabase.table("users").insert(user_payload).execute()
-                            st.success(f"🎉 New agent '{new_fname.strip()}' added successfully! (নতুন এজেন্ট যুক্ত হয়েছে!)")
+                            st.success(f"🎉 New agent '{new_fname.strip()}' added successfully!")
                             st.rerun()
                         except Exception as e:
                             st.error(f"⚠️ এজেন্ট তৈরিতে সমস্যা: {e}")
                 else:
-                    st.error("⚠️ Username, Password and Full Name are required! (সব তথ্য আবশ্যক!)")
+                    st.error("⚠️ Username, Password and Full Name are required!")
 
-        st.write("---")
-        st.write("#### Existing Agents, Auto-Login Links & Edit")
-        st.write("এজেন্টদের তথ্য পরিবর্তন করতে 'Edit Agent'-এ ক্লিক করুন।")
+# ==========================================
+# PAGE 5 (CONTINUATION): SETTINGS TABS 2 TO 6
+# ==========================================
 
+    # TAB 2: MENU PERMISSIONS
+    with set_tab_perm:
+        import time
+        st.write("### Menu Permissions (মেনু পারমিশন)")
+        st.divider()
         try:
-            staff_users_res = supabase.table("users").select("username, fullname, password, phone, is_active").eq("role", "staff").execute()
-            staff_data = staff_users_res.data if staff_users_res.data else []
-        except Exception:
-            staff_data = []
-
-        if staff_data:
-            for s in staff_data:
-                s_uname = s.get("username", "")
-                s_fname = s.get("fullname", "")
-                s_pass = s.get("password", "")
-                s_ph = s.get("phone", "")
-                s_act = s.get("is_active", 1)
-
-                status = "Active" if s_act == 1 else "Blocked"
-                st.markdown(f"**Name:** {s_fname} | **User:** `{s_uname}` | **Pass:** `{s_pass}` | **Phone:** {s_ph} | **Status:** {status}")
-                
-                link = f"{clean_base_url}/?login={s_uname}"
-                st.code(link, language="text")
-
-                with st.expander(f"Edit Agent: {s_fname}"):
-                    with st.form(f"edit_form_{s_uname}"):
-                        edit_fname = st.text_input("Full Name (নতুন নাম)", value=s_fname)
-                        edit_uname = st.text_input("Username / ID (নতুন আইডি)", value=s_uname)
-                        edit_pass = st.text_input("Password (নতুন পাসওয়ার্ড)", value=s_pass)
-                        edit_phone = st.text_input("Phone Number (নতুন ফোন নম্বর)", value=s_ph)
-                        submit_edit = st.form_submit_button("Update Details (আপডেট করুন)", type="primary")
-
-                        if submit_edit:
-                            if edit_uname.strip() and edit_fname.strip():
-                                new_u_val = edit_uname.strip()
-                                try:
-                                    if new_u_val != s_uname:
-                                        c_chk = supabase.table("users").select("username").eq("username", new_u_val).execute()
-                                        if c_chk.data:
-                                            st.error("⚠️ এই নতুন আইডিটি (Username) ইতিমধ্যে অন্য কারো আছে! অন্য নাম দিন।")
-                                            st.stop()
-
-                                    # Update users table
-                                    supabase.table("users").update({
-                                        "username": new_u_val,
-                                        "fullname": edit_fname.strip(),
-                                        "password": edit_pass.strip(),
-                                        "phone": edit_phone.strip()
-                                    }).eq("username", s_uname).execute()
-
-                                    # Cascade update references if username was modified
-                                    if new_u_val != s_uname:
-                                        supabase.table("attendance").update({"username": new_u_val}).eq("username", s_uname).execute()
-                                        supabase.table("agent_live_locations").update({"username": new_u_val}).eq("username", s_uname).execute()
-                                        supabase.table("task_assignments").update({"agent_name": new_u_val}).eq("agent_name", s_uname).execute()
-
-                                    st.success("🎉 এজেন্টের তথ্য সফলভাবে আপডেট হয়েছে!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"⚠️ Error updating agent: {e}")
-                            else:
-                                st.error("⚠️ নাম এবং আইডি (Username) ফাঁকা রাখা যাবে না!")
-            st.write("---")
-        else:
-            st.warning("⚠️ এখনো কোনো স্টাফ/এজেন্ট যুক্ত করা হয়নি।")
-# ==========================================
-# PAGE/MENU: LIVE TRACKING (ADMIN ONLY)
-# ==========================================
-elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state.get("user_role") == "admin":
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-    <h4 style="margin:0; color: white; font-size: 22px;"> Live Agent Tracking</h4>
-    <p style="margin:5px 0 0 0; font-size: 15px; opacity: 0.9;"> এজেন্টদের লাইভ লোকেশন এবং সর্বশেষ আপডেট এখানে দেখুন।</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    try:
-        live_res = supabase.table("agent_live_locations").select("username, lat, lon, last_updated, completed_deliveries").order("last_updated", desc=True).execute()
-        live_data = live_res.data if live_res.data else []
-
-        if live_data:
-            users_res = supabase.table("users").select("username, fullname, phone").execute()
-            u_map = {u["username"]: u for u in (users_res.data or [])}
+            staff_res = supabase.table("users").select("username, fullname").eq("role", "staff").execute()
+            staff_data = staff_res.data if staff_res.data else []
             
-            for item in live_data:
-                u_info = u_map.get(item["username"], {})
-                item["fullname"] = u_info.get("fullname")
-                item["phone"] = u_info.get("phone")
-
-        live_df = pd.DataFrame(live_data) if live_data else pd.DataFrame()
-    except Exception as e:
-        live_df = pd.DataFrame()
-        st.error(f"Database query error: {e}")
-
-    if not live_df.empty:
-        agent_options = ["All Agents (সব এজেন্ট একসাথে)"]
-        for idx, r in live_df.iterrows():
-            d_name = f"{r['fullname']} ({r['username']})" if pd.notna(r.get('fullname')) and r['fullname'] else r['username']
-            agent_options.append(d_name)
-        
-        selected_agent_box = st.selectbox("📌 Select Agent to Track:", agent_options)
-        st.write("---")
-
-        filtered_df = live_df
-        if selected_agent_box != "All Agents (সব এজেন্ট একসাথে)":
-            sel_uname = selected_agent_box.split("(")[-1].strip(")")
-            filtered_df = live_df[live_df['username'] == sel_uname]
-
-        for idx, r in filtered_df.iterrows():
-            name = r['fullname'] if pd.notna(r.get('fullname')) and r['fullname'] else r['username']
-            username = r['username']
-            phone = r.get('phone', 'N/A')
-            lat = r.get('lat')
-            lon = r.get('lon')
-            last_up = r.get('last_updated')
-            completed = r.get('completed_deliveries', 0)
-
-            with st.expander(f"📍 Agent: {name} (ID: {username})", expanded=True):
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.info(f" **Phone Number:**\n\n{phone}")
-                with c2:
-                    st.success(f" **Completed Tasks:**\n\n{completed}")
-                with c3:
-                    st.warning(f" **Last Updated:**\n\n{last_up if pd.notna(last_up) else 'No update'}")
-
-                if pd.notna(lat) and pd.notna(lon):
-                    g_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.link_button("📍 Track on Google Maps", url=g_url, type="primary", use_container_width=True)
-                else:
-                    st.error("⚠️ GPS coordinates not available for this agent.")
-    else:
-        st.warning("⚠️ কোনো এজেন্টের লাইভ লোকেশন ডাটা পাওয়া যায়নি বা টেবিলটি খালি আছে।")
-        st.info("ℹ️ এজেন্ট অ্যাপ থেকে লোকেশন আপডেট হলে এখানে দেখতে পাবেন।")
-
-# ==========================================
-# PAGE/MENU: SETTINGS & AGENTS (ADMIN ONLY)
-# ==========================================
-elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state.get("user_role") == "admin":
-    st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
-
-    try:
-        staff_cnt_res = supabase.table("users").select("id", count="exact").eq("role", "staff").execute()
-        total_staff_count = staff_cnt_res.count if staff_cnt_res.count is not None else len(staff_cnt_res.data or [])
-
-        all_cnt_res = supabase.table("users").select("id", count="exact").execute()
-        total_users_count = all_cnt_res.count if all_cnt_res.count is not None else len(all_cnt_res.data or [])
-    except Exception:
-        total_staff_count, total_users_count = 0, 0
-
-    col_st1, col_st2 = st.columns(2)
-    with col_st1:
-        st.markdown(f"""
-        <div style="background: #1e293b; padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
-        <h4 style="margin: 0; color: #60a5fa;">Registered Staff Agents</h4>
-        <h2 style="margin: 5px 0 0 0; color: #34d399;">{total_staff_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_st2:
-        st.markdown(f"""
-        <div style="background: #1e293b; padding: 15px; border-radius: 12px; border: 1px solid #818cf8; text-align: center;">
-        <h4 style="margin: 0; color: #a78bfa;">Total System Users</h4>
-        <h2 style="margin: 5px 0 0 0; color: #38bdf8;">{total_users_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.write("")
-    set_tab1, set_tab_perm, set_tab3, set_tab4, set_tab5, set_tab6 = st.tabs([
-        "➕ Add Agents & Links",
-        "Menu Permissions",
-        "Unknown & Blocked Agents",
-        "Backup & Restore",
-        "Recycle Bin",
-        "Admin Password"
-    ])
-
-    # TAB 1: ADD AGENTS & AUTO-LOGIN LINKS
-    with set_tab1:
-        st.write("#### Add New Staff / Agent & Generate Auto-Login Link")
-        st.info("এই সেকশন থেকে অ্যাডমিন নতুন এজেন্টের নাম, ইউজারনেম ও পাসওয়ার্ড দিয়ে একাউন্ট তৈরি করতে পারবেন। সাথে সাথে অটো-লগইন লিংক তৈরি হয়ে যাবে।")
-
-        try:
-            eval_parent_url = streamlit_js_eval(
-                js_expressions="window.parent.location.origin + window.parent.location.pathname",
-                key="get_parent_window_url_clean"
-            )
-            if eval_parent_url and "component" not in eval_parent_url:
-                clean_base_url = eval_parent_url.rstrip("/")
+            if not staff_data:
+                st.info("কোনো স্টাফ একাউন্ট পাওয়া যায়নি।")
             else:
-                clean_base_url = "https://ps-mediseller-app-gcanjbehuut7h9rzk4xzfg.streamlit.app"
-        except Exception:
-            clean_base_url = "https://ps-mediseller-app-gcanjbehuut7h9rzk4xzfg.streamlit.app"
-
-        with st.form("add_agent_form", clear_on_submit=True):
-            new_uname = st.text_input("Username (ইউজারনেম, যেমন: rahul1)")
-            new_pass = st.text_input("Password (পাসওয়ার্ড)")
-            new_fname = st.text_input("Full Name (পুরো নাম)")
-            new_phone = st.text_input("Phone Number (ফোন নম্বর)")
-            submit_new_agent = st.form_submit_button("➕ Add Agent (এজент যুক্ত করুন)", type="primary")
-
-            if submit_new_agent:
-                if new_uname.strip() and new_pass.strip() and new_fname.strip():
-                    u_target = new_uname.strip()
-                    check_exist = supabase.table("users").select("username").eq("username", u_target).execute()
+                for s in staff_data:
+                    s_uname = s.get("username", "")
+                    s_fname = s.get("fullname", "")
                     
-                    if check_exist.data:
-                        st.error("⚠️ Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
-                    else:
-                        try:
-                            user_payload = {
-                                "username": u_target,
-                                "password": new_pass.strip(),
-                                "role": "staff",
-                                "fullname": new_fname.strip(),
-                                "phone": new_phone.strip(),
-                                "created_at": get_ist_time().strftime("%Y-%m-%d %H:%M:%S"),
-                                "is_active": 1,
-                                "allow_resubmit": 0
-                            }
-                            supabase.table("users").insert(user_payload).execute()
-                            st.success(f"🎉 New agent '{new_fname.strip()}' added successfully! (নতুন এজেন্ট যুক্ত হয়েছে!)")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"⚠️ агент তৈরিতে সমস্যা: {e}")
-                else:
-                    st.error("⚠️ Username, Password and Full Name are required! (সব তথ্য আবশ্যক!)")
+                    with st.expander(f"Permission Settings: {s_fname} ({s_uname})"):
+                        am_res = supabase.table("users").select("allowed_menus").eq("username", s_uname).execute()
+                        am_row = am_res.data[0] if am_res.data else {}
+                        
+                        raw_curr = am_row.get("allowed_menus", "")
+                        curr_menus = raw_curr.split(",") if raw_curr else all_basic_menus
+                        valid_defaults = [menu.strip() for menu in curr_menus if menu.strip() in all_basic_menus]
+                        
+                        sel_menus = st.multiselect(
+                            "যে মেনুগুলোর এক্সেস দিতে চান তা নির্বাচন করুন:",
+                            all_basic_menus,
+                            default=valid_defaults,
+                            key=f"perm_{s_uname}"
+                        )
+                        
+                        if st.button("Save Permissions", key=f"btn_perm_{s_uname}", use_container_width=True):
+                            try:
+                                updated_menus_str = ",".join(sel_menus)
+                                supabase.table("users").update({"allowed_menus": updated_menus_str}).eq("username", s_uname).execute()
+                                st.success(f"{s_fname}-এর পারমিশন সফলভাবে আপডেট হয়েছে!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"ডাটাবেজ আপডেট করতে সমস্যা হয়েছে: {e}")
+        except Exception as e:
+            st.error(f"স্টাফদের তথ্য আনতে সমস্যা হয়েছে: {e}")
 
-        st.write("---")
-        st.write("#### Existing Agents, Auto-Login Links & Edit")
-        st.write("এজেন্টদের তথ্য পরিবর্তন করতে 'Edit Agent'-এ ক্লিক করুন।")
+    # TAB 3: UNKNOWN & BLOCKED AGENTS
+    with set_tab3:
+        st.write("### Unknown & Blocked Agents Management")
+        st.caption("লিংক দিয়ে প্রবেশ করা নতুন ইউজার এবং ব্লকড এজেন্টদের তালিকা ও পরিচালনা সেকশন।")
 
         try:
-            staff_users_res = supabase.table("users").select("username, fullname, password, phone, is_active").eq("role", "staff").execute()
-            staff_data = staff_users_res.data if staff_users_res.data else []
-        except Exception:
-            staff_data = []
+            users_res = supabase.table("users").select("username, fullname, role, is_active, created_at").neq("role", "admin").execute()
+            all_users_data = users_res.data if users_res.data else []
+        except Exception as e:
+            all_users_data = []
+            st.error(f"ইউজার তথ্য ডাটাবেজ থেকে আনতে সমস্যা: {e}")
 
-        if staff_data:
-            for s in staff_data:
-                s_uname = s.get("username", "")
-                s_fname = s.get("fullname", "")
-                s_pass = s.get("password", "")
-                s_ph = s.get("phone", "")
-                s_act = s.get("is_active", 1)
+        if "delete_msg" in st.session_state:
+            st.success(st.session_state["delete_msg"])
+            del st.session_state["delete_msg"]
 
-                status = "Active" if s_act == 1 else "Blocked"
-                st.markdown(f"**Name:** {s_fname} | **User:** `{s_uname}` | **Pass:** `{s_pass}` | **Phone:** {s_ph} | **Status:** {status}")
-                
-                link = f"{clean_base_url}/?login={s_uname}"
-                st.code(link, language="text")
-
-                with st.expander(f"Edit Agent: {s_fname}"):
-                    with st.form(f"edit_form_{s_uname}"):
-                        edit_fname = st.text_input("Full Name (নতুন নাম)", value=s_fname)
-                        edit_uname = st.text_input("Username / ID (নতুন আইডি)", value=s_uname)
-                        edit_pass = st.text_input("Password (নতুন পাসওয়ার্ড)", value=s_pass)
-                        edit_phone = st.text_input("Phone Number (নতুন ফোন নম্বর)", value=s_ph)
-                        submit_edit = st.form_submit_button("Update Details (আপডেট করুন)", type="primary")
-
-                        if submit_edit:
-                            if edit_uname.strip() and edit_fname.strip():
-                                new_u_val = edit_uname.strip()
-                                try:
-                                    if new_u_val != s_uname:
-                                        c_chk = supabase.table("users").select("username").eq("username", new_u_val).execute()
-                                        if c_chk.data:
-                                            st.error("⚠️ এই নতুন আইডিটি (Username) ইতিমধ্যে অন্য কারো আছে! অন্য নাম দিন।")
-                                            st.stop()
-
-                                    # Update users table
-                                    supabase.table("users").update({
-                                        "username": new_u_val,
-                                        "fullname": edit_fname.strip(),
-                                        "password": edit_pass.strip(),
-                                        "phone": edit_phone.strip()
-                                    }).eq("username", s_uname).execute()
-
-                                    # Cascade update references if username was modified
-                                    if new_u_val != s_uname:
-                                        supabase.table("attendance").update({"username": new_u_val}).eq("username", s_uname).execute()
-                                        supabase.table("agent_live_locations").update({"username": new_u_val}).eq("username", s_uname).execute()
-                                        supabase.table("task_assignments").update({"agent_name": new_u_val}).eq("agent_name", s_uname).execute()
-
-                                    st.success("🎉 এজেন্টের তথ্য সফলভাবে আপডেট হয়েছে!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"⚠️ Error updating agent: {e}")
-                            else:
-                                st.error("⚠️ নাম এবং আইডি (Username) ফাঁকা রাখা যাবে না!")
-            st.write("---")
+        if not all_users_data:
+            st.info("বর্তমানে কোনো Unknown বা Blocked এজেন্ট পাওয়া যায়নি।")
         else:
-            st.warning("⚠️ এখনো কোনো স্টাফ/এজেন্ট যুক্ত করা হয়নি।")
+            # ১. ড্রপডাউন ফিল্টারিং
+            user_options = [row["username"] for row in all_users_data]
+            user_dict = {row["username"]: f"{row.get('fullname', '')} (@{row['username']}) [{row.get('role', '').upper()}]" for row in all_users_data}
 
-    # ==========================================
-    # PAGE 5 (CONTINUATION): SETTINGS TABS 2 TO 6
-    # ==========================================
-    
-        # TAB 2: MENU PERMISSIONS
-        with set_tab_perm:
-            import time
-            st.write("### Menu Permissions (মেনু পারমিশন)")
-            st.divider()
-            try:
-                staff_res = supabase.table("users").select("username, fullname").eq("role", "staff").execute()
-                staff_data = staff_res.data if staff_res.data else []
-                
-                if not staff_data:
-                    st.info("কোনো স্টাফ একাউন্ট পাওয়া যায়নি।")
-                else:
-                    for s in staff_data:
-                        s_uname = s.get("username", "")
-                        s_fname = s.get("fullname", "")
-                        
-                        with st.expander(f"Permission Settings: {s_fname} ({s_uname})"):
-                            am_res = supabase.table("users").select("allowed_menus").eq("username", s_uname).execute()
-                            am_row = am_res.data[0] if am_res.data else {}
-                            
-                            raw_curr = am_row.get("allowed_menus", "")
-                            curr_menus = raw_curr.split(",") if raw_curr else all_basic_menus
-                            valid_defaults = [menu.strip() for menu in curr_menus if menu.strip() in all_basic_menus]
-                            
-                            sel_menus = st.multiselect(
-                                "যে মেনুগুলোর এক্সেস দিতে চান তা নির্বাচন করুন:",
-                                all_basic_menus,
-                                default=valid_defaults,
-                                key=f"perm_{s_uname}"
-                            )
-                            
-                            if st.button("Save Permissions", key=f"btn_perm_{s_uname}", use_container_width=True):
-                                try:
-                                    updated_menus_str = ",".join(sel_menus)
-                                    supabase.table("users").update({"allowed_menus": updated_menus_str}).eq("username", s_uname).execute()
-                                    st.success(f"{s_fname}-এর পারমিশন সফলভাবে আপডেট হয়েছে!")
-                                    time.sleep(1)
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"ডাটাবেজ আপডেট করতে সমস্যা হয়েছে: {e}")
-            except Exception as e:
-                st.error(f"স্টাফদের তথ্য আনতে সমস্যা হয়েছে: {e}")
-    
-        # TAB 3: UNKNOWN & BLOCKED AGENTS
-        with set_tab3:
-            st.write("### Unknown & Blocked Agents Management")
-            st.caption("লিংক দিয়ে প্রবেশ করা নতুন ইউজার এবং ব্লকড এজেন্টদের তালিকা ও পরিচালনা সেকশন।")
-    
-            try:
-                users_res = supabase.table("users").select("username, fullname, role, is_active, created_at").neq("role", "admin").execute()
-                all_users_data = users_res.data if users_res.data else []
-            except Exception as e:
-                all_users_data = []
-                st.error(f"ইউজার তথ্য ডাটাবেজ থেকে আনতে সমস্যা: {e}")
-    
-            if "delete_msg" in st.session_state:
-                st.success(st.session_state["delete_msg"])
-                del st.session_state["delete_msg"]
-    
-            if not all_users_data:
-                st.info("বর্তমানে কোনো Unknown বা Blocked এজেন্ট পাওয়া যায়নি।")
-            else:
-                # ১. ড্রপডাউন ফিল্টারিং
-                user_options = [row["username"] for row in all_users_data]
-                user_dict = {row["username"]: f"{row.get('fullname', '')} (@{row['username']}) [{row.get('role', '').upper()}]" for row in all_users_data}
-    
-                st.markdown("##### 📌 সিলেক্ট করুন যাকে ম্যানেজ করতে চান")
-                selected_uname = st.selectbox(
-                    "ইউজারনেম বা আইডি নির্বাচন করুন:",
-                    options=user_options,
-                    format_func=lambda x: user_dict.get(x, x)
-                )
-    
-                if selected_uname:
-                    u_res = supabase.table("users").select("username, fullname, role, is_active, phone").eq("username", selected_uname).execute()
-                    u_row = u_res.data[0] if u_res.data else None
-    
-                    if u_row:
-                        s_uname = u_row.get("username")
-                        s_fname = u_row.get("fullname")
-                        s_role = u_row.get("role")
-                        s_act = u_row.get("is_active")
-                        s_phone = u_row.get("phone")
-    
-                        status_label = "🟢 Active" if s_act == 1 else "🔴 Blocked"
-                        role_label = "🔗 Unknown (Link Access)" if s_role == "unknown" else f"👤 {s_role.capitalize()}"
-    
-                        # কার্ডের মতো সুন্দর ডিটেইলস ডিসপ্লে
-                        st.info(f"""
-                        **নাম:** {s_fname}
-                        **ইউজারনেম:** `{s_uname}` | **ফোন:** {s_phone}
-                        **টাইপ:** {role_label} | **স্ট্যাটাস:** {status_label}
-                        """)
-    
-                        col1, col2, col3 = st.columns([1, 1, 1])
-    
-                        # কলাম ১: ব্লক/আনব্লক অ্যাকশন
-                        with col1:
-                            if s_act == 1:
-                                if st.button("🚫 Block User", key=f"blk_{s_uname}", use_container_width=True):
-                                    supabase.table("users").update({"is_active": 0}).eq("username", s_uname).execute()
-                                    st.success(f"'{s_uname}' কে ব্লক করা হয়েছে।")
-                                    st.rerun()
-                            else:
-                                if st.button("✅ Unblock User", key=f"unblk_{s_uname}", use_container_width=True):
-                                    supabase.table("users").update({"is_active": 1}).eq("username", s_uname).execute()
-                                    st.success(f"'{s_uname}' কে আনব্লক করা হয়েছে।")
-                                    st.rerun()
-    
-                        # কলাম ২: স্টাফ হিসেবে অ্যাপ্রুভ করা (Unknown ইউজারদের জন্য)
-                        with col2:
-                            if s_role == "unknown":
-                                if st.button("✔ Approve as Staff", key=f"appr_{s_uname}", use_container_width=True):
-                                    supabase.table("users").update({"role": "staff"}).eq("username", s_uname).execute()
-                                    st.success(f"'{s_uname}' এখন রেজিস্টার্ড Staff!")
-                                    st.rerun()
-    
-                        # কলাম ৩: ডিলিট অ্যাকশন
-                        with col3:
-                            if st.button("🗑 Delete User", key=f"del_{s_uname}", type="primary", use_container_width=True):
-                                supabase.table("users").delete().eq("username", s_uname).execute()
-                                st.session_state["delete_msg"] = f"User '{s_uname}' সফলভাবে মুছে ফেলা হয়েছে!"
+            st.markdown("##### 📌 সিলেক্ট করুন যাকে ম্যানেজ করতে চান")
+            selected_uname = st.selectbox(
+                "ইউজারনেম বা আইডি নির্বাচন করুন:",
+                options=user_options,
+                format_func=lambda x: user_dict.get(x, x)
+            )
+
+            if selected_uname:
+                u_res = supabase.table("users").select("username, fullname, role, is_active, phone").eq("username", selected_uname).execute()
+                u_row = u_res.data[0] if u_res.data else None
+
+                if u_row:
+                    s_uname = u_row.get("username")
+                    s_fname = u_row.get("fullname")
+                    s_role = u_row.get("role")
+                    s_act = u_row.get("is_active")
+                    s_phone = u_row.get("phone")
+
+                    status_label = "🟢 Active" if s_act == 1 else "🔴 Blocked"
+                    role_label = "🔗 Unknown (Link Access)" if s_role == "unknown" else f"👤 {s_role.capitalize()}"
+
+                    # কার্ডের মতো সুন্দর ডিটেইলস ডিসপ্লে
+                    st.info(f"""
+                    **নাম:** {s_fname}
+                    **ইউজারনেম:** `{s_uname}` | **ফোন:** {s_phone}
+                    **টাইপ:** {role_label} | **স্ট্যাটাস:** {status_label}
+                    """)
+
+                    col1, col2, col3 = st.columns([1, 1, 1])
+
+                    # কলাম ১: ব্লক/আনব্লক অ্যাকশন
+                    with col1:
+                        if s_act == 1:
+                            if st.button("🚫 Block User", key=f"blk_{s_uname}", use_container_width=True):
+                                supabase.table("users").update({"is_active": 0}).eq("username", s_uname).execute()
+                                st.success(f"'{s_uname}' কে ব্লক করা হয়েছে।")
                                 st.rerun()
-    
-                st.divider()
-                # ২. সামারি টেবিল ও লিস্ট
-                st.markdown("##### 📋 সকল এজেন্ট ও অটো-লগইন ইউজারদের সামারি")
-                summary_list = []
-                for u in all_users_data:
-                    uname = u.get("username")
-                    fname = u.get("fullname")
-                    role = u.get("role")
-                    is_act = u.get("is_active")
-                    created = u.get("created_at")
-    
-                    st_text = "🟢 Active" if is_act == 1 else "🔴 Blocked"
-                    type_text = "🔗 Link User (Unknown)" if role == "unknown" else "👤 Staff"
-                    summary_list.append({
-                        "Username": uname,
-                        "Full Name": fname,
-                        "Type": type_text,
-                        "Status": st_text,
-                        "Joined": created
-                    })
-    
-                st.dataframe(summary_list, use_container_width=True)
-    
-        # TAB 4: BACKUP & RESTORE (CLOUD SUPABASE INFO)
-        with set_tab4:
-            st.markdown("### Database Management & Security")
-            st.caption("আপনার ডাটাবেসের ক্লাউড স্ট্যাটাস এবং রিয়েল-টাইম ক্লাউড সিঙ্ক তথ্য।")
+                        else:
+                            if st.button("✅ Unblock User", key=f"unblk_{s_uname}", use_container_width=True):
+                                supabase.table("users").update({"is_active": 1}).eq("username", s_uname).execute()
+                                st.success(f"'{s_uname}' কে আনব্লক করা হয়েছে।")
+                                st.rerun()
+
+                    # কলাম ২: স্টাফ হিসেবে অ্যাপ্রুভ করা (Unknown ইউজারদের জন্য)
+                    with col2:
+                        if s_role == "unknown":
+                            if st.button("✔ Approve as Staff", key=f"appr_{s_uname}", use_container_width=True):
+                                supabase.table("users").update({"role": "staff"}).eq("username", s_uname).execute()
+                                st.success(f"'{s_uname}' এখন রেজিস্টার্ড Staff!")
+                                st.rerun()
+
+                    # কলাম ৩: ডিলিট অ্যাকশন
+                    with col3:
+                        if st.button("🗑 Delete User", key=f"del_{s_uname}", type="primary", use_container_width=True):
+                            supabase.table("users").delete().eq("username", s_uname).execute()
+                            st.session_state["delete_msg"] = f"User '{s_uname}' সফলভাবে মুছে ফেলা হয়েছে!"
+                            st.rerun()
+
             st.divider()
-    
-            col_backup, col_restore = st.columns(2, gap="large")
-    
-            with col_backup:
-                st.markdown("#### Cloud Database Status")
-                st.info("আপনার সমস্ত ডাটাবেস রিয়েল-টাইমে Supabase Cloud PostgreSQL-এ নিরাপদভাবে সংরক্ষিত হচ্ছে।")
-                st.success("🟢 Supabase Realtime Sync Active")
-    
-            with col_restore:
-                st.markdown("#### Cloud Backup Management")
-                st.warning("⚠️ Supabase ক্লাউড ডাটাবেস স্বয়ংক্রিয়ভাবে দৈনিক ব্যাকআপ গ্রহণ করে। কোনো ম্যানুয়াল রিস্টোর বা ডাটাবেস রিসেট প্রয়োজন হলে Supabase Dashboard ব্যবহার করুন।")
-    
-        # TAB 5: RECYCLE BIN
-        with set_tab5:
-            st.subheader("Recycle Bin (রিসাইকেল বিন)")
-            try:
-                rec_res = supabase.table("recycle_bin").select("id, item_type, item_title, item_data, deleted_at").execute()
-                recycle_rows = rec_res.data if rec_res.data else []
-    
-                if recycle_rows:
-                    display_data = []
-                    options = {}
-                    for row in recycle_rows:
-                        r_id = row.get("id")
-                        item_type = row.get("item_type")
-                        item_title = row.get("item_title")
-                        item_data = row.get("item_data")
-                        deleted_at = row.get("deleted_at")
-    
-                        display_data.append({
-                            "ID": r_id,
-                            "Item Type": item_type,
-                            "Name / Title": item_title,
-                            "Deleted At": deleted_at
-                        })
-                        label = f"ID: {r_id} | [{item_type}] {item_title}"
-                        options[label] = row
-    
-                    df_recycle = pd.DataFrame(display_data)
-                    st.dataframe(df_recycle, use_container_width=True, hide_index=True)
-    
-                    st.markdown("---")
-                    st.subheader("Restore Item")
-                    selected_label = st.selectbox("Select Item to Restore:", list(options.keys()))
-    
-                    if st.button("Restore Selected Item", type="primary"):
-                        selected_row = options[selected_label]
-                        selected_id = selected_row.get("id")
-                        item_type = selected_row.get("item_type")
-                        raw_data = selected_row.get("item_data")
-    
-                        data = {}
-                        if isinstance(raw_data, dict):
-                            data = raw_data
-                        elif isinstance(raw_data, str) and raw_data.strip():
+            # ২. সামারি টেবিল ও লিস্ট
+            st.markdown("##### 📋 সকল এজেন্ট ও অটো-লগইন ইউজারদের সামারি")
+            summary_list = []
+            for u in all_users_data:
+                uname = u.get("username")
+                fname = u.get("fullname")
+                role = u.get("role")
+                is_act = u.get("is_active")
+                created = u.get("created_at")
+
+                st_text = "🟢 Active" if is_act == 1 else "🔴 Blocked"
+                type_text = "🔗 Link User (Unknown)" if role == "unknown" else "👤 Staff"
+                summary_list.append({
+                    "Username": uname,
+                    "Full Name": fname,
+                    "Type": type_text,
+                    "Status": st_text,
+                    "Joined": created
+                })
+
+            st.dataframe(summary_list, use_container_width=True)
+
+    # TAB 4: BACKUP & RESTORE (CLOUD SUPABASE INFO)
+    with set_tab4:
+        st.markdown("### Database Management & Security")
+        st.caption("আপনার ডাটাবেসের ক্লাউড স্ট্যাটাস এবং রিয়েল-টাইম ক্লাউড সিঙ্ক তথ্য।")
+        st.divider()
+
+        col_backup, col_restore = st.columns(2, gap="large")
+
+        with col_backup:
+            st.markdown("#### Cloud Database Status")
+            st.info("আপনার সমস্ত ডাটাবেস রিয়েল-টাইমে Supabase Cloud PostgreSQL-এ নিরাপদভাবে সংরক্ষিত হচ্ছে।")
+            st.success("🟢 Supabase Realtime Sync Active")
+
+        with col_restore:
+            st.markdown("#### Cloud Backup Management")
+            st.warning("⚠️ Supabase ক্লাউড ডাটাবেস স্বয়ংক্রিয়ভাবে দৈনিক ব্যাকআপ গ্রহণ করে। কোনো ম্যানুয়াল রিস্টোর বা ডাটাবেস রিসেট প্রয়োজন হলে Supabase Dashboard ব্যবহার করুন।")
+
+    # TAB 5: RECYCLE BIN
+    with set_tab5:
+        st.subheader("Recycle Bin (রিসাইকেল বিন)")
+        try:
+            rec_res = supabase.table("recycle_bin").select("id, item_type, item_title, item_data, deleted_at").execute()
+            recycle_rows = rec_res.data if rec_res.data else []
+
+            if recycle_rows:
+                display_data = []
+                options = {}
+                for row in recycle_rows:
+                    r_id = row.get("id")
+                    item_type = row.get("item_type")
+                    item_title = row.get("item_title")
+                    item_data = row.get("item_data")
+                    deleted_at = row.get("deleted_at")
+
+                    display_data.append({
+                        "ID": r_id,
+                        "Item Type": item_type,
+                        "Name / Title": item_title,
+                        "Deleted At": deleted_at
+                    })
+                    label = f"ID: {r_id} | [{item_type}] {item_title}"
+                    options[label] = row
+
+                df_recycle = pd.DataFrame(display_data)
+                st.dataframe(df_recycle, use_container_width=True, hide_index=True)
+
+                st.markdown("---")
+                st.subheader("Restore Item")
+                selected_label = st.selectbox("Select Item to Restore:", list(options.keys()))
+
+                if st.button("Restore Selected Item", type="primary"):
+                    selected_row = options[selected_label]
+                    selected_id = selected_row.get("id")
+                    item_type = selected_row.get("item_type")
+                    raw_data = selected_row.get("item_data")
+
+                    data = {}
+                    if isinstance(raw_data, dict):
+                        data = raw_data
+                    elif isinstance(raw_data, str) and raw_data.strip():
+                        try:
+                            import ast
+                            data = ast.literal_eval(raw_data)
+                        except Exception:
                             try:
-                                import ast
-                                data = ast.literal_eval(raw_data)
+                                import json
+                                data = json.loads(raw_data)
                             except Exception:
-                                try:
-                                    import json
-                                    data = json.loads(raw_data)
-                                except Exception:
-                                    pass
-    
-                        if not data:
-                            data = {}
-                            st.error("Error: Failed to parse item data for restoration!")
-                            st.stop()
-    
-                        if item_type == "Location":
-                            supabase.table("locations").insert({
-                                "party_name": data.get('party_name'),
-                                "address": data.get('address'),
-                                "party_phone": data.get('party_phone'),
-                                "lat": data.get('lat'),
-                                "lon": data.get('lon'),
-                                "route_order": data.get('route_order'),
-                                "current_due": data.get('current_due')
-                            }).execute()
-    
-                        elif item_type == "Orders":
-                            supabase.table("orders").insert({
-                                "party_name": data.get('party_name'),
-                                "order_details": data.get('order_details'),
-                                "order_date": data.get('order_date'),
-                                "status": data.get('status', 'Pending'),
-                                "payment_collected": data.get('payment_collected', '0')
-                            }).execute()
-    
-                        elif item_type == "Daily Work":
-                            supabase.table("daily_work").insert({
-                                "party_name": data.get('party_name', 'N/A'),
-                                "activity_type": data.get('activity_type', 'N/A'),
-                                "work_date": data.get('work_date', '')
-                            }).execute()
-    
-                        elif item_type == "Task":
-                            supabase.table("task_assignments").insert({
-                                "agent_name": data.get('agent_name'),
-                                "party_name": data.get('party_name'),
-                                "task_type": data.get('task_type'),
-                                "due_amount": data.get('due_amount', '0'),
-                                "sale_amount": data.get('sale_amount', '0'),
-                                "payment_collected_actual": data.get('payment_collected_actual', '0'),
-                                "remaining_due": data.get('remaining_due', '0'),
-                                "status": data.get('status', 'Pending'),
-                                "created_at": data.get('created_at')
-                            }).execute()
-    
-                        # Delete from recycle bin after restoring
-                        supabase.table("recycle_bin").delete().eq("id", selected_id).execute()
-                        st.success(f"Successfully restored '{selected_row.get('item_title')}'!")
-                        st.rerun()
-    
-                    if st.button("Clear Recycle Bin"):
-                        supabase.table("recycle_bin").delete().neq("id", 0).execute()
-                        st.success("Recycle Bin cleared!")
-                        st.rerun()
+                                pass
+
+                    if not data:
+                        data = {}
+                        st.error("Error: Failed to parse item data for restoration!")
+                        st.stop()
+
+                    if item_type == "Location":
+                        supabase.table("locations").insert({
+                            "party_name": data.get('party_name'),
+                            "address": data.get('address'),
+                            "party_phone": data.get('party_phone'),
+                            "lat": data.get('lat'),
+                            "lon": data.get('lon'),
+                            "route_order": data.get('route_order'),
+                            "current_due": data.get('current_due')
+                        }).execute()
+
+                    elif item_type == "Orders":
+                        supabase.table("orders").insert({
+                            "party_name": data.get('party_name'),
+                            "order_details": data.get('order_details'),
+                            "order_date": data.get('order_date'),
+                            "status": data.get('status', 'Pending'),
+                            "payment_collected": data.get('payment_collected', '0')
+                        }).execute()
+
+                    elif item_type == "Daily Work":
+                        supabase.table("daily_work").insert({
+                            "party_name": data.get('party_name', 'N/A'),
+                            "activity_type": data.get('activity_type', 'N/A'),
+                            "work_date": data.get('work_date', '')
+                        }).execute()
+
+                    elif item_type == "Task":
+                        supabase.table("task_assignments").insert({
+                            "agent_name": data.get('agent_name'),
+                            "party_name": data.get('party_name'),
+                            "task_type": data.get('task_type'),
+                            "due_amount": data.get('due_amount', '0'),
+                            "sale_amount": data.get('sale_amount', '0'),
+                            "payment_collected_actual": data.get('payment_collected_actual', '0'),
+                            "remaining_due": data.get('remaining_due', '0'),
+                            "status": data.get('status', 'Pending'),
+                            "created_at": data.get('created_at')
+                        }).execute()
+
+                    # Delete from recycle bin after restoring
+                    supabase.table("recycle_bin").delete().eq("id", selected_id).execute()
+                    st.success(f"Successfully restored '{selected_row.get('item_title')}'!")
+                    st.rerun()
+
+                if st.button("Clear Recycle Bin"):
+                    supabase.table("recycle_bin").delete().neq("id", 0).execute()
+                    st.success("Recycle Bin cleared!")
+                    st.rerun()
+            else:
+                st.info("Recycle Bin is empty. (রিসাইকেল বিন ফাঁকা)")
+        except Exception as e:
+            st.error(f"Error loading Recycle Bin: {e}. ডেটাবেসে recycle_bin টেবিলটি আছে কিনা চেক করুন।")
+
+    # TAB 6: ADMIN PASSWORD
+    with set_tab6:
+        st.write("#### Admin Password Update (পাসওয়ার্ড পরিবর্তন)")
+        with st.form("update_admin_pass"):
+            new_pass = st.text_input("New Admin Password", type="password")
+            if st.form_submit_button("Update Password", type="primary"):
+                if new_pass.strip():
+                    supabase.table("users").update({"password": new_pass.strip()}).eq("username", "admin").execute()
+                    st.success("Admin Password Updated Successfully!")
                 else:
-                    st.info("Recycle Bin is empty. (রিসাইকেল বিন ফাঁকা)")
-            except Exception as e:
-                st.error(f"Error loading Recycle Bin: {e}. ডেটাবেসে recycle_bin টেবিলটি আছে কিনা চেক করুন।")
-    
-        # TAB 6: ADMIN PASSWORD
-        with set_tab6:
-            st.write("#### Admin Password Update (পাসওয়ার্ড পরিবর্তন)")
-            with st.form("update_admin_pass"):
-                new_pass = st.text_input("New Admin Password", type="password")
-                if st.form_submit_button("Update Password", type="primary"):
-                    if new_pass.strip():
-                        supabase.table("users").update({"password": new_pass.strip()}).eq("username", "admin").execute()
-                        st.success("Admin Password Updated Successfully!")
-                    else:
-                        st.error("Please enter a valid password.")
+                    st.error("Please enter a valid password.")
