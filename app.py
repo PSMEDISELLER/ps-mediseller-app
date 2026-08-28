@@ -2597,6 +2597,36 @@ with task_tab3:
 # PAGE 5: MASTER DUE LIST, ROUTE MAP, ATTENDANCE, LIVE TRACKING & SETTINGS
 # ==========================================
 
+import datetime
+import calendar
+import pandas as pd
+import folium
+from streamlit_folium import st_folium
+
+# --- HELPER FUNCTIONS FIX ---
+def get_ist_time():
+    """IST time calculator"""
+    return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+
+def safe_ist_now():
+    return get_ist_time()
+
+def format_date_display(date_str):
+    try:
+        parts = str(date_str).split(' ')[0].split('-')
+        if len(parts) == 3:
+            return f"{parts[2]}-{parts[1]}-{parts[0]}"
+    except Exception:
+        pass
+    return date_str
+
+def generate_html_report(title, df):
+    """Fallback HTML Report Generator"""
+    html_data = f"<h2>{title}</h2>"
+    html_data += df.to_html(index=False, classes='table table-striped')
+    return html_data.encode('utf-8')
+
+
 # ==========================================
 # TAB 4: MASTER DUE LIST
 # ==========================================
@@ -2612,8 +2642,7 @@ with task_tab4:
             key="master_due_search_input"
         )
     with col_f2:
-        import datetime
-        current_year_month = datetime.datetime.now().strftime("%Y-%m")
+        current_year_month = get_ist_time().strftime("%Y-%m")
         selected_month = st.selectbox(
             "Select Month (মাস সিলেক্ট করুন)",
             [current_year_month, "All Months (সব মাস)"],
@@ -2650,15 +2679,15 @@ with task_tab4:
             df_due_show = df_due_show.rename(columns={"party_name": "Party Name", "current_due": "Current Due"})
             df_due_show = df_due_show[["Party Name", "Current Due"]]
             st.dataframe(df_due_show, use_container_width=True, hide_index=True)
-        else: 
+        else:
             st.warning("No data available.")
     except Exception as e:
-        st.error(f"বাকি তালিকা লোড করতে সমস্যা হয়েছে: {e}")
+        st.error(f"⚠️ ডিউ তালিকা লোড করতে সমস্যা হয়েছে: {e}")
+
 # ==========================================
 # PAGE/MENU: ROUTE MAP
 # ==========================================
-elif selected_menu == "Route Map (রুট ম্যাপ)" or selected_menu == "Map & Locations (রুট ম্যাপ)":
-    # আপনার পরবর্তী কোড...
+elif selected_menu == "Route Map (রুট ম্যাপ)":
     st.write("### Route Map & Locations (রুট ম্যাপ)")
     try:
         route_res = supabase.table("locations") \
@@ -2673,19 +2702,19 @@ elif selected_menu == "Route Map (রুট ম্যাপ)" or selected_menu =
         st.error(f"⚠️ লোকেশন ডাটা আনতে সমস্যা: {e}")
 
     if route_data:
-        # Filter out invalid numeric float conversions safely
         valid_route_data = []
         for r in route_data:
             try:
-                lat_v = float(r.get("lat"))
-                lon_v = float(r.get("lon"))
-                valid_route_data.append({
-                    "party_name": r.get("party_name"),
-                    "address": r.get("address"),
-                    "lat": lat_v,
-                    "lon": lon_v,
-                    "party_phone": r.get("party_phone")
-                })
+                if r.get("lat") is not None and r.get("lon") is not None:
+                    lat_v = float(r.get("lat"))
+                    lon_v = float(r.get("lon"))
+                    valid_route_data.append({
+                        "party_name": r.get("party_name"),
+                        "address": r.get("address"),
+                        "lat": lat_v,
+                        "lon": lon_v,
+                        "party_phone": r.get("party_phone")
+                    })
             except (ValueError, TypeError):
                 continue
 
@@ -2748,29 +2777,12 @@ elif selected_menu == "Route Map (রুট ম্যাপ)" or selected_menu =
 # PAGE/MENU: ATTENDANCE
 # ==========================================
 elif selected_menu == "Attendance (উপস্থিতি)":
-    import datetime
-    import calendar
-    import pandas as pd
-
-    def safe_ist_now():
-        return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
-
-    def format_date_display(date_str):
-        try:
-            parts = str(date_str).split('-')
-            if len(parts) == 3:
-                return f"{parts[2]}-{parts[1]}-{parts[0]}"
-        except Exception:
-            pass
-        return date_str
-
     now_dt = safe_ist_now()
     current_year = now_dt.year
     current_month = now_dt.month
 
     st.write("### Daily & Monthly Attendance (উপস্থিতি ব্যবস্থাপনা)")
 
-    # Users mapping
     try:
         users_att_res = supabase.table("users").select("username, fullname, role").execute()
         att_users_data = users_att_res.data if users_att_res.data else []
@@ -2809,7 +2821,6 @@ elif selected_menu == "Attendance (উপস্থিতি)":
 
             if submit_att:
                 try:
-                    # Check existing record for today
                     exist_att = supabase.table("attendance") \
                         .select("id") \
                         .eq("username", agent_for_att) \
@@ -2823,7 +2834,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                         att_payload = {
                             "username": agent_for_att,
                             "date": today_date_str,
-                            "check_time": check_time_str,
+                            "in_time": check_time_str,  # Database schema (in_time) অনুযায়ী ঠিক করা হয়েছে
                             "status": "Present"
                         }
                         supabase.table("attendance").insert(att_payload).execute()
@@ -2837,28 +2848,33 @@ elif selected_menu == "Attendance (উপস্থিতি)":
         
         try:
             today_att_res = supabase.table("attendance") \
-                .select("date, username, check_time, status") \
+                .select("date, username, in_time, status") \
                 .eq("date", today_date_str) \
-                .order("check_time", desc=True) \
+                .order("in_time", desc=True) \
                 .execute()
             
             t_att_data = today_att_res.data if today_att_res.data else []
             
             if t_att_data:
+                formatted_att = []
                 for r in t_att_data:
-                    r["Agent Name"] = agent_name_map.get(r.get("username"), r.get("username"))
-                    r["Date"] = format_date_display(r.get("date"))
-                    r["Check-in Time"] = r.get("check_time")
-                    r["Status"] = r.get("status")
+                    formatted_att.append({
+                        "Date": format_date_display(r.get("date")),
+                        "Agent Name": agent_name_map.get(r.get("username"), r.get("username")),
+                        "Check-in Time": r.get("in_time"),
+                        "Status": r.get("status")
+                    })
 
-                today_att_df = pd.DataFrame(t_att_data)[["Date", "Agent Name", "Check-in Time", "Status"]]
+                today_att_df = pd.DataFrame(formatted_att)
                 st.dataframe(today_att_df, use_container_width=True, hide_index=True)
             else:
                 st.info("ℹ️ No attendance recorded for today yet. (আজ কেউ উপস্থিতি দেননি।)")
         except Exception as e:
             st.error(f"⚠️ উপস্থিতি ডাটা আনতে সমস্যা: {e}")
 
-    # TAB 2: MONTHLY REPORT & ADMIN DELETIONS
+# ==========================================
+# PAGE/MENU: MONTHLY REPORT & ADMIN DELETIONS
+# ==========================================
     with att_tab2:
         current_role = st.session_state.get("user_role", "staff")
         current_user = st.session_state.get("username", "staff")
@@ -2885,7 +2901,6 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     total_days_in_month = calendar.monthrange(current_year, current_month)[1]
                     month_prefix = f"{current_year}-{current_month:02d}"
 
-                    # Count distinct dates for selected agent in current month
                     att_month_res = supabase.table("attendance") \
                         .select("date") \
                         .eq("username", selected_rep_agent) \
@@ -2901,12 +2916,10 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     with col_r2:
                         st.metric(label="Days Worked by Agent", value=f"{days_worked_count} Days")
 
-                    # Agent-specific full history query
                     ag_att_res = supabase.table("attendance") \
-                        .select("date, check_time, status") \
+                        .select("date, in_time, status") \
                         .eq("username", selected_rep_agent) \
                         .order("date", desc=True) \
-                        .order("check_time", desc=True) \
                         .execute()
                     
                     ag_att_data = ag_att_res.data if ag_att_res.data else []
@@ -2915,7 +2928,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                         agent_rep_df = pd.DataFrame(ag_att_data)
                         agent_rep_df = agent_rep_df.rename(columns={
                             "date": "Date",
-                            "check_time": "Check-in Time",
+                            "in_time": "Check-in Time",
                             "status": "Status"
                         })
                         agent_rep_df['Date'] = agent_rep_df['Date'].apply(lambda x: format_date_display(x))
@@ -2926,14 +2939,14 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                         try:
                             html_agent_att = generate_html_report(f"Attendance Report ({agent_fullname_str})", agent_rep_df)
                             st.download_button(
-                                label=f"Download Report for {agent_fullname_str} ({selected_rep_agent})",
+                                label=f"Download Report for {agent_fullname_str}",
                                 data=html_agent_att,
-                                file_name=f"attendance_report_{selected_rep_agent}_{current_year}_{current_month:02d}.html",
+                                file_name=f"attendance_{selected_rep_agent}_{current_year}_{current_month:02d}.html",
                                 mime="text/html",
                                 type="primary",
                                 key=f"dl_btn_{selected_rep_agent}"
                             )
-                        except NameError:
+                        except Exception:
                             csv_data = agent_rep_df.to_csv(index=False).encode('utf-8')
                             st.download_button(
                                 label=f"Download CSV Report for {agent_fullname_str}",
@@ -2988,7 +3001,6 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                     m_rec_check = supabase.table("attendance").select("id").ilike("date", f"{month_str}%").execute()
                     
                     if m_rec_check.data:
-                        # Batch delete using IDs or date pattern
                         for m_item in m_rec_check.data:
                             supabase.table("attendance").delete().eq("id", m_item["id"]).execute()
                         st.success(f"Successfully deleted all attendance records for {calendar.month_name[target_month]} {target_year}!")
@@ -2998,10 +3010,9 @@ elif selected_menu == "Attendance (উপস্থিতি)":
         else:
             st.write("#### Your Monthly Attendance Report")
             staff_att_res = supabase.table("attendance") \
-                .select("date, check_time, status") \
+                .select("date, in_time, status") \
                 .eq("username", current_user) \
                 .order("date", desc=True) \
-                .order("check_time", desc=True) \
                 .execute()
             
             staff_att_data = staff_att_res.data if staff_att_res.data else []
@@ -3010,7 +3021,7 @@ elif selected_menu == "Attendance (উপস্থিতি)":
                 staff_att_df = pd.DataFrame(staff_att_data)
                 staff_att_df = staff_att_df.rename(columns={
                     "date": "Date",
-                    "check_time": "Check-in Time",
+                    "in_time": "Check-in Time",
                     "status": "Status"
                 })
                 staff_att_df['Date'] = staff_att_df['Date'].apply(lambda x: format_date_display(x))
@@ -3020,6 +3031,221 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             
             st.markdown("<p style='color: #60a5fa; font-size: 13px; margin-top: 10px;'><i>Note: Agents can only view their own attendance records. Report downloads are restricted to admins only.</i></p>", unsafe_allow_html=True)
 
+# ==========================================
+# PAGE/MENU: LIVE TRACKING (ADMIN ONLY)
+# ==========================================
+elif selected_menu == "Live Tracking (লাইভ ট্র্যাকিং)" and st.session_state.get("user_role") == "admin":
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <h4 style="margin:0; color: white; font-size: 22px;"> Live Agent Tracking</h4>
+    <p style="margin:5px 0 0 0; font-size: 15px; opacity: 0.9;"> এজেন্টদের লাইভ লোকেশন এবং সর্বশেষ আপডেট এখানে দেখুন।</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    try:
+        live_res = supabase.table("agent_live_locations").select("username, lat, lon, updated_at").order("updated_at", desc=True).execute()
+        live_data = live_res.data if live_res.data else []
+
+        if live_data:
+            users_res = supabase.table("users").select("username, fullname, phone").execute()
+            u_map = {u["username"]: u for u in (users_res.data or [])}
+            
+            for item in live_data:
+                u_info = u_map.get(item["username"], {})
+                item["fullname"] = u_info.get("fullname")
+                item["phone"] = u_info.get("phone")
+
+        live_df = pd.DataFrame(live_data) if live_data else pd.DataFrame()
+    except Exception as e:
+        live_df = pd.DataFrame()
+        st.error(f"Database query error: {e}")
+
+    if not live_df.empty:
+        agent_options = ["All Agents (সব এজেন্ট একসাথে)"]
+        for idx, r in live_df.iterrows():
+            d_name = f"{r['fullname']} ({r['username']})" if pd.notna(r.get('fullname')) and r['fullname'] else r['username']
+            agent_options.append(d_name)
+        
+        selected_agent_box = st.selectbox("📌 Select Agent to Track:", agent_options)
+        st.write("---")
+
+        filtered_df = live_df
+        if selected_agent_box != "All Agents (সব এজেন্ট একসাথে)":
+            sel_uname = selected_agent_box.split("(")[-1].strip(")")
+            filtered_df = live_df[live_df['username'] == sel_uname]
+
+        for idx, r in filtered_df.iterrows():
+            name = r['fullname'] if pd.notna(r.get('fullname')) and r['fullname'] else r['username']
+            username = r['username']
+            phone = r.get('phone', 'N/A')
+            lat = r.get('lat')
+            lon = r.get('lon')
+            last_up = r.get('updated_at')
+
+            with st.expander(f"📍 Agent: {name} (ID: {username})", expanded=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.info(f" **Phone Number:**\n\n{phone}")
+                with c2:
+                    st.warning(f" **Last Updated:**\n\n{last_up if pd.notna(last_up) else 'No update'}")
+
+                if pd.notna(lat) and pd.notna(lon):
+                    g_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.link_button("📍 Track on Google Maps", url=g_url, type="primary", use_container_width=True)
+                else:
+                    st.error("⚠️ GPS coordinates not available for this agent.")
+    else:
+        st.warning("⚠️ কোনো এজেন্টের লাইভ লোকেশন ডাটা পাওয়া যায়নি বা টেবিলটি খালি আছে।")
+        st.info("ℹ️ এজেন্ট অ্যাপ থেকে লোকেশন আপডেট হলে এখানে দেখতে পাবেন।")
+
+# ==========================================
+# PAGE/MENU: SETTINGS & AGENTS (ADMIN ONLY)
+# ==========================================
+elif selected_menu == "Settings & Agents (সেটিংসে)" and st.session_state.get("user_role") == "admin":
+    st.write("### Settings & Agents Management (কর্মী, অজানা ইউজার ও ম্যানেজমেন্ট)")
+
+    try:
+        staff_cnt_res = supabase.table("users").select("id", count="exact").eq("role", "staff").execute()
+        total_staff_count = staff_cnt_res.count if staff_cnt_res.count is not None else len(staff_cnt_res.data or [])
+
+        all_cnt_res = supabase.table("users").select("id", count="exact").execute()
+        total_users_count = all_cnt_res.count if all_cnt_res.count is not None else len(all_cnt_res.data or [])
+    except Exception:
+        total_staff_count, total_users_count = 0, 0
+
+    col_st1, col_st2 = st.columns(2)
+    with col_st1:
+        st.markdown(f"""
+        <div style="background: #1e293b; padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
+        <h4 style="margin: 0; color: #60a5fa;">Registered Staff Agents</h4>
+        <h2 style="margin: 5px 0 0 0; color: #34d399;">{total_staff_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_st2:
+        st.markdown(f"""
+        <div style="background: #1e293b; padding: 15px; border-radius: 12px; border: 1px solid #818cf8; text-align: center;">
+        <h4 style="margin: 0; color: #a78bfa;">Total System Users</h4>
+        <h2 style="margin: 5px 0 0 0; color: #38bdf8;">{total_users_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.write("")
+    set_tab1, set_tab_perm, set_tab3, set_tab4, set_tab5, set_tab6 = st.tabs([
+        "➕ Add Agents & Links",
+        "Menu Permissions",
+        "Unknown & Blocked Agents",
+        "Backup & Restore",
+        "Recycle Bin",
+        "Admin Password"
+    ])
+
+    # TAB 1: ADD AGENTS & AUTO-LOGIN LINKS
+    with set_tab1:
+        st.write("#### Add New Staff / Agent & Generate Auto-Login Link")
+        st.info("এই সেকশন থেকে অ্যাডমিন নতুন এজেন্টের নাম, ইউজারনেম ও পাসওয়ার্ড দিয়ে একাউন্ট তৈরি করতে পারবেন। সাথে সাথে অটো-লগইন লিংক তৈরি হয়ে যাবে।")
+
+        clean_base_url = "https://ps-mediseller-app-gcanjbehuut7h9rzk4xzfg.streamlit.app"
+
+        with st.form("add_agent_form", clear_on_submit=True):
+            new_uname = st.text_input("Username (ইউজারনেম, যেমন: rahul1)")
+            new_pass = st.text_input("Password (পাসওয়ার্ড)")
+            new_fname = st.text_input("Full Name (পুরো নাম)")
+            new_phone = st.text_input("Phone Number (ফোন নম্বর)")
+            submit_new_agent = st.form_submit_button("➕ Add Agent (এজেন্ট যুক্ত করুন)", type="primary")
+
+            if submit_new_agent:
+                if new_uname.strip() and new_pass.strip() and new_fname.strip():
+                    u_target = new_uname.strip()
+                    check_exist = supabase.table("users").select("username").eq("username", u_target).execute()
+                    
+                    if check_exist.data:
+                        st.error("⚠️ Username already exists! (এই ইউজারনেম ইতিমধ্যে আছে!)")
+                    else:
+                        try:
+                            user_payload = {
+                                "username": u_target,
+                                "password": new_pass.strip(),
+                                "role": "staff",
+                                "fullname": new_fname.strip(),
+                                "phone": new_phone.strip(),
+                                "created_at": get_ist_time().strftime("%Y-%m-%d %H:%M:%S"),
+                                "is_active": 1
+                            }
+                            supabase.table("users").insert(user_payload).execute()
+                            st.success(f"🎉 New agent '{new_fname.strip()}' added successfully! (নতুন এজেন্ট যুক্ত হয়েছে!)")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"⚠️ এজেন্ট তৈরিতে সমস্যা: {e}")
+                else:
+                    st.error("⚠️ Username, Password and Full Name are required! (সব তথ্য আবশ্যক!)")
+
+        st.write("---")
+        st.write("#### Existing Agents, Auto-Login Links & Edit")
+        st.write("এজেন্টদের তথ্য পরিবর্তন করতে 'Edit Agent'-এ ক্লিক করুন।")
+
+        try:
+            staff_users_res = supabase.table("users").select("username, fullname, password, phone, is_active").eq("role", "staff").execute()
+            staff_data = staff_users_res.data if staff_users_res.data else []
+        except Exception:
+            staff_data = []
+
+        if staff_data:
+            for s in staff_data:
+                s_uname = s.get("username", "")
+                s_fname = s.get("fullname", "")
+                s_pass = s.get("password", "")
+                s_ph = s.get("phone", "")
+                s_act = s.get("is_active", 1)
+
+                status = "Active" if s_act == 1 else "Blocked"
+                st.markdown(f"**Name:** {s_fname} | **User:** `{s_uname}` | **Pass:** `{s_pass}` | **Phone:** {s_ph} | **Status:** {status}")
+                
+                link = f"{clean_base_url}/?login={s_uname}"
+                st.code(link, language="text")
+
+                with st.expander(f"Edit Agent: {s_fname}"):
+                    with st.form(f"edit_form_{s_uname}"):
+                        edit_fname = st.text_input("Full Name (নতুন নাম)", value=s_fname)
+                        edit_uname = st.text_input("Username / ID (নতুন আইডি)", value=s_uname)
+                        edit_pass = st.text_input("Password (নতুন পাসওয়ার্ড)", value=s_pass)
+                        edit_phone = st.text_input("Phone Number (নতুন ফোন নম্বর)", value=s_ph)
+                        submit_edit = st.form_submit_button("Update Details (আপডেট করুন)", type="primary")
+
+                        if submit_edit:
+                            if edit_uname.strip() and edit_fname.strip():
+                                new_u_val = edit_uname.strip()
+                                try:
+                                    if new_u_val != s_uname:
+                                        c_chk = supabase.table("users").select("username").eq("username", new_u_val).execute()
+                                        if c_chk.data:
+                                            st.error("⚠️ এই নতুন আইডিটি (Username) ইতিমধ্যে অন্য কারো আছে! অন্য নাম দিন।")
+                                            st.stop()
+
+                                    # Update users table
+                                    supabase.table("users").update({
+                                        "username": new_u_val,
+                                        "fullname": edit_fname.strip(),
+                                        "password": edit_pass.strip(),
+                                        "phone": edit_phone.strip()
+                                    }).eq("username", s_uname).execute()
+
+                                    # Cascade update references if username was modified
+                                    if new_u_val != s_uname:
+                                        supabase.table("attendance").update({"username": new_u_val}).eq("username", s_uname).execute()
+                                        supabase.table("agent_live_locations").update({"username": new_u_val}).eq("username", s_uname).execute()
+                                        supabase.table("task_assignments").update({"agent_name": new_u_val}).eq("agent_name", s_uname).execute()
+
+                                    st.success("🎉 এজেন্টের তথ্য সফলভাবে আপডেট হয়েছে!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"⚠️ Error updating agent: {e}")
+                            else:
+                                st.error("⚠️ নাম এবং আইডি (Username) ফাঁকা রাখা যাবে না!")
+            st.write("---")
+        else:
+            st.warning("⚠️ এখনো কোনো স্টাফ/এজেন্ট যুক্ত করা হয়নি।")
 # ==========================================
 # PAGE/MENU: LIVE TRACKING (ADMIN ONLY)
 # ==========================================
