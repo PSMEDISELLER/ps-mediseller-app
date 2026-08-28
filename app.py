@@ -528,9 +528,11 @@ if st.session_state.get("show_admin_login", False):
             cancel_admin = st.form_submit_button("Cancel (বাতিল)")
         
         if submit_admin:
-            adm_res = supabase.table("users").select("password, role").eq("username", "admin").execute().data
-            adm_row = adm_res[0] if adm_res else None
-            if adm_row and adm_row.get("password") == admin_pass_input:
+            adm_res = supabase.table("users").select("password, role").ilike("username", "admin").execute()
+            adm_data = adm_res.data if (adm_res and adm_res.data) else []
+            db_pass = str(adm_data[0].get("password", "")).strip() if adm_data else ""
+            
+            if db_pass and db_pass == admin_pass_input.strip():
                 st.session_state["username"] = "admin"
                 st.session_state["user_role"] = "admin"
                 st.session_state["show_admin_login"] = False
