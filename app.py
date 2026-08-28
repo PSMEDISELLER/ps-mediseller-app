@@ -483,10 +483,24 @@ col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
     st.markdown(f"<h3 style='color: #0ea5e9; font-weight: 600; margin-bottom: 0;'>{display_user_name}</h3>", unsafe_allow_html=True)
 # Notifications
-pending_ord_count = len(supabase.table("orders").select("id", count="exact").eq("status", "Pending").execute().data)
-pending_task_count = len(supabase.table("task_assignments").select("id", count="exact").eq("status", "Pending").execute().data)
-total_pending_items = pending_ord_count + pending_task_count
+pending_ord_count = 0
+pending_task_count = 0
 
+try:
+    res_ord = supabase.table("orders").select("id", count="exact").eq("status", "Pending").execute()
+    if res_ord and res_ord.data:
+        pending_ord_count = len(res_ord.data)
+except Exception:
+    pending_ord_count = 0
+
+try:
+    res_task = supabase.table("task_assignments").select("id", count="exact").eq("status", "Pending").execute()
+    if res_task and res_task.data:
+        pending_task_count = len(res_task.data)
+except Exception:
+    pending_task_count = 0
+
+total_pending_items = pending_ord_count + pending_task_count
 show_notif = True
 if "notif_dismissed_time" in st.session_state:
     time_diff = (get_ist_time() - st.session_state["notif_dismissed_time"]).total_seconds()
