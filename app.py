@@ -737,9 +737,11 @@ if selected_menu == "Add Location (লোকেশন যোগ)":
     st.write("### Add Location & Party (লোকেশন ও পার্টি)")
     
     # Supabase implementation for fetching routes
-    routes_res = supabase.table("routes").select("route_name").order("route_name", desc=False).execute()
-    existing_routes = [r["route_name"] for r in routes_res.data] if routes_res.data else []
-
+    try:
+        routes_res = supabase.table("routes").select("route_name").order("route_name", desc=False).execute()
+        existing_routes = [r["route_name"] for r in routes_res.data] if (routes_res and routes_res.data) else []
+    except Exception:
+        existing_routes = []
     if st.session_state.get("user_role") == "admin":
         with st.expander("🛠️ Admin: Manage Routes (রুট ম্যানেজ করুন)"):
             st.write("**Add New Route (নতুন রুট যোগ করুন)**")
