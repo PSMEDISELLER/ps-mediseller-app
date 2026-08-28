@@ -544,16 +544,19 @@ with col_ht2:
             st.session_state["show_admin_login"] = True
             st.rerun()
 
-curr_user_data = supabase.table("users").select("fullname").eq("username", st.session_state['username']).execute().data
-if curr_user_data and curr_user_data[0].get("fullname"):
-    display_user_name = curr_user_data[0].get("fullname")
-else:
+# Safe Header User Display Fix
+try:
+    curr_user_res = supabase.table("users").select("fullname").eq("username", st.session_state['username']).execute()
+    if curr_user_res and curr_user_res.data and curr_user_res.data[0].get("fullname"):
+        display_user_name = curr_user_res.data[0].get("fullname")
+    else:
+        display_user_name = st.session_state['username']
+except Exception:
     display_user_name = st.session_state['username']
 
 col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
     st.markdown(f"<h3 style='color: #0ea5e9; font-weight: 600; margin-bottom: 0;'>{display_user_name}</h3>", unsafe_allow_html=True)
-
 # Notifications
 pending_ord_count = len(supabase.table("orders").select("id", count="exact").eq("status", "Pending").execute().data)
 pending_task_count = len(supabase.table("task_assignments").select("id", count="exact").eq("status", "Pending").execute().data)
