@@ -1946,14 +1946,21 @@ with task_tab1:
         )
 
         if task_search_text and task_search_text.strip():
-            q_term = f"%{task_search_text.strip()}%"
-            s_loc_res = supabase.table("locations").select("party_name").or_(
-                f"party_name.ilike.{q_term},address.ilike.{q_term},party_phone.ilike.{q_term}"
-            ).order("party_name", desc=False).execute()
-            filtered_task_parties = [r["party_name"] for r in (s_loc_res.data or []) if r.get("party_name")]
+            try:
+                q_term = f"%{task_search_text.strip()}%"
+                s_loc_res = supabase.table("locations").select("party_name").or_(
+                    f"party_name.ilike.{q_term},address.ilike.{q_term},party_phone.ilike.{q_term}"
+                ).order("party_name", desc=False).execute()
+                filtered_task_parties = [r["party_name"] for r in (s_loc_res.data or []) if r.get("party_name")]
+            except Exception:
+                filtered_task_parties = []
         else:
+            try:
+                parties_res = supabase.table("locations").select("party_name").execute()
+                all_parties = [p["party_name"] for p in parties_res.data] if (parties_res and parties_res.data) else []
+            except Exception:
+                all_parties = []
             filtered_task_parties = [p for p in all_parties if p]
-
         sel_pt = None
         if task_search_text and task_search_text.strip() and filtered_task_parties:
             st.caption(f"🔍 পাওয়া গেছে **{len(filtered_task_parties)}** টি পার্টি (নিচে নির্বাচন করুন):")
