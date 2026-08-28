@@ -2272,18 +2272,18 @@ with task_tab2:
             if t.get("status") == "Completed":
                 summary_dict[key]["completed_tasks"] += 1
 
-        summary_rows = []
-        for (ag, t_date), counts in summary_dict.items():
-            ag_lower = ag.strip().lower()
-            u_info = users_map.get(ag_lower, {})
-            summary_rows.append({
-                "agent_name": ag,
-                "agent_fullname": u_info.get("fullname"),
-                "allow_resubmit": u_info.get("allow_resubmit"),
-                "task_date": t_date,
-                "total_tasks": counts["total_tasks"],
-                "completed_tasks": counts["completed_tasks"]
-            })
+    summary_rows = []
+    for (ag, t_date), counts in summary_dict.items():
+        ag_lower = ag.strip().lower()
+        u_info = users_map.get(ag_lower, {})
+        summary_rows.append({
+            "agent_name": ag,
+            "agent_fullname": u_info.get("fullname"),
+            "allow_resubmit": u_info.get("allow_resubmit"),
+            "task_date": t_date,
+            "total_tasks": counts["total_tasks"],
+            "completed_tasks": counts["completed_tasks"]
+        })
 
         agent_sum_df = pd.DataFrame(summary_rows).sort_values("task_date", ascending=False)
     else:
