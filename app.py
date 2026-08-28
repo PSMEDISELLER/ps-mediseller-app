@@ -81,11 +81,18 @@ th {{ background-color: #3b82f6; color: white; }}
 # ==========================================
 # 3. DATABASE SETUP & INITIALIZATION (SUPABASE)
 # ==========================================
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "YOUR_SUPABASE_URL")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "YOUR_SUPABASE_ANON_KEY")
+# Streamlit Secrets থেকে Supabase URL ও Key নিরাপদে রিড করা
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
 @st.cache_resource
 def init_supabase() -> Client:
+    if not SUPABASE_URL or not SUPABASE_URL.startswith("https://"):
+        st.error("⚠️ Invalid or missing SUPABASE_URL in Streamlit Secrets! Please check Secrets settings.")
+        st.stop()
+    if not SUPABASE_KEY:
+        st.error("⚠️ Missing SUPABASE_KEY in Streamlit Secrets! Please check Secrets settings.")
+        st.stop()
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase = init_supabase()
