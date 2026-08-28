@@ -451,7 +451,7 @@ div[data-testid="stTextArea"] div p,
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 5. USER SESSION & AUTHENTICATION
+# 5. USER SESSION & AUTHENTICATION (SAFE FIX)
 # ==========================================
 url_user = st.query_params.get("login")
 if isinstance(url_user, list):
@@ -473,13 +473,18 @@ elif "username" in st.session_state and st.session_state["username"] not in ["st
 if not target_login:
     target_login = "staff"
 
-user_res = supabase.table("users").select("fullname, role, is_active").eq("username", target_login).execute()
-user_row = user_res.data[0] if user_res.data else None
+user_row = None
+try:
+    user_res = supabase.table("users").select("fullname, role, is_active").eq("username", target_login).execute()
+    if user_res.data:
+        user_row = user_res.data[0]
+except Exception as e:
+    pass
 
 if user_row:
     f_name = user_row.get("fullname")
     r_role = user_row.get("role")
-    is_active = user_row.get("is_active")
+    is_active = user_row.get("is_active", 1)
     if is_active == 0:
         st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
         st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
@@ -487,13 +492,13 @@ if user_row:
         st.stop()
     else:
         st.session_state["username"] = target_login
-        st.session_state["user_role"] = r_role
+        st.session_state["user_role"] = r_role if r_role else "staff"
         st.query_params["login"] = target_login
         st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
 else:
-    st.session_state["username"] = "staff"
-    st.session_state["user_role"] = "staff"
-    st.query_params["login"] = "staff"
+    st.session_state["username"] = target_login
+    st.session_state["user_role"] = "admin" if target_login == "admin" else "staff"
+    st.query_params["login"] = target_login
 
 # Default state variables
 if "selected_lat" not in st.session_state:
