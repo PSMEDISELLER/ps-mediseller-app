@@ -2245,9 +2245,11 @@ with task_tab2:
     st.markdown("#### Agent Date-wise Summary (এজেন্ট ও তারিখ অনুযায়ী সামারি)")
 
     # Supabase aggregate replacement logic
-    all_tasks_res = supabase.table("task_assignments").select("id, agent_name, status, created_at").execute()
-    t_list = all_tasks_res.data if all_tasks_res.data else []
-
+    try:
+        all_tasks_res = supabase.table("task_assignments").select("id, agent_name, status, created_at").execute()
+        all_tasks_data = all_tasks_res.data if (all_tasks_res and all_tasks_res.data) else []
+    except Exception:
+        all_tasks_data = []
     if t_list:
         users_res = supabase.table("users").select("username, fullname, allow_resubmit").execute()
         users_map = {u["username"].strip().lower(): u for u in (users_res.data or [])}
