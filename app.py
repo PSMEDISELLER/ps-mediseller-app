@@ -565,6 +565,7 @@ if loc and "coords" in loc:
     gps_lat = loc["coords"]["latitude"]
     gps_lon = loc["coords"]["longitude"]
 
+# Safe GPS Location Tracker Fix
 if gps_lat and gps_lon:
     now_time = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
     try:
@@ -572,11 +573,11 @@ if gps_lat and gps_lon:
             "lat": gps_lat,
             "lon": gps_lon,
             "last_updated": now_time
-        }).eq("username", st.session_state["username"]).execute()
+        }).eq("username", st.session_state.get("username", "staff")).execute()
         
         if not update_res or not update_res.data:
             supabase.table("agent_live_locations").insert({
-                "username": st.session_state["username"],
+                "username": st.session_state.get("username", "staff"),
                 "lat": gps_lat,
                 "lon": gps_lon,
                 "last_updated": now_time
