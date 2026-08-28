@@ -567,19 +567,22 @@ if loc and "coords" in loc:
 
 if gps_lat and gps_lon:
     now_time = get_ist_time().strftime("%Y-%m-%d %H:%M:%S")
-    update_res = supabase.table("agent_live_locations").update({
-        "lat": gps_lat,
-        "lon": gps_lon,
-        "last_updated": now_time
-    }).eq("username", st.session_state["username"]).execute()
-    
-    if not update_res.data:
-        supabase.table("agent_live_locations").insert({
-            "username": st.session_state["username"],
+    try:
+        update_res = supabase.table("agent_live_locations").update({
             "lat": gps_lat,
             "lon": gps_lon,
             "last_updated": now_time
-        }).execute()
+        }).eq("username", st.session_state["username"]).execute()
+        
+        if not update_res or not update_res.data:
+            supabase.table("agent_live_locations").insert({
+                "username": st.session_state["username"],
+                "lat": gps_lat,
+                "lon": gps_lon,
+                "last_updated": now_time
+            }).execute()
+    except Exception:
+        pass
 
 # ==========================================
 # PAGE 2: MENU & LOCATION / PARTY MANAGEMENT
