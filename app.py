@@ -476,9 +476,9 @@ if not target_login:
 user_row = None
 try:
     user_res = supabase.table("users").select("fullname, role, is_active").eq("username", target_login).execute()
-    if user_res.data:
+    if user_res and user_res.data:
         user_row = user_res.data[0]
-except Exception as e:
+except Exception:
     pass
 
 if user_row:
@@ -506,14 +506,16 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
     st.session_state["selected_lon"] = 87.3320
 
-# Active User Check
-current_logged_username = st.session_state["username"]
+# Active User Check (Kills red screen error on connection drop)
+current_logged_username = st.session_state.get("username", "staff")
 if current_logged_username != "admin":
-    res_act_data = supabase.table("users").select("is_active").eq("username", current_logged_username).execute().data
-    if res_act_data and res_act_data[0].get("is_active") == 0:
-        st.error("আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে। আপনি এই অ্যাপটি ব্যবহার করতে পারবেন না।")
-        st.stop()
-
+    try:
+        res_act = supabase.table("users").select("is_active").eq("username", current_logged_username).execute()
+        if res_act and res_act.data and res_act.data[0].get("is_active") == 0:
+            st.error("আপনার একাউন্টটি অ্যাডমিন কর্তৃক ব্লক (Block) করা হয়েছে।")
+            st.stop()
+    except Exception:
+        pass
 # ==========================================
 # 6. MAIN APP UI / HEADER
 # ==========================================
