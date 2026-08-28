@@ -81,19 +81,21 @@ th {{ background-color: #3b82f6; color: white; }}
 # ==========================================
 # 3. DATABASE SETUP & INITIALIZATION (SUPABASE)
 # ==========================================
-# Streamlit Secrets থেকে Supabase URL ও Key নিরাপদে রিড করা
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
 @st.cache_resource
 def init_supabase() -> Client:
     if not SUPABASE_URL or not SUPABASE_URL.startswith("https://"):
-        st.error("⚠️ Invalid or missing SUPABASE_URL in Streamlit Secrets! Please check Secrets settings.")
+        st.error("⚠️ Invalid or missing SUPABASE_URL in Streamlit Secrets!")
         st.stop()
     if not SUPABASE_KEY:
-        st.error("⚠️ Missing SUPABASE_KEY in Streamlit Secrets! Please check Secrets settings.")
+        st.error("⚠️ Missing SUPABASE_KEY in Streamlit Secrets!")
         st.stop()
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    
+    from supabase.lib.client_options import ClientOptions
+    opts = ClientOptions(postgrest_client_timeout=15)
+    return create_client(SUPABASE_URL, SUPABASE_KEY, options=opts)
 
 supabase = init_supabase()
 
