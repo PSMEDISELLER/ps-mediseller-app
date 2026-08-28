@@ -1990,6 +1990,15 @@ with task_tab1:
 
         with st.form("easy_assign_form", clear_on_submit=True):
             current_logged_user = st.session_state.get("username", "")
+            try:
+                u_res = supabase.table("users").select("username, full_name").execute()
+                agent_data = u_res.data if (u_res and u_res.data) else []
+                all_agents = [u["username"] for u in agent_data if u.get("username")]
+                agent_name_map = {u["username"]: u.get("full_name", u["username"]) for u in agent_data if u.get("username")}
+            except Exception:
+                all_agents = []
+                agent_name_map = {}
+        
             sel_ag = st.selectbox(
                 "Select Agent (এজেন্ট সিলেক্ট করুন)",
                 all_agents,
