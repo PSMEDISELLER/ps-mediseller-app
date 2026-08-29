@@ -120,19 +120,16 @@ for logo_name in ["1000135057_2.jpg", "1000204449.jpg", "1000135057.jpg"]:
             logo_b64 = base64.b64encode(f.read()).decode()
         break
 
+# Cleaned PWA Script without infinite reload logic
 pwa_manifest_html = f"""
 <script>
 try {{
-    const base_url = window.location.href.split('?')[0];
     const urlParams = new URLSearchParams(window.location.search);
     let current_user = urlParams.get('login');
     if (current_user) {{
         localStorage.setItem('ps_mediseller_user', current_user);
     }}
-    let saved_user = localStorage.getItem('ps_mediseller_user');
-    if (saved_user && saved_user !== "null" && saved_user !== "None") {{
-        current_user = saved_user;
-    }}
+    const base_url = window.location.href.split('?')[0];
     const start_url_path = current_user ? base_url + "?login=" + current_user : base_url;
     const manifest = {{
         "name": "P.S MEDISELLER",
@@ -373,54 +370,53 @@ div[data-testid="stTextInput"] small, div[data-testid="stTextArea"] small, div[d
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 5. USER SESSION & AUTHENTICATION (SAFE FIX)
+# 5. USER SESSION & AUTHENTICATION (FULLY FIXED)
 # ==========================================
-url_user = st.query_params.get("login")
-if isinstance(url_user, list):
-    url_user = url_user[0] if url_user else None
-
-saved_user_js = streamlit_js_eval(
-    js_expressions="localStorage.getItem('ps_mediseller_user')",
-    key="get_saved_user_storage_unique"
-)
+# Get URL Parameters directly
+url_login = st.query_params.get("login", None)
+if isinstance(url_login, list):
+    url_login = url_login[0] if len(url_login) > 0 else None
 
 target_login = None
-if url_user:
-    target_login = str(url_user).strip()
-elif saved_user_js and saved_user_js not in ["null", "None", "undefined"]:
-    target_login = str(saved_user_js).strip()
-elif "username" in st.session_state and st.session_state["username"] not in ["staff", "delivery"]:
+
+# Priority 1: Read from URL query param
+if url_login and str(url_login).strip() not in ["", "None", "null", "undefined"]:
+    target_login = str(url_login).strip()
+    st.session_state["username"] = target_login
+
+# Priority 2: Read existing username from Session State
+elif "username" in st.session_state and st.session_state["username"] not in ["staff", "None", None, ""]:
     target_login = st.session_state["username"]
 
-if not target_login:
+# Default fallback
+else:
     target_login = "staff"
 
+# Verify User in Supabase Database
 user_row = None
-try:
-    user_res = supabase.table("users").select("fullname, role, is_active").eq("username", target_login).execute()
-    if user_res and user_res.data:
-        user_row = user_res.data[0]
-except Exception:
-    pass
+if target_login != "staff":
+    try:
+        user_res = supabase.table("users").select("fullname, role, is_active").eq("username", target_login).execute()
+        if user_res and user_res.data:
+            user_row = user_res.data[0]
+    except Exception:
+        pass
 
 if user_row:
     f_name = user_row.get("fullname")
     r_role = user_row.get("role")
     is_active = user_row.get("is_active", 1)
+    
     if is_active == 0:
-        st.warning("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
-        st.markdown("<script>localStorage.removeItem('ps_mediseller_user');</script>", unsafe_allow_html=True)
-        st.query_params.clear()
+        st.error("আপনার একাউন্টটি ব্লক করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।")
         st.stop()
     else:
         st.session_state["username"] = target_login
-        st.session_state["user_role"] = r_role if r_role else "staff"
+        st.session_state["user_role"] = r_role if r_role else "agent"
         st.query_params["login"] = target_login
-        st.markdown(f"<script>localStorage.setItem('ps_mediseller_user', '{target_login}');</script>", unsafe_allow_html=True)
 else:
     st.session_state["username"] = target_login
     st.session_state["user_role"] = "admin" if target_login == "admin" else "staff"
-    st.query_params["login"] = target_login
 
 # Default state variables
 if "selected_lat" not in st.session_state:
@@ -428,9 +424,9 @@ if "selected_lat" not in st.session_state:
 if "selected_lon" not in st.session_state:
     st.session_state["selected_lon"] = 87.3320
 
-# Active User Check (Kills red screen error on connection drop)
+# Active User Check
 current_logged_username = st.session_state.get("username", "staff")
-if current_logged_username != "admin":
+if current_logged_username not in ["admin", "staff"]:
     try:
         res_act = supabase.table("users").select("is_active").eq("username", current_logged_username).execute()
         if res_act and res_act.data and res_act.data[0].get("is_active") == 0:
@@ -467,11 +463,14 @@ with col_ht2:
             st.session_state["show_admin_login"] = True
             st.rerun()
 
-# Safe Header User Display Fix
+# Safe Header User Display Fix (Shows Full Name properly)
 try:
-    curr_user_res = supabase.table("users").select("fullname").eq("username", st.session_state['username']).execute()
-    if curr_user_res and curr_user_res.data and curr_user_res.data[0].get("fullname"):
-        display_user_name = curr_user_res.data[0].get("fullname")
+    if st.session_state['username'] not in ["staff", "admin"]:
+        curr_user_res = supabase.table("users").select("fullname").eq("username", st.session_state['username']).execute()
+        if curr_user_res and curr_user_res.data and curr_user_res.data[0].get("fullname"):
+            display_user_name = curr_user_res.data[0].get("fullname")
+        else:
+            display_user_name = st.session_state['username']
     else:
         display_user_name = st.session_state['username']
 except Exception:
@@ -581,13 +580,6 @@ if gps_lat and gps_lon:
             }).execute()
     except Exception:
         pass
-
-import os
-import pandas as pd
-import streamlit as st
-import folium
-from streamlit_folium import st_folium
-from folium.plugins import MousePosition
 
 # PAGE 2: MENU & LOCATION / PARTY MANAGEMENT
 # ==============================================================================
