@@ -3098,12 +3098,6 @@ elif selected_menu == "Attendance (উপস্থিতি)":
             except Exception as e:
                 st.error(f"ডাটা লোড করতে সমস্যা: {e}")
 
-import json
-import ast
-import time
-import pandas as pd
-import streamlit as st
-
 # ==============================================================================
 # MENU / ROUTE ROUTING LOGIC (PAGE 6 CONTINUATION)
 # ==============================================================================
