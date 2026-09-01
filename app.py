@@ -26,8 +26,8 @@ st.set_page_config(page_title="P.S MEDISELLER", layout="wide", page_icon="💊")
 @st.cache_resource
 def init_supabase():
     # Streamlit Secrets থেকে URL এবং KEY নিন
-    SUPABASE_URL = st.secrets["https://dcihrmyfgurcefjbwwxz.supabase.co"]
-    SUPABASE_KEY = st.secrets["sb_publishable_ow-a8EnUYYA-Ux4nqSo9bw_BwHInsE_"]
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase: Client = init_supabase()
